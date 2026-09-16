@@ -1,0 +1,37 @@
+{
+  "name": "myfood-diner",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "test:rules": "esbuild tests/rules.smoke.ts --bundle --platform=node --format=esm --outfile=node_modules/.tmp/rules.mjs --log-level=error && node --import ./tests/localstorage-shim.js node_modules/.tmp/rules.mjs",
+    "test:admin": "esbuild tests/admin.smoke.ts --bundle --platform=node --format=esm --outfile=node_modules/.tmp/admin.mjs --log-level=error && node --import ./tests/localstorage-shim.js node_modules/.tmp/admin.mjs",
+    "test:flow": "esbuild tests/flow.smoke.tsx --bundle --platform=node --format=esm --jsx=automatic --external:react --external:react-dom --external:react-dom/client --external:react-router-dom --external:socket.io-client --outfile=node_modules/.tmp/flow.mjs --log-level=error && node --import ./tests/dom-shim.mjs node_modules/.tmp/flow.mjs",
+    "test:dashboard": "esbuild tests/dashboard.smoke.tsx --bundle --platform=node --format=esm --jsx=automatic --external:react --external:react-dom --external:react-dom/client --external:react-router-dom --external:socket.io-client --outfile=node_modules/.tmp/dashboard.mjs --log-level=error && node --import ./tests/dom-shim.mjs node_modules/.tmp/dashboard.mjs",
+    "test:live": "node tests/run-live.mjs",
+    "test": "npm run test:rules && npm run test:admin && npm run test:flow && npm run test:dashboard"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3",
+    "socket.io-client": "^4.8.3",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.0.1",
+    "oxlint": "^1.79.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
+  }
+}
