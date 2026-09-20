@@ -42,6 +42,7 @@ interface ApiRestaurant {
 interface ApiTable {
   id: string;
   restaurantId: string;
+  currentSessionId: string | null;
   name: string;
   qrToken: string;
   capacity: number;
@@ -173,6 +174,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
 function toTable(api: ApiTable): DiningTable {
   return {
     id: api.id,
+    currentSessionId: api.currentSessionId,
     restaurantId: api.restaurantId,
     name: api.name,
     qrToken: api.qrToken,

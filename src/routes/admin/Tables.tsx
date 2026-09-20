@@ -535,7 +535,6 @@ function PaymentSheet({
   pending,
   onClose,
   onSettle,
-  onShowQr,
   onEndSession,
 }: {
   table: DiningTable | null;
@@ -555,7 +554,7 @@ function PaymentSheet({
   // paying (or backdrop-clicking) discards them, nothing was ever sent.
   const [pendingAdds, setPendingAdds] = useState<string[]>([]);
   const [pendingRemoves, setPendingRemoves] = useState<{ orderId: string; itemId: string }[]>([]);
-  const [endSessionOnPay, setEndSessionOnPay] = useState(false);
+  const [_endSessionOnPay, setEndSessionOnPay] = useState(false);
 
   // The sheet stays mounted (just hidden) between tables, so its own UI state
   // — the dish picker being expanded, any unsent edits — has to be reset by
