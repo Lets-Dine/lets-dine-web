@@ -62,13 +62,11 @@ interface ApiSession {
 
 interface ApiResolvedSession {
   session: ApiSession;
-  restaurant: ApiRestaurant;
   table: ApiTable;
 }
 
 function toResolvedSession(api: ApiResolvedSession): ResolvedSession {
   return {
-    restaurant: toRestaurant(api.restaurant),
     table: toTable(api.table),
     session: toSession(api.session),
   };
@@ -323,7 +321,6 @@ export function sessionToken(slug: string, tableToken: string): string | null {
 /* ── Endpoints ─────────────────────────────────────────────────── */
 
 interface ResolvedSession {
-  restaurant: Restaurant;
   table: DiningTable;
   session: DiningSession;
 }

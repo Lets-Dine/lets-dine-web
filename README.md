@@ -61,8 +61,8 @@ other's token. There is no public endpoint that hands out table tokens — that 
 what makes a printed code a credential — so put a real one in `.env.local`:
 
 ```bash
-docker exec lets-dine-db psql -U postgres -d lets_dine \
-  -tAc "select name, qr_token from lets_dine.dining_tables order by sort_order"
+docker exec lets-dine-db psql -U postgres -d public \
+  -tAc "select name, qr_token from public.dining_tables order by sort_order"
 ```
 
 See `.env.example` for both variables. `npm test` stays offline and needs none
