@@ -20,11 +20,15 @@ import type {
 
 export class ApiError extends Error {
   status: number;
+  key?: string;
+  details?: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, key?: string, details?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.key = key;
+    this.details = details;
   }
 }
 

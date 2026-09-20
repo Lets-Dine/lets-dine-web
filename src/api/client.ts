@@ -137,6 +137,7 @@ function persistProjection(store: Store): Store {
 export async function resolveQr(
   restaurantSlug: string,
   tableToken: string,
+  joinSessionId?: string,
 ): Promise<{ restaurant: Restaurant; table: DiningTable; session: DiningSession }> {
   await latency();
   const store = readStore();
@@ -150,19 +151,39 @@ export async function resolveQr(
   const key = `${restaurant.id}:${table.id}`;
   const existing = store.sessions[key];
   const stillValid = existing && new Date(existing.expiresAt).getTime() > Date.now();
+  const localKey = `myfood.mock-session.${restaurantSlug}.${tableToken}`;
+  const storedToken = localStorage.getItem(localKey);
 
-  const session: DiningSession = stillValid
-    ? existing
-    : {
-        id: uid('ses'),
-        restaurantId: restaurant.id,
-        tableId: table.id,
-        anonymousSessionToken: uid('tok'),
-        startedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
-      };
+  if (stillValid) {
+    if (storedToken === existing.anonymousSessionToken || joinSessionId === existing.id) {
+      localStorage.setItem(localKey, existing.anonymousSessionToken);
+      return { restaurant, table, session: existing };
+    }
+    if (joinSessionId) {
+      throw new ApiError(
+        409,
+        "That session ID does not match this table's active visit.",
+        'DINING_SESSION_JOIN_MISMATCH',
+      );
+    }
+    throw new ApiError(
+      409,
+      'This table already has an active visit. Ask someone at the table for the session ID to join.',
+      'DINING_SESSION_TABLE_OCCUPIED',
+    );
+  }
 
-  if (!stillValid) writeStore({ ...store, sessions: { ...store.sessions, [key]: session } });
+  const session: DiningSession = {
+    id: uid('ses'),
+    restaurantId: restaurant.id,
+    tableId: table.id,
+    anonymousSessionToken: uid('tok'),
+    startedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
+  };
+
+  writeStore({ ...store, sessions: { ...store.sessions, [key]: session } });
+  localStorage.setItem(localKey, session.anonymousSessionToken);
   return { restaurant, table, session };
 }
 

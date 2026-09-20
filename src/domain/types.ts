@@ -32,6 +32,8 @@ export interface DiningTable {
   /** Opaque, printed on the table. Rotating it invalidates every printed QR. */
   qrToken: string;
   capacity: number;
+  /** The open dining session at this table right now, if any. */
+  currentSessionId: string | null;
   /** §16: a disabled table stops resolving its QR. */
   isActive: boolean;
   sortOrder: number;
@@ -204,7 +206,15 @@ export type AuditAction =
   | 'table_renamed'
   | 'table_disabled'
   | 'table_enabled'
+  | 'table_session_ended'
   | 'qr_regenerated'
   | 'order_status_changed'
   | 'order_cancelled'
-  | 'settings_updated';
+  | 'order_item_added'
+  | 'order_item_removed'
+  | 'table_settled'
+  | 'payment_completed'
+  | 'settings_updated'
+  | 'staff_invited'
+  | 'staff_role_changed'
+  | 'staff_deactivated';

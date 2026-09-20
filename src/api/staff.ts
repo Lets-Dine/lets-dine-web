@@ -1,4 +1,4 @@
-import type { Menu, MenuCategory, Order, OrderStatus, StaffMember } from '../domain/types';
+import type { AuditEntry, DiningTable, Menu, MenuCategory, Order, OrderStatus, StaffMember } from '../domain/types';
 import * as mock from './admin';
 import type { DishDraft } from './admin';
 import { IS_LIVE_API } from './http';
@@ -10,8 +10,8 @@ import * as live from './live-admin';
  * order pass. Screens import from here so neither the mock nor the live
  * implementation has to know about the other.
  *
- * Tables, reviews and settings still come from `admin.ts` directly; they have
- * not been moved across yet. So does `allOrders` (the 90-day history behind
+ * Reviews and settings still come from `admin.ts` directly; they have not
+ * been moved across yet. So does `allOrders` (the 90-day history behind
  * Dashboard/Analytics) — the live queue below deliberately reads only the
  * recent slice a pass needs, not a full reporting history.
  */
@@ -61,8 +61,59 @@ export function moveDish(actor: StaffMember, dishId: string, direction: -1 | 1) 
   return IS_LIVE_API ? live.moveDish(dishId, direction) : mock.moveDish(actor, dishId, direction);
 }
 
+export function listTables(actor: StaffMember): Promise<DiningTable[]> {
+  return IS_LIVE_API ? live.listTables() : mock.listTables(actor);
+}
+
+export function createTable(actor: StaffMember, name: string, capacity: number): Promise<DiningTable> {
+  return IS_LIVE_API ? live.createTable(name, capacity) : mock.createTable(actor, name, capacity);
+}
+
+export function updateTable(actor: StaffMember, tableId: string, patch: { name?: string; capacity?: number }): Promise<DiningTable> {
+  return IS_LIVE_API ? live.updateTable(tableId, patch) : mock.updateTable(actor, tableId, patch);
+}
+
+export function setTableActive(actor: StaffMember, tableId: string, active: boolean): Promise<DiningTable> {
+  return IS_LIVE_API ? live.setTableActive(tableId, active) : mock.setTableActive(actor, tableId, active);
+}
+
+export function regenerateQr(actor: StaffMember, tableId: string): Promise<DiningTable> {
+  return IS_LIVE_API ? live.regenerateQr(tableId) : mock.regenerateQr(actor, tableId);
+}
+
+export function endTableSession(actor: StaffMember, tableId: string): Promise<DiningTable> {
+  return IS_LIVE_API ? live.endTableSession(tableId) : mock.endTableSession(actor, tableId);
+}
+
 export function listQueue(actor: StaffMember): Promise<Order[]> {
   return IS_LIVE_API ? live.listQueue() : mock.listQueue(actor);
+}
+
+export function fetchOrdersBySession(actor: StaffMember, sessionId: string): Promise<Order[]> {
+  return IS_LIVE_API ? live.fetchOrdersBySession(sessionId) : mock.fetchOrdersBySession(actor, sessionId);
+}
+
+export function addOrderItem(actor: StaffMember, tableId: string, dishId: string): Promise<Order> {
+  return IS_LIVE_API ? live.addOrderItem(tableId, dishId) : mock.addOrderItem(actor, tableId, dishId);
+}
+
+export function removeOrderItem(actor: StaffMember, orderId: string, itemId: string): Promise<Order> {
+  return IS_LIVE_API ? live.removeOrderItem(orderId, itemId) : mock.removeOrderItem(actor, orderId, itemId);
+}
+
+export function settleTable(actor: StaffMember, tableId: string): Promise<Order[]> {
+  return IS_LIVE_API ? live.settleTable(tableId) : mock.settleTable(actor, tableId);
+}
+
+export function completePayment(
+  actor: StaffMember,
+  sessionId: string,
+  items: { dishId: string; quantity: number }[],
+  endSession: boolean,
+): Promise<void> {
+  return IS_LIVE_API
+    ? live.completePayment(sessionId, items, endSession)
+    : mock.completePayment(actor, sessionId, items, endSession);
 }
 
 export function advanceOrder(actor: StaffMember, orderId: string, expected: OrderStatus): Promise<Order> {
@@ -77,4 +128,9 @@ export function rejectOrder(actor: StaffMember, orderId: string, reason: string)
 export function subscribeToQueue(onCreated: (order: Order) => void, onUpdated: (order: Order) => void, onResync: () => void): () => void {
   if (!IS_LIVE_API) return () => {};
   return live.subscribeToQueue(onCreated, onUpdated, onResync);
+}
+
+/** §51 — every management action, most recent first. */
+export function listAudit(actor: StaffMember, limit = 80): Promise<AuditEntry[]> {
+  return IS_LIVE_API ? live.listAudit(limit) : mock.listAudit(actor, limit);
 }

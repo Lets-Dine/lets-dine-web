@@ -138,3 +138,10 @@ export const Info = ({ size = 16, className }: IconProps) => (
     <path d="M12 11v5M12 8h.01" />
   </svg>
 );
+
+export const Receipt = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M6 3h12v18l-2.5-1.5L13 21l-2.5-1.5L8 21l-2-1.5V3z" strokeLinejoin="round" />
+    <path d="M9 8h6M9 12h6M9 16h3" />
+  </svg>
+);

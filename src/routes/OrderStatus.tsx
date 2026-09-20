@@ -111,7 +111,7 @@ export function OrderStatus() {
                   <div className="relative flex gap-3.5 pb-5.5 last:pb-3" key={step.key}>
                     <span
                       className={cx(
-                        'relative z-1 grid size-5.5 shrink-0 place-items-center rounded-full text-ember transition-colors duration-200',
+                        'relative z-1 grid size-5.5 shrink-0 place-items-center rounded-full text-white transition-colors duration-200',
                         done && 'bg-mint',
                         active && 'bg-flame ring-5 ring-flame-2/16',
                         !done && !active && 'bg-surface-3 ring-[1.5px] ring-hairline ring-inset',
@@ -170,7 +170,7 @@ export function OrderStatus() {
               <div className="flex flex-col gap-2.5 sm:flex-row">
                 <button
                   type="button"
-                  className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-ember shadow-flame')}
+                  className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')}
                   onClick={() => {
                     haptic.tick();
                     setConfirmingCancel(false);

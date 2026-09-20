@@ -64,7 +64,7 @@ export function Dashboard() {
             to="/admin/orders"
             className={cx(
               'inline-flex h-10 items-center gap-2 rounded-full px-4 text-[14px] font-semibold transition-move active:scale-95',
-              waiting.length > 0 ? 'bg-flame text-ember shadow-flame' : 'bg-surface-2 text-ink ring-1 ring-hairline ring-inset',
+              waiting.length > 0 ? 'bg-flame shadow-flame' : 'bg-surface-2 text-ink ring-1 ring-hairline ring-inset',
             )}
           >
             Open the pass

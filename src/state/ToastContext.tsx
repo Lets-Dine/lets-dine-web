@@ -87,7 +87,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             )}
             key={t.id}
           >
-            <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-flame text-ember" aria-hidden>
+            <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-flame text-white" aria-hidden>
               {t.icon}
             </span>
             <span className="min-w-0 flex-1 truncate pr-1.5">{t.message}</span>

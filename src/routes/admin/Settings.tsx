@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { getSettings, listAudit, restoreSeedMenu, setAutoKitchen, updateSettings } from '../../api/admin';
+import { getSettings, restoreSeedMenu, setAutoKitchen, updateSettings } from '../../api/admin';
+import { listAudit } from '../../api/staff';
 import { resetDemoData } from '../../api/client';
 import { ROLE_LABEL, ROLE_SCOPE } from '../../domain/permissions';
 import type { AuditAction, AuditEntry } from '../../domain/types';

@@ -30,7 +30,7 @@ export const BTN =
 export const BTN_SIZE = 'h-13 px-5.5 text-[15.5px]';
 export const BTN_SIZE_LG = 'h-14.5 px-7 text-[16.5px]';
 
-export const BTN_FLAME = `${BTN} ${BTN_SIZE} bg-flame text-ember shadow-flame`;
+export const BTN_FLAME = `${BTN} ${BTN_SIZE} bg-flame text-white shadow-flame`;
 export const BTN_GHOST = `${BTN} ${BTN_SIZE} bg-surface-2 text-ink ring-1 ring-hairline ring-inset`;
 export const BTN_QUIET = `${BTN} h-11 px-3.5 text-[15px] text-ink-3`;
 
@@ -45,7 +45,7 @@ export const CHIP =
   'font-semibold transition-[color,background-color,scale] duration-150 ease-out-quart active:scale-95';
 
 export const CHIP_OFF = 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset';
-export const CHIP_ON = 'bg-flame text-ember shadow-[0_6px_18px_-8px_rgb(255_120_55_/_0.7)]';
+export const CHIP_ON = 'bg-flame text-white shadow-[0_6px_18px_-8px_rgb(255_120_55_/_0.7)]';
 
 export const TAG =
   'inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold ' +
@@ -55,7 +55,7 @@ export const TAG_ON = 'bg-flame-2/15 text-flame-1 ring-1 ring-flame-2/35 ring-in
 
 export const EYEBROW = 'text-[11px] font-bold uppercase tracking-[0.14em] text-ink-3';
 
-export const DISPLAY = 'font-display font-semibold tracking-tight leading-[1.1] [font-optical-sizing:auto]';
+export const DISPLAY = 'font-display font-bold tracking-tight leading-[1.1] [font-optical-sizing:auto]';
 
 /** Frosted bar used for sticky headers and bottom action bars.
  *  The material itself is defined in `index.css`, so the reduced-transparency

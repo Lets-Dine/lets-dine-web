@@ -2,7 +2,7 @@ import { HISTORY_REF_CEILING, orderHistory } from '../data/history';
 import { CATEGORIES, DISHES } from '../data/menu';
 import { SEED_REVIEWS } from '../data/reviews';
 import { DEMO_PIN, STAFF } from '../data/staff';
-import { percentOf, sumLines } from '../domain/money';
+import { formatMoney, percentOf, sumLines } from '../domain/money';
 import { ROLE_LABEL, can } from '../domain/permissions';
 import type { Permission } from '../domain/permissions';
 import type {
@@ -178,6 +178,13 @@ export async function listQueue(actor: StaffMember): Promise<Order[]> {
   return [...store.orders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 }
 
+/** Every order a table's current visit has placed, settled or not — what the payment sheet bills against. */
+export async function fetchOrdersBySession(actor: StaffMember, sessionId: string): Promise<Order[]> {
+  authorize(actor, 'orders:view');
+  const store = seedQueue(readStore());
+  return store.orders.filter((o) => o.sessionId === sessionId).sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+}
+
 /** Queue plus the ninety days behind it, for reporting rather than working. */
 export async function allOrders(actor: StaffMember): Promise<Order[]> {
   authorize(actor, 'orders:view');
@@ -258,6 +265,201 @@ export async function rejectOrder(actor: StaffMember, orderId: string, reason: s
       'order_cancelled',
       `Order ${order.reference}`,
       reason.trim() ? `Cancelled — ${reason.trim()}` : 'Cancelled',
+    ),
+  );
+  return updated;
+}
+
+/** A table is "in use" while any of its orders are still open. */
+const OPEN_STATUSES: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'];
+
+export function isTableOpen(status: OrderStatus): boolean {
+  return OPEN_STATUSES.includes(status);
+}
+
+/**
+ * The till: close every open order on a table in one motion once the guest
+ * has paid. There is no separate ledger — an order's status *is* its
+ * payment state — so settling is just fast-forwarding the whole table to
+ * `COMPLETED` at once, the way a single order would get there ticket by
+ * ticket.
+ */
+export async function settleTable(actor: StaffMember, tableId: string): Promise<Order[]> {
+  authorize(actor, 'orders:advance');
+  await latency();
+  const store = seedQueue(readStore());
+  const table = tablesOf(store).find((t) => t.id === tableId);
+  if (!table) throw new ApiError(404, 'That table no longer exists.');
+
+  const open = store.orders.filter((o) => o.tableId === tableId && isTableOpen(o.status));
+  if (open.length === 0) throw new ApiError(409, `${table.name} has no open orders to settle.`);
+
+  const now = new Date().toISOString();
+  const openIds = new Set(open.map((o) => o.id));
+  const settled = store.orders.map((o) =>
+    openIds.has(o.id) ? { ...o, status: 'COMPLETED' as const, updatedAt: now, completedAt: now } : o,
+  );
+  const total = open.reduce((sum, o) => sum + o.total, 0);
+  const currency = restaurantOf(store).currency;
+
+  writeStore(
+    record(
+      { ...store, orders: settled },
+      actor,
+      'table_settled',
+      table.name,
+      `${open.length} order${open.length === 1 ? '' : 's'} settled — ${formatMoney(total, currency)}`,
+    ),
+  );
+  return settled.filter((o) => o.tableId === tableId);
+}
+
+/**
+ * The real till: snapshots what's still open into a completed charge and
+ * closes those orders out, mirroring the shape of the live API's payment
+ * record even though this mock has nowhere to persist the record itself.
+ * Ending the session in the same motion also cancels anything left on it
+ * that never made it into this charge, rather than orphaning it.
+ */
+/**
+ * The till. Identified by the session being paid off, not the table — all
+ * that's checked up front is that the session still exists. Which dishes and
+ * how many is the cashier's call (read off the bill after any corrections),
+ * so it comes from the request rather than being re-derived from whatever
+ * the underlying orders currently say; prices still always come from the
+ * menu, never the client. Ending the visit in the same motion marks every
+ * order still open on the session completed, whether or not it matched a
+ * line on this particular charge.
+ */
+export async function completePayment(
+  actor: StaffMember,
+  sessionId: string,
+  items: { dishId: string; quantity: number }[],
+  endSession: boolean,
+): Promise<void> {
+  authorize(actor, 'orders:advance');
+  await latency();
+  const store = seedQueue(readStore());
+  const session = Object.values(store.sessions).find((s) => s.id === sessionId);
+  if (!session) throw new ApiError(404, 'This dining session no longer exists.');
+  if (items.length === 0) throw new ApiError(400, 'Add at least one item to charge for.');
+
+  const dishes = menuOf(store).dishes;
+  const restaurant = restaurantOf(store);
+  const lines = items.map(({ dishId, quantity }) => {
+    const dish = dishes.find((d) => d.id === dishId);
+    if (!dish) throw new ApiError(404, 'One of these dishes is no longer on the menu.');
+    return { unitPrice: dish.price, quantity };
+  });
+  const subtotal = sumLines(lines);
+  const serviceCharge = percentOf(subtotal, restaurant.serviceChargeRate);
+  const tax = percentOf(subtotal + serviceCharge, restaurant.taxRate);
+  const total = subtotal + serviceCharge + tax;
+
+  let next = record(
+    store,
+    actor,
+    'payment_completed',
+    `Session ${sessionId}`,
+    `Charged ${formatMoney(total, restaurant.currency)}`,
+  );
+
+  if (endSession) {
+    const now = new Date().toISOString();
+    const orders = next.orders.map((o) =>
+      o.sessionId === sessionId && isTableOpen(o.status) ? { ...o, status: 'COMPLETED' as const, updatedAt: now, completedAt: now } : o,
+    );
+    const sessions = { ...next.sessions };
+    delete sessions[`${session.restaurantId}:${session.tableId}`];
+
+    next = record({ ...next, orders, sessions }, actor, 'table_session_ended', `Session ${sessionId}`, 'Session ended');
+  }
+
+  writeStore(next);
+}
+
+function recomputeTotals(store: Store, order: Order): Order {
+  const restaurant = restaurantOf(store);
+  const subtotal = sumLines(order.items);
+  const serviceCharge = percentOf(subtotal, restaurant.serviceChargeRate);
+  const tax = percentOf(subtotal + serviceCharge, restaurant.taxRate);
+  return { ...order, subtotal, serviceCharge, tax, total: subtotal + serviceCharge + tax };
+}
+
+/**
+ * Staff can still adjust a tab from the payment sheet — a guest asked for one
+ * more plate, or a mistake needs correcting after the bill was already taken.
+ * It always lands on the table's most recent order, whatever that order's
+ * status.
+ */
+export async function addOrderItem(actor: StaffMember, tableId: string, dishId: string): Promise<Order> {
+  authorize(actor, 'orders:advance');
+  await latency();
+  const store = seedQueue(readStore());
+  const table = tablesOf(store).find((t) => t.id === tableId);
+  if (!table) throw new ApiError(404, 'That table no longer exists.');
+
+  const order = store.orders
+    .filter((o) => o.tableId === tableId)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+  if (!order) throw new ApiError(409, `${table.name} has no order to add to.`);
+
+  const dish = menuOf(store).dishes.find((d) => d.id === dishId);
+  if (!dish) throw new ApiError(404, 'That dish is no longer on the menu.');
+
+  const existing = order.items.find((i) => i.dishId === dishId);
+  const items: OrderItem[] = existing
+    ? order.items.map((i) => (i.dishId === dishId ? { ...i, quantity: i.quantity + 1 } : i))
+    : [
+        ...order.items,
+        {
+          id: uid('itm'),
+          dishId: dish.id,
+          dishNameSnapshot: dish.name,
+          imageUrlSnapshot: dish.imageUrl,
+          unitPrice: dish.price,
+          quantity: 1,
+          notes: '',
+        },
+      ];
+
+  const updated = recomputeTotals(store, { ...order, items, updatedAt: new Date().toISOString() });
+  writeStore(
+    record(
+      { ...store, orders: store.orders.map((o) => (o.id === order.id ? updated : o)) },
+      actor,
+      'order_item_added' as AuditAction,
+      `Order ${order.reference}`,
+      `+1 ${dish.name}`,
+    ),
+  );
+  return updated;
+}
+
+/** Drops a line entirely, or takes one off — whichever the quantity allows. Works on any order, settled or not. */
+export async function removeOrderItem(actor: StaffMember, orderId: string, itemId: string): Promise<Order> {
+  authorize(actor, 'orders:advance');
+  await latency();
+  const store = seedQueue(readStore());
+  const order = store.orders.find((o) => o.id === orderId);
+  if (!order) throw new ApiError(404, 'That order is no longer on the queue.');
+
+  const item = order.items.find((i) => i.id === itemId);
+  if (!item) throw new ApiError(404, 'That item is no longer on the bill.');
+
+  const items =
+    item.quantity > 1
+      ? order.items.map((i) => (i.id === itemId ? { ...i, quantity: i.quantity - 1 } : i))
+      : order.items.filter((i) => i.id !== itemId);
+
+  const updated = recomputeTotals(store, { ...order, items, updatedAt: new Date().toISOString() });
+  writeStore(
+    record(
+      { ...store, orders: store.orders.map((o) => (o.id === orderId ? updated : o)) },
+      actor,
+      'order_item_removed' as AuditAction,
+      `Order ${order.reference}`,
+      `-1 ${item.dishNameSnapshot}`,
     ),
   );
   return updated;
@@ -584,9 +786,23 @@ export async function moveCategory(actor: StaffMember, categoryId: string, direc
 
 /* ── Tables and QR codes ───────────────────────────────────────────── */
 
+/**
+ * The mock keeps a session's existence in `store.sessions`, keyed by table
+ * rather than stored on the table itself, so every read has to look it up
+ * fresh — a table object can't just carry a stale `currentSessionId`.
+ */
+function withSessionId(store: Store, table: DiningTable): DiningTable {
+  const session = store.sessions[`${table.restaurantId}:${table.id}`];
+  const active = session && Date.parse(session.expiresAt) > Date.now();
+  return { ...table, currentSessionId: active ? session.id : null };
+}
+
 export async function listTables(actor: StaffMember): Promise<DiningTable[]> {
   authorize(actor, 'tables:view');
-  return [...tablesOf(readStore())].sort((a, b) => a.sortOrder - b.sortOrder);
+  const store = readStore();
+  return tablesOf(store)
+    .map((t) => withSessionId(store, t))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export async function createTable(actor: StaffMember, name: string, capacity: number): Promise<DiningTable> {
@@ -604,6 +820,7 @@ export async function createTable(actor: StaffMember, name: string, capacity: nu
     name: name.trim(),
     qrToken: newQrToken(),
     capacity,
+    currentSessionId: null,
     isActive: true,
     sortOrder: Math.max(0, ...base.tables.map((t) => t.sortOrder)) + 1,
     createdAt: new Date().toISOString(),
@@ -639,7 +856,7 @@ export async function updateTable(
       before.name === after.name ? `Seats ${before.capacity} → ${capacity}` : `Renamed from ${before.name}`,
     ),
   );
-  return after;
+  return withSessionId(base, after);
 }
 
 export async function setTableActive(actor: StaffMember, tableId: string, active: boolean): Promise<DiningTable> {
@@ -659,7 +876,7 @@ export async function setTableActive(actor: StaffMember, tableId: string, active
       active ? 'Seating again' : 'Disabled — its QR stops resolving',
     ),
   );
-  return after;
+  return withSessionId(base, after);
 }
 
 /**
@@ -687,7 +904,30 @@ export async function regenerateQr(actor: StaffMember, tableId: string): Promise
       'New token issued — the old printed code no longer works',
     ),
   );
-  return after;
+  return { ...after, currentSessionId: null };
+}
+
+/**
+ * Clears the table's active visit so the next QR scan starts a fresh one,
+ * rather than joining whatever the last party left behind. Available
+ * whenever a session is open — a manager may need this with no orders on
+ * the table at all, not only after settling one.
+ */
+export async function endTableSession(actor: StaffMember, tableId: string): Promise<DiningTable> {
+  authorize(actor, 'tables:edit');
+  await latency();
+  const base = readStore();
+  const table = tablesOf(base).find((t) => t.id === tableId);
+  if (!table) throw new ApiError(404, 'That table no longer exists.');
+
+  const key = `${table.restaurantId}:${table.id}`;
+  if (!base.sessions[key]) throw new ApiError(409, `${table.name} has no active visit to end.`);
+
+  const sessions = { ...base.sessions };
+  delete sessions[key];
+
+  writeStore(record({ ...base, sessions }, actor, 'table_session_ended', table.name, 'Table cleared for the next visit'));
+  return { ...table, currentSessionId: null };
 }
 
 /* ── Reviews ───────────────────────────────────────────────────────── */

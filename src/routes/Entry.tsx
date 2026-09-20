@@ -96,7 +96,7 @@ export function Entry() {
             {entry ? (
               <Link
                 to={`/r/${entry.slug}/t/${entry.tableToken}`}
-                className={cx(BTN, BTN_SIZE_LG, 'w-full bg-flame text-ember shadow-flame')}
+                className={cx(BTN, BTN_SIZE_LG, 'w-full bg-flame shadow-flame')}
               >
                 Open the menu
               </Link>

@@ -55,6 +55,11 @@ const NAV: NavItem[] = [
 /** How often the queue re-reads itself. A pass cannot wait a minute for a ticket. */
 const POLL_MS = 8000;
 
+/** Only Dashboard, Orders and Tables render anything from the queue — no reason for the rest to poll or hold a socket open for it. */
+function routeNeedsOrders(pathname: string): boolean {
+  return pathname === '/admin' || pathname === '/admin/orders' || pathname === '/admin/tables';
+}
+
 export function AdminLayout() {
   const { staff, allows, signOut } = useAuth();
   const location = useLocation();
@@ -65,6 +70,8 @@ export function AdminLayout() {
 
 function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; signOut: () => void }) {
   const staff = useStaff();
+  const location = useLocation();
+  const needsOrders = routeNeedsOrders(location.pathname);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -103,25 +110,31 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     setOrders((prev) => (prev ? prev.map((o) => (o.id === updated.id ? updated : o)) : prev));
   }, []);
 
+  useEffect(() => {
+    reloadMenu();
+  }, [reloadMenu]);
+
   // §38 — live, the pass gets pushed every new ticket and status change over a
   // socket instead of re-fetching the whole queue every few seconds. The mock
   // has no server to push from, so it keeps polling; `subscribeToQueue` is a
-  // no-op there and this falls through.
+  // no-op there and this falls through. Neither runs at all on a page that
+  // doesn't show the queue — no reason to keep a socket open or poll in the
+  // background for data nothing on screen reads.
   useEffect(() => {
-    reloadMenu();
+    if (!needsOrders) return;
     reloadOrders();
     if (IS_LIVE_API) {
       return subscribeToQueue(applyCreated, applyUpdated, reloadOrders);
     }
     const timer = setInterval(reloadOrders, POLL_MS);
     return () => clearInterval(timer);
-  }, [reloadMenu, reloadOrders, applyCreated, applyUpdated]);
+  }, [needsOrders, reloadOrders, applyCreated, applyUpdated]);
 
   const waiting = useMemo(() => (orders ?? []).filter((o) => o.status === 'PENDING').length, [orders]);
 
   const dashboard = useMemo<DashboardValue | null>(
-    () => (menu && orders ? { menu, orders, reloadOrders, reloadMenu } : null),
-    [menu, orders, reloadOrders, reloadMenu],
+    () => (menu && (!needsOrders || orders) ? { menu, orders: orders ?? [], reloadOrders, reloadMenu } : null),
+    [menu, orders, needsOrders, reloadOrders, reloadMenu],
   );
 
   const items = NAV.filter((item) => allows(item.permission));
@@ -202,7 +215,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
 function Badge({ count }: { count: number }) {
   if (count === 0) return null;
   return (
-    <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-flame px-1.5 text-[11px] font-bold text-ember tnum">
+    <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-flame px-1.5 text-[11px] font-bold text-white tnum">
       {count}
     </span>
   );
@@ -235,7 +248,7 @@ function TabLink({ item, badge }: { item: NavItem; badge: number }) {
       className={({ isActive }) =>
         cx(
           'inline-flex h-8.5 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[13.5px] font-semibold transition-move active:scale-95',
-          isActive ? 'bg-flame text-ember' : 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset',
+          isActive ? 'bg-flame text-white' : 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset',
         )
       }
     >

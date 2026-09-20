@@ -310,7 +310,7 @@ function AddPanel({
       )}
       <div className="flex items-center gap-2.5">
         <QuantityStepper value={quantity} onChange={setQuantity} min={1} size="lg" />
-        <button type="button" className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-ember shadow-flame')} onClick={onAdd}>
+        <button type="button" className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')} onClick={onAdd}>
           Add · {formatMoney(dish.price * quantity, dish.currency)}
         </button>
       </div>

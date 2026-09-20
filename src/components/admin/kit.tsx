@@ -19,7 +19,7 @@ export const PANEL = 'rounded-2xl bg-surface ring-1 ring-hairline ring-inset';
 export const PAD = 'p-4 sm:p-5';
 
 export const ADMIN_BTN = `${BTN} h-10 px-4 text-[14px]`;
-export const ADMIN_PRIMARY = `${ADMIN_BTN} bg-flame text-ember shadow-flame`;
+export const ADMIN_PRIMARY = `${ADMIN_BTN} bg-flame shadow-flame`;
 export const ADMIN_GHOST = `${ADMIN_BTN} bg-surface-2 text-ink ring-1 ring-hairline ring-inset`;
 export const ADMIN_QUIET = `${ADMIN_BTN} text-ink-3 hover:text-ink`;
 export const ADMIN_DANGER = `${ADMIN_BTN} bg-berry/14 text-berry ring-1 ring-berry/30 ring-inset`;

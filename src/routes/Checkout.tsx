@@ -124,7 +124,7 @@ export function Checkout() {
                 >
                   <span
                     className={cx(
-                      'grid size-5.5 shrink-0 place-items-center rounded-full text-ember transition-colors duration-150',
+                      'grid size-5.5 shrink-0 place-items-center rounded-full text-white transition-colors duration-150',
                       method === m.id ? 'bg-flame' : 'ring-[1.5px] ring-hairline-strong ring-inset',
                     )}
                     aria-hidden
@@ -184,7 +184,7 @@ export function Checkout() {
           </div>
           <button
             type="button"
-            className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-ember shadow-flame')}
+            className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')}
             onClick={placeOrder}
             disabled={submitting}
           >

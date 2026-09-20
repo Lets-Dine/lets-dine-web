@@ -54,8 +54,13 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const message = (body as ErrorEnvelope | null)?.error?.message;
-    throw new ApiError(response.status, message ?? 'Something went wrong. Please try again.');
+    const error = (body as ErrorEnvelope | null)?.error;
+    throw new ApiError(
+      response.status,
+      error?.message ?? 'Something went wrong. Please try again.',
+      error?.key,
+      error?.details,
+    );
   }
 
   return (body as SuccessEnvelope<T>).data;

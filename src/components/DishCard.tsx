@@ -31,7 +31,7 @@ function AddControl({ dish, tone = 'solid' }: { dish: Dish; tone?: 'solid' | 'in
           className={cx(
             'rounded-full',
             tone === 'solid'
-              ? 'bg-flame text-ember shadow-[0_8px_20px_-8px_rgb(255_110_50_/_0.85)]'
+              ? 'bg-flame shadow-[0_8px_20px_-8px_rgb(255_110_50/0.85)]'
               : 'bg-surface-2 text-flame-1 ring-1 ring-flame-2/35 ring-inset',
           )}
         >
@@ -54,10 +54,10 @@ function AddControl({ dish, tone = 'solid' }: { dish: Dish; tone?: 'solid' | 'in
       }}
       aria-label={`Add ${dish.name}`}
       className={cx(
-        'inline-flex items-center justify-center gap-0.5 rounded-full font-bold tracking-tight',
+        'inline-flex items-center justify-center gap-0.5 rounded-full font-bold tracking-tight text-white',
         'transition-move active:scale-90',
         tone === 'solid'
-          ? 'h-8.5 pl-3 pr-3.5 text-[13.5px] bg-flame text-ember shadow-[0_8px_20px_-8px_rgb(255_110_50_/_0.85)]'
+          ? 'h-8.5 pl-3 pr-3.5 text-[13.5px] bg-flame shadow-[0_8px_20px_-8px_rgb(255_110_50/0.85)]'
           : 'h-8 pl-2.5 pr-3 text-[13px] bg-surface-2 text-flame-1 ring-1 ring-flame-2/35 ring-inset',
       )}
     >

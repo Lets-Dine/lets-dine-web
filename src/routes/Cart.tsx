@@ -230,7 +230,7 @@ export function Cart() {
             <span className="text-[11px] font-semibold text-ink-3">Total</span>
             <b className="text-[17px] font-bold tracking-tight tnum">{formatMoney(bill.total, currency)}</b>
           </div>
-          <button type="button" className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-ember shadow-flame')} onClick={proceed}>
+          <button type="button" className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')} onClick={proceed}>
             Review & order
           </button>
         </div>

@@ -37,6 +37,12 @@ export function resolveQr(restaurantSlug: string, tableToken: string) {
   return IS_LIVE_API ? live.resolveQr(restaurantSlug, tableToken) : mock.resolveQr(restaurantSlug, tableToken);
 }
 
+export function joinTableSession(restaurantSlug: string, tableToken: string, joinSessionId: string) {
+  return IS_LIVE_API
+    ? live.joinTableSession(restaurantSlug, tableToken, joinSessionId)
+    : mock.resolveQr(restaurantSlug, tableToken, joinSessionId);
+}
+
 export function getMenu(restaurantSlug: string): Promise<Menu> {
   return IS_LIVE_API ? live.getMenu(restaurantSlug) : mock.getMenu(restaurantSlug);
 }

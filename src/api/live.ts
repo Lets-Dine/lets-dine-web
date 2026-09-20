@@ -65,6 +65,14 @@ interface ApiResolvedSession {
   table: ApiTable;
 }
 
+function toResolvedSession(api: ApiResolvedSession): ResolvedSession {
+  return {
+    restaurant: toRestaurant(api.restaurant),
+    table: toTable(api.table),
+    session: toSession(api.session),
+  };
+}
+
 interface ApiCategory {
   id: string;
   restaurantId: string;
@@ -348,11 +356,7 @@ async function resolveQrUncached(restaurantSlug: string, tableToken: string): Pr
       const resumed = await apiRequest<ApiResolvedSession>('/public/sessions/current', {
         headers: { [SESSION_TOKEN_HEADER]: existing },
       });
-      return {
-        restaurant: toRestaurant(resumed.restaurant),
-        table: toTable(resumed.table),
-        session: toSession(resumed.session),
-      };
+      return toResolvedSession(resumed);
     } catch {
       // Ended, expired or wiped server-side: open a fresh one below.
       forgetToken(restaurantSlug, tableToken);
@@ -366,11 +370,20 @@ async function resolveQrUncached(restaurantSlug: string, tableToken: string): Pr
 
   storeToken(restaurantSlug, tableToken, opened.session);
 
-  return {
-    restaurant: toRestaurant(opened.restaurant),
-    table: toTable(opened.table),
-    session: toSession(opened.session),
-  };
+  return toResolvedSession(opened);
+}
+
+export async function joinTableSession(
+  restaurantSlug: string,
+  tableToken: string,
+  joinSessionId: string,
+): Promise<ResolvedSession> {
+  const joined = await apiRequest<ApiResolvedSession>('/public/sessions', {
+    method: 'POST',
+    body: JSON.stringify({ restaurantSlug, tableToken, joinSessionId }),
+  });
+  storeToken(restaurantSlug, tableToken, joined.session);
+  return toResolvedSession(joined);
 }
 
 /**

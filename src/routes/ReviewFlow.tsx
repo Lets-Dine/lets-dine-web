@@ -113,7 +113,7 @@ export function ReviewFlow() {
       <main className={SHELL}>
         <TopBar title="Thank you" fallbackTo={base} width={PAGE} />
         <section className={cx(PAGE, 'flex animate-rise flex-col items-center gap-3 pt-13 text-center')}>
-          <div className="mb-1 grid size-19 animate-pop place-items-center rounded-full bg-flame text-ember shadow-flame" aria-hidden>
+          <div className="mb-1 grid size-19 animate-pop place-items-center rounded-full bg-flame text-white shadow-flame" aria-hidden>
             <Sparkle size={30} />
           </div>
           <h1 className={cx(DISPLAY, 'text-[27px]')}>Your ratings are live</h1>
@@ -122,7 +122,7 @@ export function ReviewFlow() {
               ? `${ratedCount} verified ${ratedCount === 1 ? 'rating' : 'ratings'} from this order are now part of what the next diner sees.`
               : 'Nothing left to rate from this order.'}
           </p>
-          <Link to={base} className={cx(BTN, BTN_SIZE_LG, 'w-full max-w-80 bg-flame text-ember shadow-flame')}>
+          <Link to={base} className={cx(BTN, BTN_SIZE_LG, 'w-full max-w-80 bg-flame text-white shadow-flame')}>
             Back to the menu
           </Link>
           <Link to={`${base}/order/${order.id}`} className="py-2 text-[15px] font-semibold text-ink-3">
@@ -354,7 +354,7 @@ export function ReviewFlow() {
           </button>
           <button
             type="button"
-            className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-ember shadow-flame')}
+            className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')}
             onClick={next}
             disabled={draft.overall === 0 || submitting}
           >

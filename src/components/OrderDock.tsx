@@ -49,14 +49,14 @@ export function OrderDock({ base }: { base: string }) {
       <Link
         to={href}
         className={cx(
-          'pointer-events-auto mx-auto flex max-w-lg items-center gap-3.5 rounded-full pl-3.5 pr-4.5 text-ember shadow-flame-lg transition-move active:scale-[0.975] lg:mx-0 lg:hover:scale-[1.03]',
+          'pointer-events-auto mx-auto flex max-w-lg items-center gap-3.5 rounded-full pl-3.5 pr-4.5 text-white shadow-flame-lg transition-move active:scale-[0.975] lg:mx-0 lg:hover:scale-[1.03]',
           loud ? 'h-15 bg-flame lg:h-16 lg:pr-6' : 'h-13 bg-surface-3/92 ring-1 ring-hairline-strong ring-inset backdrop-blur-lg lg:h-14',
         )}
       >
         <span
           className={cx(
             'grid size-9 place-items-center rounded-full',
-            loud ? 'bg-ember/15' : 'bg-flame text-ember',
+            loud ? 'bg-ember/15' : 'bg-flame text-white',
           )}
         >
           {reviewing ? <Sparkle size={18} /> : <Clock size={18} />}

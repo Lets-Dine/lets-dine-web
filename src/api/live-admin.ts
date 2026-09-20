@@ -1,6 +1,19 @@
 import { nextStatus } from './admin';
 import type { DishDraft } from './admin';
-import type { Dish, DishStats, Menu, MenuCategory, Order, OrderStatus, Restaurant, StaffMember, StaffRole } from '../domain/types';
+import type {
+  AuditAction,
+  AuditEntry,
+  DiningTable,
+  Dish,
+  DishStats,
+  Menu,
+  MenuCategory,
+  Order,
+  OrderStatus,
+  Restaurant,
+  StaffMember,
+  StaffRole,
+} from '../domain/types';
 import { ApiError } from './store';
 import { apiRequest } from './http';
 import type { Paginated } from './http';
@@ -8,11 +21,13 @@ import { getSocket, joinRoom } from './socket';
 
 /**
  * The manager-facing half of the real API, wired up so far: signing in, and
- * running the category list, the menu board and the order pass
- * (`/auth/staff/*`, `/restaurant/categories`, `/restaurant/dishes`,
- * `/restaurant/orders`, `/restaurant/profile`). Tables, reviews, settings and
- * the analytics history (`allOrders`) still come from `admin.ts` — they have
- * not been moved across yet.
+ * running the category list, the menu board, the order pass and the table
+ * roster (`/auth/staff/*`, `/restaurant/categories`, `/restaurant/dishes`,
+ * `/restaurant/orders`, `/restaurant/profile`, `/restaurant/tables`).
+ * Reviews, settings and the analytics history (`allOrders`) still come from
+ * `admin.ts` — they have not been moved across yet. So does billing a
+ * table (settle/add-item/remove-item): the backend has no endpoints for
+ * that yet, only for the table record itself.
  *
  * The mutation endpoints (create/update/archive/restore/reorder) return the
  * bare dish, without the stats block only `fetchAll`/`fetchById` compute — but
@@ -119,6 +134,31 @@ interface ApiOrderItem {
   notes: string;
 }
 
+interface ApiDiningTable {
+  id: string;
+  restaurantId: string;
+  name: string;
+  qrToken: string;
+  capacity: number;
+  currentSessionId: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ApiAuditLog {
+  id: string;
+  restaurantId: string;
+  actorId: string;
+  actorName: string;
+  actorRole: StaffRole;
+  action: AuditAction;
+  subject: string;
+  detail: string;
+  createdAt: string;
+}
+
 interface ApiOrder {
   id: string;
   reference: string;
@@ -198,6 +238,34 @@ function toDish(api: ApiDish, currency: string): Dish {
     spiceLevel: api.spiceLevel as Dish['spiceLevel'],
     isVeg: api.isVeg,
     stats: api.stats,
+  };
+}
+
+function toTable(api: ApiDiningTable): DiningTable {
+  return {
+    id: api.id,
+    restaurantId: api.restaurantId,
+    name: api.name,
+    qrToken: api.qrToken,
+    capacity: api.capacity,
+    currentSessionId: api.currentSessionId,
+    isActive: api.isActive,
+    sortOrder: api.sortOrder,
+    createdAt: api.createdAt,
+  };
+}
+
+function toAuditEntry(api: ApiAuditLog): AuditEntry {
+  return {
+    id: api.id,
+    restaurantId: api.restaurantId,
+    actorId: api.actorId,
+    actorName: api.actorName,
+    actorRole: api.actorRole,
+    action: api.action,
+    subject: api.subject,
+    detail: api.detail,
+    at: api.createdAt,
   };
 }
 
@@ -392,6 +460,59 @@ export async function moveDish(dishId: string, direction: -1 | 1): Promise<void>
   });
 }
 
+/* ── Tables ────────────────────────────────────────────────────── */
+
+export async function listTables(): Promise<DiningTable[]> {
+  const page = await apiRequest<Paginated<ApiDiningTable>>('/restaurant/tables?limit=0', {
+    headers: authHeaders(),
+  });
+  return page.rows.map(toTable).sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export async function createTable(name: string, capacity: number): Promise<DiningTable> {
+  const table = await apiRequest<ApiDiningTable>('/restaurant/tables', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ name: name.trim(), capacity }),
+  });
+  return toTable(table);
+}
+
+export async function updateTable(tableId: string, patch: { name?: string; capacity?: number }): Promise<DiningTable> {
+  const table = await apiRequest<ApiDiningTable>(`/restaurant/tables/${encodeURIComponent(tableId)}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  return toTable(table);
+}
+
+export async function setTableActive(tableId: string, active: boolean): Promise<DiningTable> {
+  const table = await apiRequest<ApiDiningTable>(`/restaurant/tables/${encodeURIComponent(tableId)}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ isActive: active }),
+  });
+  return toTable(table);
+}
+
+export async function regenerateQr(tableId: string): Promise<DiningTable> {
+  const table = await apiRequest<ApiDiningTable>(`/restaurant/tables/${encodeURIComponent(tableId)}/qr`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  return toTable(table);
+}
+
+/** Clears the table's active visit so the next QR scan starts a fresh one. */
+export async function endTableSession(tableId: string): Promise<DiningTable> {
+  const table = await apiRequest<ApiDiningTable>(`/restaurant/tables/${encodeURIComponent(tableId)}/end-session`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  return toTable(table);
+}
+
 /* ── Orders ────────────────────────────────────────────────────── */
 
 /**
@@ -406,6 +527,58 @@ export async function listQueue(): Promise<Order[]> {
     headers: authHeaders(),
   });
   return page.rows.map(toOrder);
+}
+
+/** Every order a table's current visit has placed, settled or not — what the payment sheet bills against. */
+export async function fetchOrdersBySession(sessionId: string): Promise<Order[]> {
+  const orders = await apiRequest<ApiOrder[]>(`/restaurant/orders/session/${encodeURIComponent(sessionId)}`, {
+    headers: authHeaders(),
+  });
+  return orders.map(toOrder);
+}
+
+/** Always lands on the table's most recent order, whatever its status — a correction after settling works the same as one mid-service. */
+export async function addOrderItem(tableId: string, dishId: string): Promise<Order> {
+  const order = await apiRequest<ApiOrder>(`/restaurant/orders/table/${encodeURIComponent(tableId)}/items`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ dishId }),
+  });
+  return toOrder(order);
+}
+
+export async function removeOrderItem(orderId: string, itemId: string): Promise<Order> {
+  const order = await apiRequest<ApiOrder>(
+    `/restaurant/orders/${encodeURIComponent(orderId)}/items/${encodeURIComponent(itemId)}`,
+    { method: 'DELETE', headers: authHeaders() },
+  );
+  return toOrder(order);
+}
+
+export async function settleTable(tableId: string): Promise<Order[]> {
+  const orders = await apiRequest<ApiOrder[]>(`/restaurant/orders/table/${encodeURIComponent(tableId)}/settle`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  return orders.map(toOrder);
+}
+
+/**
+ * The till. Snapshots what's still open on this table into a payment record
+ * and closes those orders out — optionally ending the visit in the same
+ * motion, which also cancels anything on the session that never made it into
+ * this charge.
+ */
+export async function completePayment(
+  sessionId: string,
+  items: { dishId: string; quantity: number }[],
+  endSession: boolean,
+): Promise<void> {
+  await apiRequest<unknown>('/restaurant/payments', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ sessionId, items, endSession }),
+  });
 }
 
 /** `expected` is the status the UI last saw; the actual next step is read off the same table the server enforces. */
@@ -455,4 +628,14 @@ export function subscribeToQueue(onCreated: (order: Order) => void, onUpdated: (
     socket.off('order.updated', handleUpdated);
     leaveRoom();
   };
+}
+
+/* ── Audit log ─────────────────────────────────────────────────── */
+
+/** §51 — every management action, most recent first. */
+export async function listAudit(limit = 80): Promise<AuditEntry[]> {
+  const page = await apiRequest<Paginated<ApiAuditLog>>(`/restaurant/audit-logs?limit=${limit}`, {
+    headers: authHeaders(),
+  });
+  return page.rows.map(toAuditEntry);
 }
