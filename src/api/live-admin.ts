@@ -141,6 +141,7 @@ interface ApiDiningTable {
   qrToken: string;
   capacity: number;
   currentSessionId: string | null;
+  currentSession?: { anonymousSessionToken: string } | null;
   isActive: boolean;
   sortOrder: number;
   createdAt: string;
@@ -249,6 +250,7 @@ function toTable(api: ApiDiningTable): DiningTable {
     qrToken: api.qrToken,
     capacity: api.capacity,
     currentSessionId: api.currentSessionId,
+    currentSessionToken: api.currentSession?.anonymousSessionToken ?? null,
     isActive: api.isActive,
     sortOrder: api.sortOrder,
     createdAt: api.createdAt,

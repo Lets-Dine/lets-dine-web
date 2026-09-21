@@ -20,6 +20,7 @@ import {
   ApiError,
   latency,
   menuOf,
+  newSessionToken,
   randomId,
   readStore,
   restaurantOf,
@@ -137,7 +138,7 @@ function persistProjection(store: Store): Store {
 export async function resolveQr(
   restaurantSlug: string,
   tableToken: string,
-  joinSessionId?: string,
+  joinToken?: string,
 ): Promise<{ restaurant: Restaurant; table: DiningTable; session: DiningSession }> {
   await latency();
   const store = readStore();
@@ -155,20 +156,20 @@ export async function resolveQr(
   const storedToken = localStorage.getItem(localKey);
 
   if (stillValid) {
-    if (storedToken === existing.anonymousSessionToken || joinSessionId === existing.id) {
+    if (storedToken === existing.anonymousSessionToken || joinToken === existing.anonymousSessionToken) {
       localStorage.setItem(localKey, existing.anonymousSessionToken);
       return { restaurant, table, session: existing };
     }
-    if (joinSessionId) {
+    if (joinToken) {
       throw new ApiError(
         409,
-        "That session ID does not match this table's active visit.",
+        "That session code does not match this table's active visit.",
         'DINING_SESSION_JOIN_MISMATCH',
       );
     }
     throw new ApiError(
       409,
-      'This table already has an active visit. Ask someone at the table for the session ID to join.',
+      'This table already has an active visit. Ask someone at the table for the session code to join.',
       'DINING_SESSION_TABLE_OCCUPIED',
     );
   }
@@ -177,7 +178,7 @@ export async function resolveQr(
     id: uid('ses'),
     restaurantId: restaurant.id,
     tableId: table.id,
-    anonymousSessionToken: uid('tok'),
+    anonymousSessionToken: newSessionToken(),
     startedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
   };

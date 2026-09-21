@@ -173,6 +173,7 @@ function toTable(api: ApiTable): DiningTable {
   return {
     id: api.id,
     currentSessionId: api.currentSessionId,
+    currentSessionToken: null,
     restaurantId: api.restaurantId,
     name: api.name,
     qrToken: api.qrToken,
@@ -375,11 +376,11 @@ async function resolveQrUncached(restaurantSlug: string, tableToken: string): Pr
 export async function joinTableSession(
   restaurantSlug: string,
   tableToken: string,
-  joinSessionId: string,
+  joinToken: string,
 ): Promise<ResolvedSession> {
   const joined = await apiRequest<ApiResolvedSession>('/public/sessions', {
     method: 'POST',
-    body: JSON.stringify({ restaurantSlug, tableToken, joinSessionId }),
+    body: JSON.stringify({ restaurantSlug, tableToken, joinSessionId: joinToken }),
   });
   storeToken(restaurantSlug, tableToken, joined.session);
   return toResolvedSession(joined);

@@ -31,6 +31,7 @@ import {
   useCommand,
 } from '../../components/admin/kit';
 import { Receipt } from '../../components/icons';
+import { SessionCode } from '../../components/Bits';
 import { DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
@@ -155,7 +156,7 @@ export function Tables() {
         <Loading label="Reading the floor plan…" />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_300px] lg:items-start">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {visibleRows.length === 0 && (
               <p className="col-span-full py-6 text-center text-[13px] text-ink-4">No tables match this filter.</p>
             )}
@@ -302,8 +303,6 @@ function TableCard({ table, slug, restaurantName, editable, canSettle, openOrder
   const url = tableUrl(slug, table);
   const busy = pending === table.id;
   const occupied = isOccupied(table);
-  const due = openOrders.reduce((sum, o) => sum + o.total, 0);
-  const currency = openOrders[0]?.currency;
   const disabled = !table.isActive;
 
   return (
@@ -339,12 +338,9 @@ function TableCard({ table, slug, restaurantName, editable, canSettle, openOrder
         {occupied && ` · ${openOrders.length} open order${openOrders.length === 1 ? '' : 's'}`}
       </p>
 
+
       <div className="flex items-end justify-between gap-2">
-        {occupied && currency ? (
-          <span className={cx(DISPLAY, 'text-[16px] tnum text-flame-1')}>{formatMoney(due, currency)}</span>
-        ) : (
-          <span className="text-[12px] text-ink-4">—</span>
-        )}
+        {occupied && table.currentSessionToken && <SessionCode label="Session code" className='ring-0 bg-transparent py-0' token={table.currentSessionToken} />}
         <span className="flex shrink-0 gap-1">
           <button
             type="button"
@@ -403,7 +399,7 @@ function TableCard({ table, slug, restaurantName, editable, canSettle, openOrder
               >
                 Rename
               </button>
-              <button
+              {/* <button
                 type="button"
                 className={cx(ADMIN_TINY, 'h-6 px-2 text-[10px] text-ink-3 hover:text-ink')}
                 onClick={() => printQrSheet([table], restaurantName, slug)}
@@ -417,7 +413,8 @@ function TableCard({ table, slug, restaurantName, editable, canSettle, openOrder
                 disabled={busy}
                 className="h-6 px-2 text-[10px]"
                 onConfirm={on.onRegenerate}
-              />
+              /> */}
+              {occupied && (
               <Confirm
                 label="End session"
                 question={occupied ? 'End the visit with the bill still open?' : 'Clear this table for the next visit?'}
@@ -426,6 +423,7 @@ function TableCard({ table, slug, restaurantName, editable, canSettle, openOrder
                 className="h-6 px-2 text-[10px]"
                 onConfirm={on.onEndSession}
               />
+              )}
             </div>
           )}
         </div>
@@ -441,7 +439,7 @@ function escapeHtml(text: string): string {
 interface ReceiptLine {
   dishNameSnapshot: string;
   quantity: number;
-  unitPrice: number;
+  total: number;
 }
 
 interface ReceiptTotals {
@@ -460,7 +458,7 @@ function printReceipt(table: DiningTable, lines: ReceiptLine[], totals: ReceiptT
   const rows = lines
     .map(
       (i) =>
-        `<tr><td>${escapeHtml(i.dishNameSnapshot)}</td><td class="num">${i.quantity}</td><td class="num"><b>${formatMoney(i.unitPrice * i.quantity, currency)}</b></td></tr>`,
+        `<tr><td>${escapeHtml(i.dishNameSnapshot)}</td><td class="num">${i.quantity}</td><td class="num"><b>${formatMoney(i.total, currency)}</b></td></tr>`,
     )
     .join('');
 
@@ -506,18 +504,29 @@ function printReceipt(table: DiningTable, lines: ReceiptLine[], totals: ReceiptT
   return true;
 }
 
-interface DraftLine {
-  rowId: string;
+/** One underlying order item a displayed bill line is backed by — a served line can merge several of these. */
+interface DraftLineSource {
   orderId: string;
   itemId: string | null;
+  quantity: number;
+}
+
+interface DraftLine {
+  rowId: string;
   dishId: string;
   dishNameSnapshot: string;
   notes: string;
+  /** For the "each" display only — a merged served line shows its first source's price. */
   unitPrice: number;
   quantity: number;
+  /** What this line actually charges — summed from its sources, not unitPrice × quantity, so a
+   *  price snapshot changing between the rounds a served line merges can never misstate the bill. */
+  total: number;
   orderStatus: OrderStatus;
   /** Already fired to the kitchen and served — anything else on the bill is still on its way out. */
   served: boolean;
+  /** The item(s) this line's quantity actually comes from — where +/- apply. Several only when served lines merged. */
+  sources: DraftLineSource[];
 }
 
 interface PendingBillChanges {
@@ -579,10 +588,20 @@ function PaymentSheet({
   for (const dishId of pendingAdds) addCounts.set(dishId, (addCounts.get(dishId) ?? 0) + 1);
 
   // Everything the session order API hands back is payable — a cancelled order is the one exception,
-  // since it was voided and never fulfilled. Served (COMPLETED) items and the ones still on their way
-  // out both count toward the bill; they're only split into separate lines so the cashier can see what
-  // hasn't reached the table yet.
-  const draftLines: DraftLine[] = [];
+  // since it was voided and never fulfilled. A raw line per order item first, exactly what's on each
+  // order; grouping into what the cashier actually sees happens after.
+  interface RawLine {
+    orderId: string;
+    itemId: string | null;
+    dishId: string;
+    dishNameSnapshot: string;
+    notes: string;
+    unitPrice: number;
+    quantity: number;
+    orderStatus: OrderStatus;
+    served: boolean;
+  }
+  const rawLines: RawLine[] = [];
   for (const order of orders) {
     if (order.status === 'CANCELLED') continue;
     for (const item of order.items) {
@@ -592,8 +611,7 @@ function PaymentSheet({
       const added = order.id === latestOrder?.id ? (addCounts.get(item.dishId) ?? 0) : 0;
       if (added > 0) addCounts.delete(item.dishId);
 
-      draftLines.push({
-        rowId: item.id,
+      rawLines.push({
         orderId: order.id,
         itemId: item.id,
         dishId: item.dishId,
@@ -611,8 +629,7 @@ function PaymentSheet({
     for (const [dishId, quantity] of addCounts) {
       const dish = dishes.find((d) => d.id === dishId);
       if (!dish) continue;
-      draftLines.push({
-        rowId: `draft-${dishId}`,
+      rawLines.push({
         orderId: latestOrder.id,
         itemId: null,
         dishId,
@@ -626,22 +643,74 @@ function PaymentSheet({
     }
   }
 
+  // The cashier's actual view: once a dish has been served, which round it came from stops
+  // mattering, so every served item of the same dish collapses into one line. Anything still on
+  // its way out of the kitchen hasn't earned that — it stays on its own line, one per order, so
+  // it's obvious what's still outstanding.
+  const draftLines: DraftLine[] = [];
+  const servedGroups = new Map<string, DraftLine>();
+  for (const raw of rawLines) {
+    if (!raw.served) {
+      draftLines.push({
+        rowId: raw.itemId ?? `draft-${raw.dishId}-${raw.orderId}`,
+        dishId: raw.dishId,
+        dishNameSnapshot: raw.dishNameSnapshot,
+        notes: raw.notes,
+        unitPrice: raw.unitPrice,
+        quantity: raw.quantity,
+        total: raw.unitPrice * raw.quantity,
+        orderStatus: raw.orderStatus,
+        served: false,
+        sources: [{ orderId: raw.orderId, itemId: raw.itemId, quantity: raw.quantity }],
+      });
+      continue;
+    }
+
+    const group = servedGroups.get(raw.dishId);
+    if (group) {
+      group.quantity += raw.quantity;
+      group.total += raw.unitPrice * raw.quantity;
+      group.sources.push({ orderId: raw.orderId, itemId: raw.itemId, quantity: raw.quantity });
+    } else {
+      const line: DraftLine = {
+        rowId: `served-${raw.dishId}`,
+        dishId: raw.dishId,
+        dishNameSnapshot: raw.dishNameSnapshot,
+        // Notes belong to one round, not the merged total — dropped rather than misattributed.
+        notes: '',
+        unitPrice: raw.unitPrice,
+        quantity: raw.quantity,
+        total: raw.unitPrice * raw.quantity,
+        orderStatus: raw.orderStatus,
+        served: true,
+        sources: [{ orderId: raw.orderId, itemId: raw.itemId, quantity: raw.quantity }],
+      };
+      servedGroups.set(raw.dishId, line);
+      draftLines.push(line);
+    }
+  }
+
   const queueAdd = (dishId: string) => setPendingAdds((prev) => [...prev, dishId]);
 
   const queueRemove = (line: DraftLine) => {
+    // A served line may be several rounds merged into one — peel a unit off whichever source
+    // still has any left. Order among them doesn't matter; the total is all that's displayed.
+    const source = line.sources.find((s) => s.quantity > 0);
+    if (!source) return;
+
     // A unit with no real item id was never sent to the server (a brand-new dish, or the fresh top-up on
     // a closed-out order) — cancel the queued add locally instead of recording a removal against nothing.
-    if (!line.itemId) {
+    if (!source.itemId) {
       const idx = pendingAdds.lastIndexOf(line.dishId);
       if (idx !== -1) setPendingAdds((prev) => [...prev.slice(0, idx), ...prev.slice(idx + 1)]);
       return;
     }
-    setPendingRemoves((prev) => [...prev, { orderId: line.orderId, itemId: line.itemId! }]);
+    setPendingRemoves((prev) => [...prev, { orderId: source.orderId, itemId: source.itemId! }]);
   };
 
   const openOrderCount = orders.filter((o) => isTableOpen(o.status)).length;
   const hasItems = draftLines.length > 0;
-  const subtotal = draftLines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
+  const subtotal = draftLines.reduce((sum, l) => sum + l.total, 0);
   const serviceCharge = percentOf(subtotal, serviceChargeRate);
   const tax = percentOf(subtotal + serviceCharge, taxRate);
   const total = subtotal + serviceCharge + tax;
@@ -731,7 +800,7 @@ function PaymentSheet({
                       +
                     </button>
                     <span className="w-14 text-right font-bold tnum text-[oklch(0.232_0.019_70)]">
-                      {formatMoney(line.unitPrice * line.quantity, currency)}
+                      {formatMoney(line.total, currency)}
                     </span>
                   </span>
                 </div>
@@ -842,7 +911,7 @@ function PaymentSheet({
             onClick={() =>
               printReceipt(
                 table,
-                draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, unitPrice: l.unitPrice })),
+                draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total })),
                 { currency, subtotal, serviceCharge, tax, total },
                 restaurantName,
               )

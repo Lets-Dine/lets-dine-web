@@ -794,7 +794,11 @@ export async function moveCategory(actor: StaffMember, categoryId: string, direc
 function withSessionId(store: Store, table: DiningTable): DiningTable {
   const session = store.sessions[`${table.restaurantId}:${table.id}`];
   const active = session && Date.parse(session.expiresAt) > Date.now();
-  return { ...table, currentSessionId: active ? session.id : null };
+  return {
+    ...table,
+    currentSessionId: active ? session.id : null,
+    currentSessionToken: active ? session.anonymousSessionToken : null,
+  };
 }
 
 export async function listTables(actor: StaffMember): Promise<DiningTable[]> {
@@ -821,6 +825,7 @@ export async function createTable(actor: StaffMember, name: string, capacity: nu
     qrToken: newQrToken(),
     capacity,
     currentSessionId: null,
+    currentSessionToken: null,
     isActive: true,
     sortOrder: Math.max(0, ...base.tables.map((t) => t.sortOrder)) + 1,
     createdAt: new Date().toISOString(),

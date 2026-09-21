@@ -109,6 +109,13 @@ export function uid(prefix: string): string {
   return `${prefix}_${rand}`;
 }
 
+/** Digits only and short enough to read aloud or type from across the table. */
+export function newSessionToken(): string {
+  let out = '';
+  for (let i = 0; i < 8; i++) out += Math.floor(Math.random() * 10);
+  return out;
+}
+
 /** A printed QR token has to survive being read off a laminated card. */
 const TOKEN_ALPHABET = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 

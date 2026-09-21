@@ -39,6 +39,35 @@ export function SoldOutBadge() {
   return <span className={cx(BADGE, 'bg-white/10 text-ink-2')}>Unavailable today</span>;
 }
 
+/** A dining session's join code — shown to diners on the menu and to staff on the table view. */
+export function SessionCode({ label, token, className }: { label: string; token: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div
+      className={cx(
+        'flex w-fit max-w-full items-center gap-2 rounded-2xl bg-bg/60 px-3 py-2 text-[12px] ring-1 ring-hairline-strong ring-inset backdrop-blur-md',
+        className,
+      )}
+    >
+      <span className="min-w-0">
+        <b className="mr-1.5">{label}:</b>
+        <code className="break-all text-ink-3">{token}</code>
+      </span>
+      <button
+        type="button"
+        className="shrink-0 font-semibold text-flame-1"
+        onClick={() => {
+          void navigator.clipboard?.writeText(token);
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1600);
+        }}
+      >
+        {copied ? 'Copied' : 'Copy'}
+      </button>
+    </div>
+  );
+}
+
 export function DietMarks({ dish }: { dish: Dish }) {
   if (!dish.isVeg && dish.spiceLevel === 0) return null;
   return (

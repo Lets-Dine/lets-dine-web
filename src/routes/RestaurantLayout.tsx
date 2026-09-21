@@ -84,7 +84,7 @@ function OccupiedTableScreen({
   tableToken: string;
   onJoined: (resolved: Awaited<ReturnType<typeof joinTableSession>>) => void;
 }) {
-  const [sessionId, setSessionId] = useState('');
+  const [sessionCode, setSessionCode] = useState('');
   const [error, setError] = useState('');
   const [joining, setJoining] = useState(false);
 
@@ -93,7 +93,7 @@ function OccupiedTableScreen({
     setJoining(true);
     setError('');
     try {
-      onJoined(await joinTableSession(restaurantSlug, tableToken, sessionId.trim()));
+      onJoined(await joinTableSession(restaurantSlug, tableToken, sessionCode.trim()));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not join this table.');
     } finally {
@@ -108,22 +108,23 @@ function OccupiedTableScreen({
           <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-flame-1">Table occupied</p>
           <h1 className={cx(DISPLAY, 'text-3xl')}>Someone is already dining here</h1>
           <p className="text-[14.5px] leading-relaxed text-ink-3">
-            If you are with the same group, ask a friend at the table for their session ID.
+            If you are with the same group, ask a friend at the table for their session code.
           </p>
         </div>
         <label className="grid gap-2 text-[13px] font-semibold text-ink-2">
-          Session ID
+          Session code
           <input
             className={cx(INPUT, 'h-13')}
-            value={sessionId}
-            onChange={(event) => setSessionId(event.target.value)}
-            placeholder="Paste the session ID"
+            value={sessionCode}
+            onChange={(event) => setSessionCode(event.target.value)}
+            placeholder="Enter the 8-digit code"
+            inputMode="numeric"
             autoComplete="off"
             required
           />
         </label>
         {error && <p className="text-[13.5px] text-flame-1">{error}</p>}
-        <button className={BTN_FLAME} type="submit" disabled={joining || !sessionId.trim()}>
+        <button className={BTN_FLAME} type="submit" disabled={joining || !sessionCode.trim()}>
           {joining ? 'Joining…' : 'Join this table'}
         </button>
       </form>

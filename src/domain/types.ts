@@ -34,6 +34,8 @@ export interface DiningTable {
   capacity: number;
   /** The open dining session at this table right now, if any. */
   currentSessionId: string | null;
+  /** The current session's join code, if the read included it. */
+  currentSessionToken: string | null;
   /** §16: a disabled table stops resolving its QR. */
   isActive: boolean;
   sortOrder: number;

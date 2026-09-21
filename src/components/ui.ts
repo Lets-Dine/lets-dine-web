@@ -1,6 +1,8 @@
-/** Joins class names, dropping anything falsy. */
+import { twMerge } from 'tailwind-merge';
+
+/** Joins class names, dropping anything falsy, and resolves conflicting Tailwind utilities in favor of the last one. */
 export function cx(...parts: (string | false | null | undefined)[]): string {
-  return parts.filter(Boolean).join(' ');
+  return twMerge(parts.filter(Boolean).join(' '));
 }
 
 /* ── Shared layout rails ──────────────────────────────────────────

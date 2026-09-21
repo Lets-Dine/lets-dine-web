@@ -145,3 +145,47 @@ export const Receipt = ({ size = 16, className }: IconProps) => (
     <path d="M9 8h6M9 12h6M9 16h3" />
   </svg>
 );
+
+export const Grid = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="4" y="4" width="7" height="7" rx="1.5" />
+    <rect x="13" y="4" width="7" height="7" rx="1.5" />
+    <rect x="4" y="13" width="7" height="7" rx="1.5" />
+    <rect x="13" y="13" width="7" height="7" rx="1.5" />
+  </svg>
+);
+
+export const Plate = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="12" r="7.5" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+export const Folder = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 7a1 1 0 011-1h4l2 2h8a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V7z" strokeLinejoin="round" />
+  </svg>
+);
+
+export const Table = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="3" y="5" width="18" height="3" rx="1" />
+    <path d="M6 8v11M18 8v11" />
+  </svg>
+);
+
+export const TrendUp = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 16l5-5 4 3 7-9" />
+    <path d="M14 5h6v6" />
+  </svg>
+);
+
+export const Sliders = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 7h10M20 7h-1M4 17h6M16 17h4" />
+    <circle cx="16" cy="7" r="2" />
+    <circle cx="12" cy="17" r="2" />
+  </svg>
+);

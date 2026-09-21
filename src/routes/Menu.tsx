@@ -5,6 +5,7 @@ import { buildSections } from '../domain/metrics';
 import type { Dish } from '../domain/types';
 import { haptic } from '../platform/haptics';
 import { DishRow, DishTile } from '../components/DishCard';
+import { SessionCode } from '../components/Bits';
 import { RatingPill } from '../components/Rating';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, EYEBROW, GLASS, ICON_BTN, RAIL, SHELL, WIDE, cx } from '../components/ui';
 import { Clock, Search, X } from '../components/icons';
@@ -14,7 +15,6 @@ import { EmptyState } from './Shell';
 export function Menu() {
   const { menu, table, session, ctx, base } = useRestaurant();
   const [query, setQuery] = useState('');
-  const [copied, setCopied] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeCategory, setActiveCategory] = useState(menu.categories[0]?.id ?? '');
   const sectionRefs = useRef(new Map<string, HTMLElement>());
@@ -123,23 +123,7 @@ export function Menu() {
             <p className="max-w-[46ch] text-[13.5px] leading-relaxed text-ink-3 lg:text-[15px]">
               {menu.restaurant.description}
             </p>
-            <div className="flex w-fit max-w-full items-center gap-2 rounded-2xl bg-bg/60 px-3 py-2 text-[12px] ring-1 ring-hairline-strong ring-inset backdrop-blur-md">
-              <span className="min-w-0">
-                <b className="mr-1.5">Group session:</b>
-                <code className="break-all text-ink-3">{session.id}</code>
-              </span>
-              <button
-                type="button"
-                className="shrink-0 font-semibold text-flame-1"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(session.id);
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 1600);
-                }}
-              >
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-            </div>
+            <SessionCode label="Group session" token={session.anonymousSessionToken} />
           </div>
         </div>
       </header>

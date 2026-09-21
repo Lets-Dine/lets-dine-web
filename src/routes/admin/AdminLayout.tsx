@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
+import type { ComponentType } from 'react';
 import { adminMenu, listQueue, subscribeToQueue } from '../../api/staff';
 import { IS_LIVE_API } from '../../api/http';
 import { ROLE_LABEL } from '../../domain/permissions';
@@ -8,6 +9,7 @@ import type { Menu, Order } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { Loading } from '../../components/admin/kit';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
+import { Folder, Grid, Plate, Receipt, Sliders, Star, Table, TrendUp } from '../../components/icons';
 
 /**
  * The dashboard frame. Navigation is filtered by role rather than disabled by
@@ -36,20 +38,20 @@ export function useDashboard(): DashboardValue {
 interface NavItem {
   to: string;
   label: string;
-  emoji: string;
+  icon: ComponentType<{ size?: number; className?: string }>;
   permission: Permission;
   end?: boolean;
 }
 
 const NAV: NavItem[] = [
-  { to: '/admin', label: 'Dashboard', emoji: '📊', permission: 'orders:view', end: true },
-  { to: '/admin/orders', label: 'Orders', emoji: '🧾', permission: 'orders:view' },
-  { to: '/admin/menu', label: 'Menu', emoji: '🍽️', permission: 'menu:view' },
-  { to: '/admin/categories', label: 'Categories', emoji: '🗂️', permission: 'menu:edit' },
-  { to: '/admin/tables', label: 'Tables', emoji: '🪑', permission: 'tables:view' },
-  { to: '/admin/reviews', label: 'Reviews', emoji: '⭐', permission: 'reviews:view' },
-  { to: '/admin/analytics', label: 'Analytics', emoji: '📈', permission: 'analytics:view' },
-  { to: '/admin/settings', label: 'Settings', emoji: '⚙️', permission: 'settings:view' },
+  { to: '/admin', label: 'Dashboard', icon: Grid, permission: 'orders:view', end: true },
+  { to: '/admin/orders', label: 'Orders', icon: Receipt, permission: 'orders:view' },
+  { to: '/admin/menu', label: 'Menu', icon: Plate, permission: 'menu:view' },
+  { to: '/admin/categories', label: 'Categories', icon: Folder, permission: 'menu:edit' },
+  { to: '/admin/tables', label: 'Tables', icon: Table, permission: 'tables:view' },
+  { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view' },
+  { to: '/admin/analytics', label: 'Analytics', icon: TrendUp, permission: 'analytics:view' },
+  { to: '/admin/settings', label: 'Settings', icon: Sliders, permission: 'settings:view' },
 ];
 
 /** How often the queue re-reads itself. A pass cannot wait a minute for a ticket. */
@@ -145,7 +147,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
         {/* ── Sidebar, laptops and up ─────────────────────────────── */}
         <aside className="sticky top-0 hidden h-dvh flex-col border-r border-hairline bg-surface/40 px-3 py-5 lg:flex">
           <div className="px-3 pb-5">
-            <div className={cx(DISPLAY, 'text-[19px]')}>{menu?.restaurant.name ?? 'Loading…'}</div>
+            <div className={cx(DISPLAY, 'text-[26px]')}>{menu?.restaurant.name ?? 'Loading…'}</div>
             <div className="mt-0.5 text-[12px] text-ink-4">Restaurant dashboard</div>
           </div>
 
@@ -229,11 +231,11 @@ function SideLink({ item, badge }: { item: NavItem; badge: number }) {
       className={({ isActive }) =>
         cx(
           'flex items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] font-semibold transition-colors duration-150',
-          isActive ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface/60 hover:text-ink-2',
+          isActive ? 'bg-surface-2 text-flame-3' : 'text-ink-3 hover:bg-surface/60 hover:text-ink-2',
         )
       }
     >
-      <span aria-hidden>{item.emoji}</span>
+      <item.icon size={17} />
       {item.label}
       <Badge count={badge} />
     </NavLink>
@@ -252,7 +254,7 @@ function TabLink({ item, badge }: { item: NavItem; badge: number }) {
         )
       }
     >
-      <span aria-hidden>{item.emoji}</span>
+      <item.icon size={15} />
       {item.label}
       {badge > 0 && (
         <span className="grid h-4.5 min-w-4.5 place-items-center rounded-full bg-bg/35 px-1 text-[10.5px] font-bold tnum">
