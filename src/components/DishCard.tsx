@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { useCart } from '../state/CartContext';
-import { useToast } from '../state/ToastContext';
 import { badgesFor } from '../domain/metrics';
 import type { RankContext } from '../domain/metrics';
 import type { Dish } from '../domain/types';
@@ -8,12 +7,11 @@ import { haptic } from '../platform/haptics';
 import { Badges, DietMarks, DishImage, Price, QuantityStepper } from './Bits';
 import { RatingPill } from './Rating';
 import { cx } from './ui';
-import { Bag, Plus } from './icons';
+import { Plus } from './icons';
 
 /** Compact add control: one tap the first time, a stepper after that. */
 function AddControl({ dish, tone = 'solid' }: { dish: Dish; tone?: 'solid' | 'inset' }) {
   const cart = useCart();
-  const toast = useToast();
   const quantity = cart.quantityOf(dish.id);
 
   if (!dish.isAvailable) {
