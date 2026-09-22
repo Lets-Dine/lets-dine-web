@@ -62,11 +62,12 @@ export function BillLines({
 }
 
 export function Cart() {
-  const { menu, table, base } = useRestaurant();
+  const { menu, table, base, session } = useRestaurant();
   const cart = useCart();
   const navigate = useNavigate();
   const toast = useToast();
   const [openNote, setOpenNote] = useState<string | null>(null);
+  const sessionEnded = Boolean(session.endedAt);
 
   const byId = new Map(menu.dishes.map((d) => [d.id, d]));
   const bill = useBill(cart.lines, menu.dishes);
@@ -206,10 +207,17 @@ export function Cart() {
               taxRate={menu.restaurant.taxRate}
             />
             <p className="text-[11.5px] leading-relaxed text-ink-4">
-              The kitchen confirms the final amount when it accepts your order.
+              {sessionEnded
+                ? "This table has been closed out — new orders can't be placed."
+                : 'The kitchen confirms the final amount when it accepts your order.'}
             </p>
-            <button type="button" className={cx(BTN_FLAME, 'mt-1 hidden! w-full lg:inline-flex!')} onClick={proceed}>
-              Review & order
+            <button
+              type="button"
+              className={cx(BTN_FLAME, 'mt-1 hidden! w-full lg:inline-flex!')}
+              onClick={proceed}
+              disabled={sessionEnded}
+            >
+              {sessionEnded ? 'Table closed' : 'Review & order'}
             </button>
           </div>
         </aside>
@@ -230,8 +238,13 @@ export function Cart() {
             <span className="text-[11px] font-semibold text-ink-3">Total</span>
             <b className="text-[17px] font-bold tracking-tight tnum">{formatMoney(bill.total, currency)}</b>
           </div>
-          <button type="button" className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')} onClick={proceed}>
-            Review & order
+          <button
+            type="button"
+            className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')}
+            onClick={proceed}
+            disabled={sessionEnded}
+          >
+            {sessionEnded ? 'Table closed' : 'Review & order'}
           </button>
         </div>
       </div>

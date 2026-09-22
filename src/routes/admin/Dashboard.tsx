@@ -1,8 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ADVANCE_LABEL, STATUS_LABEL, allOrders, canCancel, nextStatus } from '../../api/admin';
-import { advanceOrder, rejectOrder } from '../../api/staff';
+import { allOrders } from '../../api/admin';
+import { acceptOrder, advanceOrderItem, rejectOrder } from '../../api/staff';
 import { funnel } from '../../domain/analytics';
+import {
+  ADVANCE_LABEL,
+  ITEM_ADVANCE_LABEL,
+  STATUS_LABEL,
+  billableItems,
+  byUrgencyThenAge,
+  canCancelOrder,
+  focusMap,
+  itemStatusSummary,
+  newestOrderPerTable,
+} from '../../domain/orderStatus';
+import type { Focus } from '../../domain/orderStatus';
 import {
   dishPerformance,
   feedbackSummary,
@@ -10,9 +22,10 @@ import {
   windowFor,
 } from '../../domain/adminMetrics';
 import { formatMoney } from '../../domain/money';
-import type { Order, OrderStatus } from '../../domain/types';
+import type { ItemStatus, Menu, Order, OrderItem, OrderStatus } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
+import { useNow } from '../../state/useNow';
 import { relativeTime } from '../../components/time';
 import {
   ADMIN_TINY,
@@ -26,19 +39,23 @@ import {
   StatusPill,
   useCommand,
 } from '../../components/admin/kit';
+import { BULK_DONE, FocusRibbon, ItemRow, Progress, nextBulkStage } from '../../components/admin/OrderLines';
 import { DISPLAY, cx } from '../../components/ui';
+import { ChevronRight } from '../../components/icons';
 import { useDashboard } from './AdminLayout';
-
-/** A new ticket nobody has touched for this long is a problem worth showing, right here. */
-const STALE_MINUTES = 5;
 
 /** How many of the oldest working tickets the hero grid shows before pointing to the full pass. */
 const PASS_GRID_SIZE = 9;
 
-type Lane = 'all' | 'new' | 'kitchen' | 'ready';
+/** How often the ages on screen re-read the clock. */
+const TICK_MS = 15_000;
 
+type Lane = 'all' | 'focus' | 'new' | 'kitchen' | 'ready';
+
+/** `statuses: null` means the lane is not about status — see `inLane` below. */
 const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = [
   { value: 'all', label: 'All', statuses: null },
+  { value: 'focus', label: 'Needs you', statuses: null },
   { value: 'new', label: 'New', statuses: ['PENDING'] },
   { value: 'kitchen', label: 'In the kitchen', statuses: ['ACCEPTED', 'PREPARING'] },
   { value: 'ready', label: 'Ready', statuses: ['READY'] },
@@ -80,8 +97,9 @@ const ACCENT_BUTTON: Record<OrderStatus, string> = {
  */
 export function Dashboard() {
   const staff = useStaff();
-  const { menu, orders: queue, reloadOrders } = useDashboard();
+  const { menu, orders: queue, reloadOrders, applyOrder } = useDashboard();
   const history = useAsync(() => allOrders(staff), [staff]);
+  const now = useNow(TICK_MS);
   const [lane, setLane] = useState<Lane>('all');
 
   const orders = history.data;
@@ -98,23 +116,39 @@ export function Dashboard() {
   const feedback = useMemo(() => feedbackSummary(menu.dishes), [menu.dishes]);
   const { dishDecisionRate } = funnel();
 
-  const working = queue.filter((o) => o.status !== 'COMPLETED' && o.status !== 'CANCELLED');
+  const working = useMemo(
+    () => queue.filter((o) => o.status !== 'COMPLETED' && o.status !== 'CANCELLED'),
+    [queue],
+  );
   const waiting = working.filter((o) => o.status === 'PENDING');
+
+  /** The same clocks the full pass runs on — one sweep per tick, read by every lane and card. */
+  const flags = useMemo(() => focusMap(working, now), [working, now]);
+  const newestPerTable = useMemo(() => newestOrderPerTable(queue), [queue]);
+
+  const inLane = useMemo(
+    () => (value: Lane, order: Order) => {
+      if (value === 'focus') return flags.has(order.id);
+      const definition = LANES.find((l) => l.value === value)!;
+      return definition.statuses ? definition.statuses.includes(order.status) : true;
+    },
+    [flags],
+  );
 
   const laneCounts = useMemo(() => {
     const counts = {} as Record<Lane, number>;
-    for (const l of LANES) counts[l.value] = l.statuses ? working.filter((o) => l.statuses!.includes(o.status)).length : working.length;
+    for (const l of LANES) counts[l.value] = working.filter((o) => inLane(l.value, o)).length;
     return counts;
-  }, [working]);
+  }, [working, inLane]);
 
-  const filtered = useMemo(() => {
-    const active = LANES.find((l) => l.value === lane) ?? LANES[0];
-    const list = active.statuses ? working.filter((o) => active.statuses!.includes(o.status)) : working;
-    return [...list].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
-  }, [working, lane]);
+  const filtered = useMemo(
+    () => working.filter((o) => inLane(lane, o)).sort(byUrgencyThenAge(flags)),
+    [working, inLane, lane, flags],
+  );
 
   const shown = filtered.slice(0, PASS_GRID_SIZE);
   const hiddenCount = filtered.length - shown.length;
+  const overdue = laneCounts.focus;
 
   const unavailable = menu.dishes.filter((d) => !d.isArchived && !d.isAvailable);
   const weakest = menu.dishes
@@ -127,9 +161,11 @@ export function Dashboard() {
       <PageTitle
         title={greeting(staff.name)}
         subtitle={
-          waiting.length > 0
-            ? `${waiting.length} order${waiting.length === 1 ? '' : 's'} waiting to be accepted.`
-            : 'Nothing is waiting to be accepted right now.'
+          overdue > 0
+            ? `${overdue} ticket${overdue === 1 ? '' : 's'} past due on the pass.`
+            : waiting.length > 0
+              ? `${waiting.length} order${waiting.length === 1 ? '' : 's'} waiting to be accepted.`
+              : 'Nothing is waiting to be accepted right now.'
         }
         action={
           <Link
@@ -157,12 +193,14 @@ export function Dashboard() {
         <div className="relative flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <span className="relative flex size-2.5 shrink-0" aria-hidden>
-              <span className="absolute inline-flex size-full animate-breathe rounded-full bg-mint" />
-              <span className="relative inline-flex size-2.5 rounded-full bg-mint" />
+              <span className={cx('absolute inline-flex size-full animate-breathe rounded-full', overdue > 0 ? 'bg-berry' : 'bg-mint')} />
+              <span className={cx('relative inline-flex size-2.5 rounded-full', overdue > 0 ? 'bg-berry' : 'bg-mint')} />
             </span>
             <div>
               <h2 className={cx(DISPLAY, 'text-[19px] sm:text-[22px]')}>On the pass</h2>
-              <p className="mt-0.5 text-[12.5px] text-ink-3">Live tickets, oldest first</p>
+              <p className={cx('mt-0.5 text-[12.5px]', overdue > 0 ? 'font-semibold text-[#ff8098]' : 'text-ink-3')}>
+                {overdue > 0 ? `${overdue} past due · overdue tickets first` : 'Live tickets, oldest first'}
+              </p>
             </div>
           </div>
 
@@ -198,7 +236,17 @@ export function Dashboard() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {shown.map((order, i) => (
-                <PassCard key={order.id} order={order} index={i} onChanged={reloadOrders} />
+                <PassCard
+                  key={order.id}
+                  order={order}
+                  index={i}
+                  focus={flags.get(order.id) ?? null}
+                  menu={menu}
+                  canAdd={newestPerTable.get(order.tableId) === order.id}
+                  now={now}
+                  onApply={applyOrder}
+                  onResync={reloadOrders}
+                />
               ))}
               {hiddenCount > 0 && (
                 <Link
@@ -320,87 +368,200 @@ export function Dashboard() {
 }
 
 /**
- * A ticket on the pass hero — the same one-obvious-next-move rule as the
- * full queue (§27), just sized to sit in a dashboard grid. The dashboard is
- * where a shift's eyes already are, so accepting or bumping a ticket
- * shouldn't require a trip to /admin/orders.
+ * A ticket on the pass hero. It is the same card the full queue shows — same
+ * width, same rows, same rules (§27) — because a shift's eyes are already
+ * here and sending someone to /admin/orders to move one dish is a trip, not
+ * a workflow.
+ *
+ * What differs is restraint: the lines stay folded behind a summary so nine
+ * tickets still fit on one screen. A ticket that is overdue unfolds itself,
+ * since the whole reason it is lit is that somebody needs to look inside it.
  */
-function PassCard({ order, index, onChanged }: { order: Order; index: number; onChanged: () => void }) {
+function PassCard({
+  order,
+  index,
+  focus,
+  now,
+  onApply,
+  onResync,
+}: {
+  order: Order;
+  index: number;
+  focus: Focus | null;
+  /** Kept in the type for when Add returns — see `menu`/`canAdd` below. */
+  menu: Menu;
+  canAdd: boolean;
+  now: number;
+  onApply: (order: Order) => void;
+  onResync: () => void;
+}) {
   const staff = useStaff();
   const { allows } = useAuth();
   const { pending, run } = useCommand();
-  const next = nextStatus(order.status);
+  /** `null` means "nobody has decided" — an overdue ticket then opens on its own. */
+  const [opened, setOpened] = useState<boolean | null>(null);
+  // Add is commented out for now — see the footer button below.
+  // const [adding, setAdding] = useState(false);
+  const open = opened ?? focus !== null;
 
-  const waitingMinutes = Math.floor((Date.now() - Date.parse(order.createdAt)) / 60_000);
-  const stale = order.status === 'PENDING' && waitingMinutes >= STALE_MINUTES;
   const noted = order.items.find((i) => i.notes);
-  const canAdvance = next !== null && allows('orders:advance');
-  const canCancelHere = canCancel(order.status) && allows('orders:cancel');
+  const live = allows('orders:advance') && order.status !== 'COMPLETED' && order.status !== 'CANCELLED';
+  const canAdvance = order.status === 'PENDING' && allows('orders:advance');
+  const canCancelHere = canCancelOrder(order) && allows('orders:cancel');
+  const progress = itemStatusSummary(order);
+  const bulk = nextBulkStage(order);
+
+  const apply = (key: string, action: () => Promise<Order>, success?: string) =>
+    void run(key, async () => onApply(await action()), success).then((ok) => {
+      if (!ok) onResync();
+    });
+
+  const advanceAll = (stage: ItemStatus, items: OrderItem[]) =>
+    void run(
+      `bulk:${order.id}`,
+      async () => {
+        let latest = order;
+        for (const item of items) latest = await advanceOrderItem(staff, order.id, item.id, stage);
+        onApply(latest);
+      },
+      `${items.length} dishes ${BULK_DONE[stage]}`,
+    ).then((ok) => {
+      if (!ok) onResync();
+    });
 
   return (
     <article
       className={cx(
-        'animate-rise relative flex flex-col overflow-hidden rounded-2xl bg-surface-2/60 p-4',
+        'animate-rise relative flex flex-col overflow-hidden rounded-2xl bg-surface-2/60',
         'transition-move hover:-translate-y-0.5 hover:shadow-lift border',
         ACCENT_BORDER[order.status],
-        stale && 'shadow-flame border-2',
+        focus?.level === 'critical' && 'ring-[1.5px] ring-berry/40',
+        focus?.level === 'warn' && 'ring-[1.5px] ring-gold/35',
       )}
       style={{ animationDelay: `${index * 45}ms` }}
     >
-
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-baseline gap-2">
-            <span className="text-[14px] font-bold tnum">{order.reference}</span>
-            <span className="truncate text-[13px] font-semibold text-ink-2">{order.tableName}</span>
+      <div className="p-4 pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[14px] font-bold tnum">{order.reference}</span>
+              <span className="truncate text-[13px] font-semibold text-ink-2">{order.tableName}</span>
+            </div>
+            <div className={cx('mt-0.5 text-[11.5px] tnum', focus ? 'font-semibold text-[#ff8098]' : 'text-ink-4')}>
+              {relativeTime(order.createdAt)}
+            </div>
           </div>
-          <div className={cx('mt-0.5 text-[11.5px] tnum', stale ? 'font-semibold text-flame-1' : 'text-ink-4')}>
-            {stale ? `Waiting ${waitingMinutes}m` : relativeTime(order.createdAt)}
-          </div>
+          <StatusPill status={order.status} label={STATUS_LABEL[order.status]} />
         </div>
-        <StatusPill status={order.status} label={STATUS_LABEL[order.status]} />
       </div>
 
-      <div className="mt-2.5 flex-1 truncate text-[12.5px] text-ink-3">
-        {order.items.map((i) => `${i.quantity}× ${i.dishNameSnapshot}`).join(', ')}
-      </div>
-      {noted && <div className="mt-1 truncate text-[12px] italic text-gold">“{noted.notes}”</div>}
+      <Progress order={order} />
 
-      {(canAdvance || canCancelHere) && (
-        <div className="mt-3 flex items-center gap-2">
-          {canAdvance && (
-            <button
-              type="button"
-              disabled={pending !== null}
-              className={cx(ADMIN_TINY, `flex-1 justify-center text-white`, ACCENT_BUTTON[order.status])}
-              onClick={() =>
-                void run(
-                  order.id,
-                  () => advanceOrder(staff, order.id, order.status),
-                  `${order.reference} → ${STATUS_LABEL[next!].toLowerCase()}`,
-                ).then(onChanged)
-              }
-            >
-              {pending === order.id ? 'Working…' : ADVANCE_LABEL[order.status]}
-            </button>
+      {focus && <FocusRibbon focus={focus} className="px-4 py-1.5" />}
+
+      {open ? (
+        <ul className="divide-y divide-hairline border-t border-hairline px-4">
+          {order.items.map((item) => (
+            <ItemRow key={item.id} order={order} item={item} now={now} canEdit={live} onApply={onApply} onResync={onResync} />
+          ))}
+        </ul>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpened(true)}
+          className="group border-t border-hairline px-4 py-2.5 text-left transition-colors hover:bg-surface-3/40"
+        >
+          <span className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink-3">
+              {billableItems(order.items)
+                .map((i) => `${i.quantity}× ${i.dishNameSnapshot}`)
+                .join(', ')}
+            </span>
+            <ChevronRight size={14} className="shrink-0 text-ink-4 transition-move group-hover:translate-x-0.5" />
+          </span>
+          {noted && <span className="mt-1 block truncate text-[12px] italic text-gold">“{noted.notes}”</span>}
+          {order.acceptedAt && progress.total > 0 && (
+            <span className="mt-1 block text-[12px] font-semibold text-ink-3">
+              {progress.ready}/{progress.total} ready — open to move a dish
+            </span>
           )}
-          {canCancelHere && (
-            <Confirm
-              label="Cancel"
-              question="Cancel this order?"
-              confirmLabel="Cancel it"
-              disabled={pending !== null}
-              onConfirm={() =>
-                void run(
-                  order.id,
-                  () => rejectOrder(staff, order.id, 'Cancelled from the dashboard'),
-                  `${order.reference} cancelled`,
-                ).then(onChanged)
-              }
-            />
-          )}
-        </div>
+        </button>
       )}
+
+      {/* Add, commented out for now — see `adding` state above.
+      {adding && (
+        <DishPicker
+          menu={menu}
+          busy={pending !== null}
+          onClose={() => setAdding(false)}
+          onPick={(dish) => apply(`add:${dish.id}`, () => addOrderItem(staff, order.tableId, dish.id), `${dish.name} added`)}
+        />
+      )}
+      */}
+
+      <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-hairline px-4 py-3">
+        {canAdvance ? (
+          <button
+            type="button"
+            disabled={pending !== null}
+            className={cx(ADMIN_TINY, 'flex-1 justify-center text-white', ACCENT_BUTTON[order.status])}
+            onClick={() => apply(order.id, () => acceptOrder(staff, order.id, 'PENDING'), `${order.reference} accepted`)}
+          >
+            {pending === order.id ? 'Working…' : ADVANCE_LABEL.PENDING}
+          </button>
+        ) : bulk && live ? (
+          <button
+            type="button"
+            disabled={pending !== null}
+            className={cx(ADMIN_TINY, 'flex-1 justify-center text-white', ACCENT_BUTTON[order.status])}
+            onClick={() => advanceAll(bulk.stage, bulk.items)}
+          >
+            {pending === `bulk:${order.id}` ? 'Working…' : `${ITEM_ADVANCE_LABEL[bulk.stage]} all ${bulk.items.length}`}
+          </button>
+        ) : (
+          <span className="flex-1 text-[12px] text-ink-4">{open ? 'Move each dish above' : 'Nothing to press'}</span>
+        )}
+
+        {/* Add, commented out for now — see `adding` state above.
+        {live && canAdd && (
+          <button
+            type="button"
+            disabled={pending !== null}
+            aria-expanded={adding}
+            className={cx(ADMIN_TINY, 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset')}
+            onClick={() => {
+              setAdding((on) => !on);
+              setOpened(true);
+            }}
+          >
+            {adding ? <X size={13} /> : <Plus size={13} />}
+            {adding ? 'Close' : 'Add'}
+          </button>
+        )}
+        */}
+
+        {open && (
+          <button
+            type="button"
+            className={cx(ADMIN_TINY, 'px-2 text-ink-4 hover:text-ink-2')}
+            onClick={() => setOpened(false)}
+          >
+            Fold
+          </button>
+        )}
+
+        {canCancelHere && (
+          <Confirm
+            label="Cancel"
+            question="Cancel this order?"
+            confirmLabel="Cancel it"
+            disabled={pending !== null}
+            onConfirm={() =>
+              apply(order.id, () => rejectOrder(staff, order.id, 'Cancelled from the dashboard'), `${order.reference} cancelled`)
+            }
+          />
+        )}
+      </div>
     </article>
   );
 }

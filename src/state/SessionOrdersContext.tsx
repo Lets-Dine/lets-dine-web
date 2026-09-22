@@ -5,7 +5,7 @@ import { getSessionOrders, subscribeToOrder } from '../api/diner';
 import { IS_LIVE_API } from '../api/http';
 import { track } from '../domain/analytics';
 import { REVIEW_REMIND_MS } from '../domain/config';
-import { dinerStatusToast, isOpenOrder, needsReview } from '../domain/orderStatus';
+import { dinerItemStatusToast, dinerStatusToast, isOpenOrder, needsReview } from '../domain/orderStatus';
 import type { DiningSession, Order } from '../domain/types';
 import { haptic } from '../platform/haptics';
 import { notifyAway } from '../platform/notify';
@@ -48,6 +48,7 @@ export function SessionOrdersProvider({
   const [orders, setOrders] = useState<Order[]>([]);
   const [ready, setReady] = useState(false);
   const lastStatus = useRef(new Map<string, Order['status']>());
+  const lastItemStatus = useRef(new Map<string, string>());
   const reviewReminded = useRef(new Set<string>());
   const reviewTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const pathnameRef = useRef(pathname);
@@ -70,7 +71,7 @@ export function SessionOrdersProvider({
         label: 'Rate',
         onAction: () => goToReview(order.id),
       });
-      notifyAway(`Order ${order.reference}`, 'Rate your meal when you are finished.', `review-${order.id}`);
+      notifyAway(`Order ${order.reference}`, 'A dish from your order is ready to rate.', `review-${order.id}`);
     },
     [goToReview, toast],
   );
@@ -114,6 +115,19 @@ export function SessionOrdersProvider({
     [base, goToReview, navigate, toast],
   );
 
+  // A lighter nudge for one dish — otherwise a multi-item order goes quiet
+  // until every last item converges on the same order-level status.
+  const announceItem = useCallback(
+    (order: Order, item: Order['items'][number]) => {
+      const copy = dinerItemStatusToast(item);
+      if (!copy) return;
+      haptic.tick();
+      toast(copy.message, copy.icon);
+      notifyAway(`Order ${order.reference}`, copy.message, `order-item-${item.id}`);
+    },
+    [toast],
+  );
+
   const ingest = useCallback(
     (incoming: Order[]) => {
       for (const order of incoming) {
@@ -122,6 +136,12 @@ export function SessionOrdersProvider({
         if (previous && previous !== order.status) {
           announce(order);
           if (order.status === 'COMPLETED') track('order_completed', { orderId: order.id });
+        }
+        for (const item of order.items) {
+          const key = `${order.id}:${item.id}`;
+          const previousItemStatus = lastItemStatus.current.get(key);
+          lastItemStatus.current.set(key, item.status);
+          if (previousItemStatus && previousItemStatus !== item.status) announceItem(order, item);
         }
         if (needsReview(order)) {
           scheduleReviewRemind(order);
@@ -135,7 +155,7 @@ export function SessionOrdersProvider({
       }
       setOrders((prev) => mergeOrders(prev, incoming));
     },
-    [announce, scheduleReviewRemind],
+    [announce, announceItem, scheduleReviewRemind],
   );
 
   const rememberOrder = useCallback(

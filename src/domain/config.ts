@@ -25,12 +25,18 @@ export const RANK_WEIGHTS = {
   trend: 0.1,
 } as const;
 
-/** Simulated kitchen timings for the demo order pipeline, in seconds. */
-export const ORDER_TIMELINE_SECONDS = {
-  ACCEPTED: 6,
-  PREPARING: 16,
-  READY: 46,
-  COMPLETED: 70,
+/** Simulated wait, in seconds, before the demo kitchen accepts a fresh order. */
+export const ACCEPT_DELAY_SECONDS = 6;
+
+/**
+ * Simulated per-item kitchen timings for the demo order pipeline, in seconds
+ * elapsed since the order was accepted. Each item advances independently,
+ * staggered by its position in the order (see `projectItemStatuses`).
+ */
+export const ITEM_TIMELINE_SECONDS = {
+  PREPARING: 6,
+  READY: 28,
+  SERVED: 46,
 } as const;
 
 /** Wait after the kitchen marks served before nudging for a rating. */

@@ -30,6 +30,7 @@ export function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sessionEnded = Boolean(session.endedAt);
 
   const byId = new Map(menu.dishes.map((d) => [d.id, d]));
   const bill = useBill(cart.lines, menu.dishes);
@@ -40,7 +41,7 @@ export function Checkout() {
   if (cart.lines.length === 0 && !placed) return <Navigate to={`${base}/cart`} replace />;
 
   const placeOrder = async () => {
-    if (submitting) return;
+    if (submitting || sessionEnded) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -140,6 +141,12 @@ export function Checkout() {
             </div>
           </section>
 
+          {sessionEnded && (
+            <p className="rounded-2xl bg-mint/10 px-3.5 py-3 text-[13.5px] font-semibold text-mint" role="alert">
+              This table has been closed out — new orders can't be placed. Ask a server if you'd like to order more.
+            </p>
+          )}
+
           {error && (
             <p className="rounded-2xl bg-berry/12 px-3.5 py-3 text-[13.5px] font-semibold text-[#ff90a4]" role="alert">
               {error}
@@ -160,9 +167,9 @@ export function Checkout() {
               type="button"
               className={cx(BTN_FLAME, 'mt-1 hidden! w-full lg:inline-flex!')}
               onClick={placeOrder}
-              disabled={submitting}
+              disabled={submitting || sessionEnded}
             >
-              {submitting ? 'Sending…' : 'Place order'}
+              {sessionEnded ? 'Table closed' : submitting ? 'Sending…' : 'Place order'}
             </button>
           </div>
         </aside>
@@ -186,9 +193,9 @@ export function Checkout() {
             type="button"
             className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')}
             onClick={placeOrder}
-            disabled={submitting}
+            disabled={submitting || sessionEnded}
           >
-            {submitting ? 'Sending…' : 'Place order'}
+            {sessionEnded ? 'Table closed' : submitting ? 'Sending…' : 'Place order'}
           </button>
         </div>
       </div>

@@ -1,7 +1,8 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { useEffect, createContext, useContext, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
-import { getMenu, joinTableSession, resolveQr } from '../api/diner';
+import { getMenu, isSessionOpen, joinTableSession, resolveQr, subscribeToSessionEnd } from '../api/diner';
+import { IS_LIVE_API } from '../api/http';
 import { ApiError } from '../api/store';
 import { buildRankContext } from '../domain/metrics';
 import type { RankContext } from '../domain/metrics';
@@ -12,9 +13,13 @@ import { useAsync } from '../state/useAsync';
 import { CartDock } from '../components/CartDock';
 import { OrderDock } from '../components/OrderDock';
 import { BTN_FLAME, CARD, DISPLAY, INPUT, SHELL, cx } from '../components/ui';
+import { Check } from '../components/icons';
 import { BootScreen, ErrorScreen } from './Shell';
 
 const TABLE_OCCUPIED_KEY = 'DINING_SESSION_TABLE_OCCUPIED';
+
+/** How often the mock stand-in polls for a session it has no socket to push from. */
+const SESSION_POLL_MS = 4000;
 
 interface RestaurantValue {
   menu: Menu;
@@ -36,6 +41,7 @@ export function useRestaurant(): RestaurantValue {
 export function RestaurantLayout() {
   const { slug = '', token = '' } = useParams();
   const [joined, setJoined] = useState<Awaited<ReturnType<typeof joinTableSession>> | null>(null);
+  const [endedAt, setEndedAt] = useState<string | null>(null);
 
   const qr = useAsync(() => resolveQr(slug, token), [slug, token]);
   const menu = useAsync(() => getMenu(slug), [slug]);
@@ -46,12 +52,32 @@ export function RestaurantLayout() {
     return {
       menu: menu.data,
       table: resolved.table,
-      session: resolved.session,
+      session: endedAt ? { ...resolved.session, endedAt } : resolved.session,
       ctx: buildRankContext(menu.data.dishes),
       base: `/r/${slug}/t/${token}`,
       reload: menu.reload,
     };
-  }, [resolved, menu.data, slug, token, menu.reload]);
+  }, [resolved, menu.data, slug, token, menu.reload, endedAt]);
+
+  /**
+   * §22/§38 — a table closed out mid-visit (staff clearing it, or a payment
+   * settling it) has to reach every screen the diner might be on, not just
+   * whichever one they happen to be looking at, so this lives here, above
+   * every route, rather than on the order-status screen alone.
+   */
+  useEffect(() => {
+    if (!resolved || resolved.session.endedAt) return;
+    const onEnded = () => setEndedAt(new Date().toISOString());
+
+    if (IS_LIVE_API) return subscribeToSessionEnd(resolved.session, onEnded);
+
+    const timer = setInterval(() => {
+      void isSessionOpen(resolved.session).then((open) => {
+        if (!open) onEnded();
+      });
+    }, SESSION_POLL_MS);
+    return () => clearInterval(timer);
+  }, [resolved]);
 
   const occupied = !joined && qr.error instanceof ApiError && qr.error.key === TABLE_OCCUPIED_KEY;
   if (occupied) {
@@ -62,16 +88,41 @@ export function RestaurantLayout() {
   if (error) return <ErrorScreen title="We couldn't open this table" message={error.message} />;
   if (!value) return <BootScreen />;
 
+  const sessionEnded = Boolean(value.session.endedAt);
+
   return (
     <RestaurantContext.Provider value={value}>
       <CartProvider sessionId={value.session.id}>
         <SessionOrdersProvider session={value.session} base={value.base}>
+          {sessionEnded && <SessionEndedBanner />}
           <Outlet />
-          <CartDock dishes={value.menu.dishes} base={value.base} />
+          <CartDock dishes={value.menu.dishes} base={value.base} hidden={sessionEnded} />
           <OrderDock base={value.base} />
         </SessionOrdersProvider>
       </CartProvider>
     </RestaurantContext.Provider>
+  );
+}
+
+/**
+ * Persistent, not dismissible — it says something true for the rest of the
+ * visit, not a toast that would be right to let someone swipe away. Mint
+ * rather than an error tone: the table closing out is the meal ending well,
+ * not something going wrong.
+ */
+function SessionEndedBanner() {
+  return (
+    <div className="flex items-center gap-2.5 border-b border-hairline bg-mint/10 px-4 py-3 text-center sm:px-6">
+      <span className="mx-auto flex max-w-[620px] items-center gap-2.5">
+        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-mint/20 text-mint" aria-hidden>
+          <Check size={13} />
+        </span>
+        <span className="text-[13px] font-semibold leading-snug text-ink-2">
+          This table has been closed out — thanks for dining with us. New orders can't be placed, but you can still
+          view what you ordered and rate it.
+        </span>
+      </span>
+    </div>
   );
 }
 

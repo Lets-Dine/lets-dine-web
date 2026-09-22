@@ -1,4 +1,4 @@
-import type { AuditEntry, DiningTable, Menu, MenuCategory, Order, OrderStatus, StaffMember } from '../domain/types';
+import type { AuditEntry, DiningTable, ItemStatus, Menu, MenuCategory, Order, StaffMember } from '../domain/types';
 import * as mock from './admin';
 import type { DishDraft } from './admin';
 import { IS_LIVE_API } from './http';
@@ -116,8 +116,14 @@ export function completePayment(
     : mock.completePayment(actor, sessionId, items, endSession);
 }
 
-export function advanceOrder(actor: StaffMember, orderId: string, expected: OrderStatus): Promise<Order> {
-  return IS_LIVE_API ? live.advanceOrder(orderId, expected) : mock.advanceOrder(actor, orderId, expected);
+export function acceptOrder(actor: StaffMember, orderId: string, expected: 'PENDING'): Promise<Order> {
+  return IS_LIVE_API ? live.acceptOrder(orderId, expected) : mock.acceptOrder(actor, orderId, expected);
+}
+
+export function advanceOrderItem(actor: StaffMember, orderId: string, itemId: string, expected: ItemStatus): Promise<Order> {
+  return IS_LIVE_API
+    ? live.advanceOrderItem(orderId, itemId, expected)
+    : mock.advanceOrderItem(actor, orderId, itemId, expected);
 }
 
 export function rejectOrder(actor: StaffMember, orderId: string, reason: string): Promise<Order> {
@@ -128,6 +134,12 @@ export function rejectOrder(actor: StaffMember, orderId: string, reason: string)
 export function subscribeToQueue(onCreated: (order: Order) => void, onUpdated: (order: Order) => void, onResync: () => void): () => void {
   if (!IS_LIVE_API) return () => {};
   return live.subscribeToQueue(onCreated, onUpdated, onResync);
+}
+
+/** No-op in mock mode — `Tables.tsx` falls back to its own polling interval when this does nothing. */
+export function subscribeToTables(onUpdated: (table: DiningTable) => void, onResync: () => void): () => void {
+  if (!IS_LIVE_API) return () => {};
+  return live.subscribeToTables(onUpdated, onResync);
 }
 
 /** §51 — every management action, most recent first. */

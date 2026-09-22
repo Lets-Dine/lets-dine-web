@@ -1,17 +1,18 @@
 import { TABLE } from '../data/menu';
 import { SEED_REVIEWS } from '../data/reviews';
-import { ORDER_TIMELINE_SECONDS } from '../domain/config';
-import { percentOf, sumLines } from '../domain/money';
+import { ACCEPT_DELAY_SECONDS, ITEM_TIMELINE_SECONDS } from '../domain/config';
+import { percentOf, recomputeTotals, sumLines } from '../domain/money';
+import { canCancelItem, deriveOrderStatus, reviewEligibility, statusIndex } from '../domain/orderStatus';
 import type {
   CartLine,
   DiningSession,
   DiningTable,
   Dish,
   DishStats,
+  ItemStatus,
   Menu,
   Order,
   OrderItem,
-  OrderStatus,
   Restaurant,
   Review,
 } from '../domain/types';
@@ -89,28 +90,54 @@ function hydrateDish(dish: Dish, store: Store): Dish {
 
 /* ── Order status pipeline ─────────────────────────────────────────
    The demo kitchen advances an order on a timer. The real client will
-   poll `GET /orders/:id` and get the same shape back.                 */
+   poll `GET /orders/:id` and get the same shape back. Acceptance is still
+   one whole-order timer; once accepted, each item advances on its own
+   staggered timer so a multi-item order shows genuine partial progress. */
 
-const STATUS_ORDER: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'COMPLETED'];
+const ITEM_STATUS_ORDER: ItemStatus[] = ['PENDING', 'PREPARING', 'READY', 'SERVED'];
 
-export function statusIndex(status: OrderStatus): number {
-  return STATUS_ORDER.indexOf(status);
+function itemStatusIndex(status: ItemStatus): number {
+  return ITEM_STATUS_ORDER.indexOf(status);
 }
 
-function projectStatus(order: Order): Order {
-  if (order.status === 'CANCELLED') return order;
-  const elapsed = (Date.now() - new Date(order.createdAt).getTime()) / 1000;
-  let status: OrderStatus = 'PENDING';
-  for (const key of STATUS_ORDER.slice(1)) {
-    const at = ORDER_TIMELINE_SECONDS[key as keyof typeof ORDER_TIMELINE_SECONDS];
-    if (elapsed >= at) status = key;
+/** So the second dish doesn't pop the instant the first one does. */
+const ITEM_STAGGER_SECONDS = 4;
+
+function projectItemStatuses(order: Order): Order {
+  if (order.cancelledAt) return order;
+
+  let acceptedAt = order.acceptedAt;
+  if (!acceptedAt) {
+    const sinceCreated = (Date.now() - new Date(order.createdAt).getTime()) / 1000;
+    if (sinceCreated < ACCEPT_DELAY_SECONDS) return order;
+    acceptedAt = new Date(new Date(order.createdAt).getTime() + ACCEPT_DELAY_SECONDS * 1000).toISOString();
   }
-  if (statusIndex(status) <= statusIndex(order.status)) return order;
+
+  const now = new Date().toISOString();
+  let changed = acceptedAt !== order.acceptedAt;
+  const acceptedMs = new Date(acceptedAt).getTime();
+  const items = order.items.map((item, index) => {
+    if (item.status === 'CANCELLED' || item.status === 'SERVED') return item;
+    const elapsed = (Date.now() - acceptedMs) / 1000 - index * ITEM_STAGGER_SECONDS;
+    let next: ItemStatus = 'PENDING';
+    for (const key of ITEM_STATUS_ORDER.slice(1)) {
+      const at = ITEM_TIMELINE_SECONDS[key as keyof typeof ITEM_TIMELINE_SECONDS];
+      if (elapsed >= at) next = key;
+    }
+    if (itemStatusIndex(next) <= itemStatusIndex(item.status)) return item;
+    changed = true;
+    return { ...item, status: next, statusUpdatedAt: now };
+  });
+
+  if (!changed) return order;
+  const status = deriveOrderStatus({ acceptedAt, cancelledAt: order.cancelledAt, items });
   return {
     ...order,
+    acceptedAt,
+    items,
     status,
-    updatedAt: new Date().toISOString(),
-    completedAt: status === 'COMPLETED' ? new Date().toISOString() : order.completedAt,
+    updatedAt: now,
+    completedAt: status === 'COMPLETED' ? now : order.completedAt,
   };
 }
 
@@ -123,7 +150,7 @@ function persistProjection(store: Store): Store {
   let changed = false;
   const orders = store.orders.map((o) => {
     if (!mine.has(o.sessionId)) return o;
-    const next = projectStatus(o);
+    const next = projectItemStatuses(o);
     if (next !== o) changed = true;
     return next;
   });
@@ -181,6 +208,7 @@ export async function resolveQr(
     anonymousSessionToken: newSessionToken(),
     startedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
+    endedAt: null,
   };
 
   writeStore({ ...store, sessions: { ...store.sessions, [key]: session } });
@@ -227,6 +255,19 @@ export async function getDishReviews(dishId: string): Promise<Review[]> {
 
 /* ── Orders ────────────────────────────────────────────────────────── */
 
+/**
+ * Read-only: does this table still hold the very session we're carrying —
+ * not ended by staff, not replaced by the next party, not simply expired?
+ * Side-effect-free, so it is safe to poll (`RestaurantLayout.tsx` does,
+ * standing in for the live transport's socket push). Mirrors what the real
+ * backend's `DinerSessionGuard` checks on every diner request.
+ */
+export async function isSessionOpen(session: DiningSession): Promise<boolean> {
+  const store = readStore();
+  const current = store.sessions[`${session.restaurantId}:${session.tableId}`];
+  return Boolean(current && current.id === session.id && Date.parse(current.expiresAt) > Date.now());
+}
+
 export interface CreateOrderInput {
   session: DiningSession;
   lines: CartLine[];
@@ -246,11 +287,18 @@ export async function createOrder({ session, lines, idempotencyKey }: CreateOrde
 
   if (lines.length === 0) throw new ApiError(400, 'Your cart is empty.');
 
+  // Mirrors the live backend's `DinerSessionGuard`: a table staff has
+  // closed out (or a session that has simply expired) cannot order again.
+  if (!(await isSessionOpen(session))) {
+    throw new ApiError(401, 'This table has been closed out. Ask a server if you would like to order more.');
+  }
+
   // Prices and availability are read from the server's own menu, never the client's.
   const restaurant = restaurantOf(store);
   const table = tablesOf(store).find((t) => t.id === session.tableId);
   const menu = menuOf(store);
 
+  const now = new Date().toISOString();
   const items: OrderItem[] = lines.map((line) => {
     const dish = menu.dishes.find((d) => d.id === line.dishId);
     if (!dish || dish.isArchived) throw new ApiError(400, 'One of those dishes is no longer on the menu.');
@@ -265,13 +313,14 @@ export async function createOrder({ session, lines, idempotencyKey }: CreateOrde
       unitPrice: dish.price,
       quantity: line.quantity,
       notes: line.note.slice(0, 140),
+      status: 'PENDING',
+      statusUpdatedAt: now,
     };
   });
 
   const subtotal = sumLines(items);
   const serviceCharge = percentOf(subtotal, restaurant.serviceChargeRate);
   const tax = percentOf(subtotal + serviceCharge, restaurant.taxRate);
-  const now = new Date().toISOString();
   const { store: numbered, reference } = takeReference(store);
 
   const order: Order = {
@@ -282,6 +331,8 @@ export async function createOrder({ session, lines, idempotencyKey }: CreateOrde
     tableName: table?.name ?? 'Table',
     sessionId: session.id,
     status: 'PENDING',
+    acceptedAt: null,
+    cancelledAt: null,
     items,
     subtotal,
     serviceCharge,
@@ -325,7 +376,27 @@ export async function cancelOrder(orderId: string): Promise<Order> {
   if (!order) throw new ApiError(404, 'Order not found.');
   if (statusIndex(order.status) > statusIndex('PENDING'))
     throw new ApiError(409, 'The kitchen has already started this order.');
-  const cancelled: Order = { ...order, status: 'CANCELLED', updatedAt: new Date().toISOString() };
+  const now = new Date().toISOString();
+  const cancelled: Order = { ...order, status: 'CANCELLED', cancelledAt: now, updatedAt: now };
+  writeStore({ ...store, orders: store.orders.map((o) => (o.id === orderId ? cancelled : o)) });
+  return cancelled;
+}
+
+/** The diner cancelling a single dish, before the kitchen has started it — the rest of the order is untouched. */
+export async function cancelOrderItem(orderId: string, itemId: string): Promise<Order> {
+  await latency();
+  const store = persistProjection(readStore());
+  const order = store.orders.find((o) => o.id === orderId);
+  if (!order) throw new ApiError(404, 'Order not found.');
+  const item = order.items.find((i) => i.id === itemId);
+  if (!item) throw new ApiError(404, 'That item is no longer on this order.');
+  if (!canCancelItem(item)) throw new ApiError(409, 'The kitchen has already started this item.');
+
+  const now = new Date().toISOString();
+  const items = order.items.map((i) => (i.id === itemId ? { ...i, status: 'CANCELLED' as const, statusUpdatedAt: now } : i));
+  const next = { ...order, items, updatedAt: now };
+  next.status = deriveOrderStatus(next);
+  const cancelled = recomputeTotals(next, restaurantOf(store));
   writeStore({ ...store, orders: store.orders.map((o) => (o.id === orderId ? cancelled : o)) });
   return cancelled;
 }
@@ -343,13 +414,8 @@ export interface ReviewDraft {
   tags: string[];
 }
 
-/** Mirrors the server rule: a review requires an eligible completed purchase. */
-export function reviewEligibility(order: Order, dishId: string): { ok: boolean; reason?: string } {
-  if (order.status !== 'COMPLETED') return { ok: false, reason: 'You can rate dishes once the order is completed.' };
-  if (!order.items.some((i) => i.dishId === dishId)) return { ok: false, reason: 'That dish was not in this order.' };
-  if (order.reviewedDishIds.includes(dishId)) return { ok: false, reason: 'You have already rated this dish.' };
-  return { ok: true };
-}
+/** The single home for this rule is `domain/orderStatus.ts` — shared with the UI and mirrored server-side. */
+export { reviewEligibility };
 
 export async function submitReviews(orderId: string, drafts: ReviewDraft[]): Promise<Order> {
   await latency();

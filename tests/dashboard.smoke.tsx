@@ -86,7 +86,15 @@ await click(buttons('Accept')[0], 1200);
 check('Accepting moves the ticket out of the new lane', (text().match(/Order #\d+/g) ?? []).length < beforeAccept, `${beforeAccept} → ${(text().match(/Order #\d+/g) ?? []).length}`);
 
 await click([...document.querySelectorAll('button')].find((b) => (b.textContent ?? '').includes('In the kitchen')), 800);
-check('It reappears in the kitchen lane', text().includes('Start preparing') || text().includes('Mark ready'));
+check('It reappears in the kitchen lane', text().includes('Start'));
+
+// ── Managing the lines of a ticket ──────────────────────────────────
+check('Overdue work has a lane of its own', buttons('Needs you').length > 0);
+
+await click(buttons('Start')[0], 1200);
+check('One dish can be started without its siblings', text().includes('Preparing'));
+
+// Void and Add dish are commented out for now (see OrderLines.tsx / Orders.tsx), so no checks here.
 
 // ── Menu ────────────────────────────────────────────────────────────
 await click(link('Menu'), 900);
@@ -123,6 +131,15 @@ await click(link('Settings'), 1100);
 check('Settings renders', text().includes('Service charge') && text().includes('Audit log'));
 check('A manager cannot change fees', text().includes('Only an owner can change these'));
 check('The audit log recorded the shift', text().includes('availability changed') || text().includes('order status changed'));
+
+// ── Back on the dashboard: the hero works tickets too ───────────────
+await click(link('Dashboard'), 1400);
+check('The pass hero has a focus lane of its own', buttons('Needs you').length > 0);
+
+const folded = [...document.querySelectorAll('button')].find((b) => (b.textContent ?? '').includes('open to move a dish'));
+if (folded) await click(folded, 700);
+check('A ticket opens its lines on the dashboard', buttons('Fold').length > 0);
+check('Those lines carry their own progress', text().includes('Preparing'));
 
 // ── The store is shared with the diner app ──────────────────────────
 const store = JSON.parse(globalThis.localStorage.getItem(STORE_KEY) ?? '{}');

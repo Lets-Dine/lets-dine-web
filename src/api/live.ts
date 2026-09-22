@@ -9,10 +9,9 @@ import { getSocket, joinRoom } from './socket';
  * The diner-facing half of the real API (`/api/v1/public/*` plus `/orders`),
  * mapped onto the domain types the screens already speak.
  *
- * There is deliberately no diner-facing cancel endpoint on the server (§27 —
- * only staff at `/restaurant/orders/:id/cancel` can cancel a ticket), so
- * `cancelOrder` is not implemented here; `OrderStatus.tsx` hides the button
- * live rather than call a mock function against a real order.
+ * There is still no diner-facing whole-order cancel (only staff at
+ * `/restaurant/orders/:id/cancel` can void an entire ticket) — but diners can
+ * cancel a single not-yet-started item via `cancelOrderItem`, below.
  *
  * Two shapes differ from the wire and are reconciled in the mappers below:
  * currency lives on the restaurant rather than the dish, and the server also
@@ -58,6 +57,7 @@ interface ApiSession {
   anonymousSessionToken: string;
   startedAt: string;
   expiresAt: string;
+  endedAt: string | null;
 }
 
 interface ApiResolvedSession {
@@ -126,6 +126,8 @@ interface ApiOrderItem {
   unitPrice: number;
   quantity: number;
   notes: string;
+  status: Order['items'][number]['status'];
+  statusUpdatedAt: string;
 }
 
 interface ApiOrder {
@@ -136,6 +138,8 @@ interface ApiOrder {
   tableName: string;
   sessionId: string;
   status: Order['status'];
+  acceptedAt: string | null;
+  cancelledAt: string | null;
   items: ApiOrderItem[];
   subtotal: number;
   serviceCharge: number;
@@ -192,6 +196,7 @@ function toSession(api: ApiSession): DiningSession {
     anonymousSessionToken: api.anonymousSessionToken,
     startedAt: api.startedAt,
     expiresAt: api.expiresAt,
+    endedAt: api.endedAt,
   };
 }
 
@@ -252,6 +257,8 @@ function toOrder(api: ApiOrder): Order {
     tableName: api.tableName,
     sessionId: api.sessionId,
     status: api.status,
+    acceptedAt: api.acceptedAt,
+    cancelledAt: api.cancelledAt,
     items: api.items.map((item) => ({
       id: item.id,
       dishId: item.dishId,
@@ -260,6 +267,8 @@ function toOrder(api: ApiOrder): Order {
       unitPrice: item.unitPrice,
       quantity: item.quantity,
       notes: item.notes,
+      status: item.status,
+      statusUpdatedAt: item.statusUpdatedAt,
     })),
     subtotal: api.subtotal,
     serviceCharge: api.serviceCharge,
@@ -477,6 +486,18 @@ export async function getOrder(orderId: string, sessionToken: string): Promise<O
   return toOrder(order);
 }
 
+/** The diner cancelling one not-yet-started dish — the diner's own session token authorises this, never an account. */
+export async function cancelOrderItem(orderId: string, itemId: string, sessionToken: string): Promise<Order> {
+  const order = await apiRequest<ApiOrder>(
+    `/orders/${encodeURIComponent(orderId)}/items/${encodeURIComponent(itemId)}/cancel`,
+    {
+      method: 'POST',
+      headers: { [SESSION_TOKEN_HEADER]: sessionToken },
+    },
+  );
+  return toOrder(order);
+}
+
 /** §21 — every order this table has placed this visit. Scoped server-side to the session behind the token. */
 export async function getSessionOrders(sessionToken: string): Promise<Order[]> {
   const page = await apiRequest<Paginated<ApiOrder>>('/orders?limit=0', {
@@ -502,6 +523,48 @@ export function subscribeToOrder(orderId: string, sessionToken: string, onUpdate
 
   return () => {
     socket.off('order.updated', handleUpdate);
+    leaveRoom();
+  };
+}
+
+/**
+ * Read-only recheck of a session already in hand — never opens a new one.
+ * `/public/sessions/current` throws once a session has ended or expired, so
+ * that alone is the signal; used both for `subscribeToSessionEnd`'s own
+ * reconnect catch-up below and, in mock mode, the plain poll that stands in
+ * for it (see `RestaurantLayout.tsx`).
+ */
+export async function isSessionOpen(session: DiningSession): Promise<boolean> {
+  try {
+    await apiRequest<ApiResolvedSession>('/public/sessions/current', {
+      headers: { [SESSION_TOKEN_HEADER]: session.anonymousSessionToken },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * §22/§38 — the one channel that reaches a diner whether or not they have an
+ * order open yet: staff can close a table out from under someone who is
+ * still just browsing the menu. `onResync` re-checks over HTTP on every
+ * (re)join, covering anything missed while disconnected — the same
+ * discipline `subscribeToOrder` follows above.
+ */
+export function subscribeToSessionEnd(session: DiningSession, onEnded: () => void): () => void {
+  const socket = getSocket();
+  const handleEnded = () => onEnded();
+  socket.on('session.ended', handleEnded);
+
+  const leaveRoom = joinRoom('subscribe:session', { sessionToken: session.anonymousSessionToken }, () => {
+    void isSessionOpen(session).then((open) => {
+      if (!open) onEnded();
+    });
+  });
+
+  return () => {
+    socket.off('session.ended', handleEnded);
     leaveRoom();
   };
 }

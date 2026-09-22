@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { encodeQr, qrPath, qrSvgDocument, qrViewBox } from '../../domain/qr';
+import { encodeQr, qrDotsPath, qrEyesPath, qrSvgDocument, qrViewBox } from '../../domain/qr';
 import type { DiningTable } from '../../domain/types';
 import { DISPLAY, cx } from '../ui';
 
@@ -19,17 +19,20 @@ export function tableUrl(slug: string, table: DiningTable, origin?: string): str
 }
 
 export function QrImage({ value, className }: { value: string; className?: string }) {
-  const matrix = useMemo(() => encodeQr(value, { ecl: 'Q' }), [value]);
+  const matrix = useMemo(() => encodeQr(value, { ecl: 'Q', }), [value]);
+  const dots = useMemo(() => qrDotsPath(matrix), [matrix]);
+  const eyes = useMemo(() => qrEyesPath(matrix), [matrix]);
   return (
     <svg
       viewBox={qrViewBox(matrix)}
       className={cx('block size-full', className)}
-      shapeRendering="crispEdges"
       role="img"
       aria-label="QR code for this table"
     >
       <rect width="100%" height="100%" fill="var(--color-paper)" />
-      <path d={qrPath(matrix)} fill="#000000" />
+      <path d={dots} fill="#000000" />
+      <path d={eyes.ring} fill="#000000" fillRule="evenodd" />
+      <path d={eyes.pupil} fill="#000000" />
     </svg>
   );
 }
@@ -157,7 +160,7 @@ export function QrDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-2 backdrop-blur-sm"
       onClick={onClose}
       role="presentation"
     >
@@ -174,8 +177,8 @@ export function QrDialog({
 
         <div className="my-4 border-t border-dashed border-gray-400" />
 
-        <div className="mx-auto size-60 overflow-hidden rounded-xl p-2 ring-1 ring-hairline ring-inset">
-          <QrImage value={url} className='bg-paper' />
+        <div className="mx-auto size-60 overflow-hidden rounded-xl ring-1 ring-hairline ring-inset">
+          <QrImage value={url} />
         </div>
 
         <p className="mt-4 text-[9px] break-all text-ink-4">{url}</p>

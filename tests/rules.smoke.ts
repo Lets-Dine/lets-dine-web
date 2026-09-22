@@ -14,10 +14,12 @@ import {
   getDish,
   getMenu,
   getOrder,
+  isSessionOpen,
   resolveQr,
   reviewEligibility,
   submitReviews,
 } from '../src/api/client';
+import { endTableSession, signIn } from '../src/api/admin';
 import { STORE_KEY } from '../src/api/store';
 import { buildRankContext, buildSections } from '../src/domain/metrics';
 import { formatMoney } from '../src/domain/money';
@@ -103,7 +105,7 @@ try {
 check('Invalid quantity is rejected', badQty);
 
 // ── Review eligibility ──────────────────────────────────────────────
-check('Cannot review before completion', !reviewEligibility(order, sekuwa.id).ok);
+check('Cannot review before it has been served', !reviewEligibility(order, sekuwa.id).ok);
 
 let tooEarly = false;
 try {
@@ -111,7 +113,34 @@ try {
 } catch (e) {
   tooEarly = e instanceof ApiError && e.status === 403;
 }
-check('Server refuses reviews on an incomplete order', tooEarly);
+check('Server refuses reviews on an unserved dish', tooEarly);
+
+// A dish is reviewable the moment it is served — no need to wait for the
+// rest of the order. A fresh order, staggered so the first line reaches
+// SERVED while its sibling is still on the timeline behind it.
+const stagger = await createOrder({
+  session,
+  lines: [
+    { dishId: sekuwa.id, quantity: 1, note: '' },
+    { dishId: momo.id, quantity: 1, note: '' },
+  ],
+  idempotencyKey: 'key-stagger',
+});
+const rawStagger = JSON.parse(globalThis.localStorage.getItem(STORE_KEY)!);
+rawStagger.orders = rawStagger.orders.map((o: { id: string; createdAt: string }) =>
+  o.id === stagger.id ? { ...o, createdAt: new Date(Date.now() - 54_000).toISOString() } : o,
+);
+globalThis.localStorage.setItem(STORE_KEY, JSON.stringify(rawStagger));
+
+const partial = await getOrder(stagger.id);
+check(
+  'The first item reaches SERVED while its sibling is still cooking',
+  partial.items[0].status === 'SERVED' && partial.items[1].status !== 'SERVED',
+  partial.items.map((i) => i.status).join(', '),
+);
+check('The order itself has not reached COMPLETED yet', partial.status !== 'COMPLETED', partial.status);
+check('A served dish can be rated before the rest of the order finishes', reviewEligibility(partial, sekuwa.id).ok);
+check('An unserved sibling dish still cannot be rated', !reviewEligibility(partial, momo.id).ok);
 
 // Fast-forward the demo kitchen past COMPLETED.
 const raw = JSON.parse(globalThis.localStorage.getItem(STORE_KEY)!);
@@ -176,6 +205,37 @@ check('First rating turns a null average into a real one', teaDish.stats.avgRati
 check('Recommendation rate appears with the first review', teaDish.stats.recommendRate === 1);
 
 check('Money formatting', formatMoney(45000, 'NPR') === 'Rs. 450' && formatMoney(123456, 'NPR') === 'Rs. 1,234.56', formatMoney(123456, 'NPR'));
+
+// ── Session end closes pending orders and items ──────────────────────
+// Placed last — every earlier order on this table needs the session still open.
+check('The session is open while staff has not cleared the table', await isSessionOpen(session));
+
+// Untouched — never accepted, its one item still PENDING — right up to the close.
+const untouched = await createOrder({ session, lines: [{ dishId: momo.id, quantity: 1, note: '' }], idempotencyKey: 'key-7' });
+check('The fresh order is still PENDING going into the close', untouched.items[0].status === 'PENDING');
+
+const staff = await signIn('ranjana@sekuwaghar.np', '1234');
+await endTableSession(staff, table.id);
+
+check('Ending the session is reflected on a fresh check', !(await isSessionOpen(session)));
+
+const closedUntouched = await getOrder(untouched.id);
+check('An order the kitchen never started is cancelled, not completed', closedUntouched.status === 'CANCELLED');
+check('Its untouched item is dropped', closedUntouched.items[0].status === 'CANCELLED');
+check('A dropped item is never billed', closedUntouched.total === 0, `Rs. ${closedUntouched.total / 100}`);
+
+// `stagger` (above) was left mid-serve — one item SERVED, the other still READY.
+const closedStagger = await getOrder(stagger.id);
+check('An order already partway served is completed, not cancelled', closedStagger.status === 'COMPLETED');
+check('Its still-cooking item is treated as delivered', closedStagger.items[1].status === 'SERVED');
+
+let blockedAfterEnd = false;
+try {
+  await createOrder({ session, lines: [{ dishId: momo.id, quantity: 1, note: '' }], idempotencyKey: 'key-6' });
+} catch (e) {
+  blockedAfterEnd = e instanceof ApiError && e.status === 401;
+}
+check('A closed-out table refuses a new order', blockedAfterEnd);
 
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

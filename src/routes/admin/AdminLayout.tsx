@@ -25,6 +25,13 @@ interface DashboardValue {
   orders: Order[];
   reloadOrders: () => void;
   reloadMenu: () => void;
+  /**
+   * Drops a server's own copy of one order straight into the queue. Every
+   * order mutation already answers with the updated ticket, so a screen that
+   * just changed something has no reason to re-read the whole pass and wait
+   * a round trip to see its own press land.
+   */
+  applyOrder: (order: Order) => void;
 }
 
 const DashboardContext = createContext<DashboardValue | null>(null);
@@ -135,8 +142,11 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const waiting = useMemo(() => (orders ?? []).filter((o) => o.status === 'PENDING').length, [orders]);
 
   const dashboard = useMemo<DashboardValue | null>(
-    () => (menu && (!needsOrders || orders) ? { menu, orders: orders ?? [], reloadOrders, reloadMenu } : null),
-    [menu, orders, needsOrders, reloadOrders, reloadMenu],
+    () =>
+      menu && (!needsOrders || orders)
+        ? { menu, orders: orders ?? [], reloadOrders, reloadMenu, applyOrder: applyUpdated }
+        : null,
+    [menu, orders, needsOrders, reloadOrders, reloadMenu, applyUpdated],
   );
 
   const items = NAV.filter((item) => allows(item.permission));

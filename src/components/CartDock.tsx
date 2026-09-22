@@ -13,11 +13,11 @@ export function cartDockHidden(pathname: string): boolean {
  * Persistent cart. Full-width thumb-reach bar on phones; a floating pill in the
  * bottom corner once the layout is wide enough for it not to be in the way.
  */
-export function CartDock({ dishes, base }: { dishes: Dish[]; base: string }) {
+export function CartDock({ dishes, base, hidden = false }: { dishes: Dish[]; base: string; hidden?: boolean }) {
   const cart = useCart();
   const { pathname } = useLocation();
 
-  if (cart.count === 0 || cartDockHidden(pathname)) return null;
+  if (hidden || cart.count === 0 || cartDockHidden(pathname)) return null;
 
   const byId = new Map(dishes.map((d) => [d.id, d]));
   const currency = dishes[0]?.currency ?? 'NPR';

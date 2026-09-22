@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { isTableOpen, STATUS_LABEL } from '../../api/admin';
+import { isTableOpen } from '../../api/admin';
+import { IS_LIVE_API } from '../../api/http';
+import { STATUS_LABEL } from '../../domain/orderStatus';
 import {
   completePayment,
   createTable,
@@ -8,6 +10,7 @@ import {
   listTables,
   regenerateQr,
   setTableActive,
+  subscribeToTables,
   updateTable,
 } from '../../api/staff';
 import type { DiningTable, Dish, Order, OrderStatus } from '../../domain/types';
@@ -49,6 +52,9 @@ function isOccupied(table: DiningTable): boolean {
   return table.currentSessionId != null;
 }
 
+/** How often the floor plan re-reads itself when there's no socket to push it a change. */
+const TABLES_POLL_MS = 8000;
+
 export function Tables() {
   const staff = useStaff();
   const { allows } = useAuth();
@@ -57,6 +63,21 @@ export function Tables() {
   const push = useToast();
 
   const tables = useAsync(() => listTables(staff), [staff]);
+  const reloadTables = tables.reload;
+
+  // A diner's QR scan can open a session, and another staff member's device
+  // can end one, on any device that isn't this one — the floor plan has to
+  // notice either without someone refreshing it. Live, the socket pushes
+  // `table.updated` the moment a session starts or ends; the mock has no
+  // server to push from, so it keeps polling instead.
+  useEffect(() => {
+    if (IS_LIVE_API) {
+      return subscribeToTables(reloadTables, reloadTables);
+    }
+    const timer = setInterval(reloadTables, TABLES_POLL_MS);
+    return () => clearInterval(timer);
+  }, [reloadTables]);
+
   const [name, setName] = useState('');
   const [capacity, setCapacity] = useState('4');
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -605,6 +626,7 @@ function PaymentSheet({
   for (const order of orders) {
     if (order.status === 'CANCELLED') continue;
     for (const item of order.items) {
+      if (item.status === 'CANCELLED') continue;
       const remaining = item.quantity - (removeCounts.get(item.id) ?? 0);
       if (remaining <= 0) continue;
 
@@ -620,7 +642,9 @@ function PaymentSheet({
         unitPrice: item.unitPrice,
         quantity: remaining + added,
         orderStatus: order.status,
-        served: order.status === 'COMPLETED',
+        // A dish groups the moment the kitchen marks *that item* served,
+        // independent of whether the rest of the order has caught up.
+        served: item.status === 'SERVED',
       });
     }
   }
@@ -638,7 +662,8 @@ function PaymentSheet({
         unitPrice: dish.price,
         quantity,
         orderStatus: latestOrder.status,
-        served: latestOrder.status === 'COMPLETED',
+        // A freshly-queued line is always PENDING — it can't be served yet.
+        served: false,
       });
     }
   }

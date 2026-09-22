@@ -10,10 +10,10 @@ import * as live from './live';
  * otherwise. Screens import from here so neither one has to know which is
  * answering.
  *
- * Review submission and cancelling an order: cancel is `client.ts`-only
- * because the live server has no diner-facing cancel endpoint (only staff
- * can cancel a ticket), so `OrderStatus.tsx` hides that control. Reviews
- * go through here and hit `POST /reviews` live.
+ * Whole-order cancel stays mock-only (`OrderStatus.tsx` hides that control
+ * live — only staff can void an entire ticket, per the server). Per-item
+ * cancel is live-aware, below: a diner can still cancel one not-yet-started
+ * dish either way. Reviews go through here and hit `POST /reviews` live.
  *
  * `subscribeToOrder` is used by the visit-level watcher so a diner who leaves
  * the status screen still hears every status change. Mock mode has no server
@@ -65,6 +65,11 @@ export function getOrder(orderId: string, sessionToken: string): Promise<Order> 
   return IS_LIVE_API ? live.getOrder(orderId, sessionToken) : mock.getOrder(orderId);
 }
 
+/** The diner cancelling a single not-yet-started dish. `sessionToken` is only used live. */
+export function cancelOrderItem(orderId: string, itemId: string, sessionToken: string): Promise<Order> {
+  return IS_LIVE_API ? live.cancelOrderItem(orderId, itemId, sessionToken) : mock.cancelOrderItem(orderId, itemId);
+}
+
 /** §21 — every order placed during this dining session, newest first. */
 export function getSessionOrders(session: DiningSession): Promise<Order[]> {
   return IS_LIVE_API ? live.getSessionOrders(session.anonymousSessionToken) : mock.getSessionOrders(session.id);
@@ -84,4 +89,15 @@ export function subscribeToOrder(
 ): () => void {
   if (!IS_LIVE_API) return () => {};
   return live.subscribeToOrder(orderId, sessionToken, onUpdate, onResync);
+}
+
+/** Read-only recheck of a session already in hand. Never opens a new one — see `RestaurantLayout.tsx`. */
+export function isSessionOpen(session: DiningSession): Promise<boolean> {
+  return IS_LIVE_API ? live.isSessionOpen(session) : mock.isSessionOpen(session);
+}
+
+/** No-op in mock mode — `RestaurantLayout.tsx` falls back to polling `isSessionOpen` when this does nothing. */
+export function subscribeToSessionEnd(session: DiningSession, onEnded: () => void): () => void {
+  if (!IS_LIVE_API) return () => {};
+  return live.subscribeToSessionEnd(session, onEnded);
 }

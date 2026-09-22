@@ -96,7 +96,8 @@ check('Checkout offers pay-at-restaurant', text().includes('Cash at the table'))
 await click(button('Place order'), 900);
 const orderPath = window.location.pathname;
 check('Placing an order lands on the order screen', orderPath.includes('/order/'), orderPath);
-check('Status timeline renders', text().includes('Order placed') && text().includes('Preparing'));
+check('Status timeline renders', text().includes('Order placed') && text().includes('Completed'));
+check('Item tracker shows each dish pending', text().includes('Pending'));
 check('Order shows locked-in unit prices', text().includes('each'));
 check('Order reference is shown', /Order #\d+/.test(text()));
 check('Review prompt stays hidden until completion', !text().includes('How was your meal?'));
@@ -122,7 +123,7 @@ check('Review prompt appears once completed', text().includes('How was your meal
 check('Rate this meal is a primary action', Boolean(link('Rate this meal')));
 
 await click(button('Back to the menu'), 700);
-check('Menu reminds the diner to rate', text().includes('How was your meal?') && text().includes('Rate it when you are done'));
+check('Menu reminds the diner to rate', text().includes('How was your meal?') && text().includes('no need to wait for the rest'));
 await click(link('How was your meal?'), 700);
 check('Reminder opens the review flow', window.location.pathname.includes('/review'));
 check('Review flow opens on the first dish', text().includes('You ordered'));
@@ -132,7 +133,7 @@ const fiveStars = [...document.querySelectorAll('button[role="radio"]')].filter(
   (b) => b.getAttribute('aria-label') === '5 of 5',
 );
 await click(fiveStars[0], 300);
-check('Picking a rating reveals the detail questions', text().includes('Would you order it again?'));
+check('Picking a rating reveals the detail questions', text().includes('Would you order it again next time?'));
 check('Verdict label responds to the rating', text().includes('Excellent'));
 check('Predefined tags are offered', text().includes('Great presentation'));
 

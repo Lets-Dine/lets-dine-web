@@ -47,10 +47,10 @@ function AddControl({ dish, tone = 'solid' }: { dish: Dish; tone?: 'solid' | 'in
       onClick={() => {
         haptic.commit();
         cart.add(dish.id, 1);
-        toast(`${dish.name} added`, <Bag size={19} />, {
-          label: 'Undo',
-          onAction: () => cart.setQuantity(dish.id, 0),
-        });
+        // toast(`${dish.name} added`, <Bag size={19} />, {
+        //   label: 'Undo',
+        //   onAction: () => cart.setQuantity(dish.id, 0),
+        // });
       }}
       aria-label={`Add ${dish.name}`}
       className={cx(

@@ -33,7 +33,7 @@ export class ApiError extends Error {
 }
 
 /** Exported so tests can reach in and age an order without a time machine. */
-export const STORE_KEY = 'myfood.store.v3';
+export const STORE_KEY = 'myfood.store.v4';
 
 export interface MenuState {
   categories: MenuCategory[];

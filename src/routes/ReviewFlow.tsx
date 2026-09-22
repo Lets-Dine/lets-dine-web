@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { reviewEligibility } from '../api/client';
 import type { ReviewDraft } from '../api/client';
 import { getOrder, submitReviews } from '../api/diner';
 import { track } from '../domain/analytics';
 import { REVIEW_TAGS } from '../domain/config';
+import { reviewableItems } from '../domain/orderStatus';
 import type { Order } from '../domain/types';
 import { haptic } from '../platform/haptics';
 import { DishImage, Skeleton } from '../components/Bits';
@@ -68,10 +68,10 @@ export function ReviewFlow() {
   const [submitted, setSubmitted] = useState<Order | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const pending = useMemo(
-    () => (order ? order.items.filter((i) => reviewEligibility(order, i.dishId).ok) : []),
-    [order],
-  );
+  const pending = useMemo(() => (order ? reviewableItems(order) : []), [order]);
+  /** Once anything has been served, ratings are open — the rest of the order can keep cooking. */
+  const everServed = order ? order.items.some((i) => i.status === 'SERVED') : false;
+  const moreToCome = order ? order.status !== 'COMPLETED' && order.status !== 'CANCELLED' : false;
 
   if (error) return <ErrorScreen title="Order not found" message={error.message} />;
 
@@ -87,7 +87,7 @@ export function ReviewFlow() {
     );
   }
 
-  if (order.status !== 'COMPLETED') {
+  if (!everServed) {
     return (
       <main className={SHELL}>
         <TopBar title="Rate your meal" fallbackTo={`${base}/order/${order.id}`} width={PAGE} />
@@ -95,7 +95,7 @@ export function ReviewFlow() {
           <EmptyState
             emoji="⏳"
             title="Not just yet"
-            message="Ratings open once the restaurant marks your order completed. That's what keeps every rating here honest."
+            message="Ratings open as soon as the first dish reaches your table — no need to wait for the rest of the order."
             action={
               <Link to={`${base}/order/${order.id}`} className={BTN_GHOST}>
                 Back to order status
@@ -116,11 +116,15 @@ export function ReviewFlow() {
           <div className="mb-1 grid size-19 animate-pop place-items-center rounded-full bg-flame text-white shadow-flame" aria-hidden>
             <Sparkle size={30} />
           </div>
-          <h1 className={cx(DISPLAY, 'text-[27px]')}>Your ratings are live</h1>
+          <h1 className={cx(DISPLAY, 'text-[27px]')}>
+            {ratedCount > 0 ? 'Your ratings are live' : "You're all caught up"}
+          </h1>
           <p className="mb-3.5 max-w-[34ch] text-[14.5px] leading-relaxed text-ink-3">
             {ratedCount > 0
               ? `${ratedCount} verified ${ratedCount === 1 ? 'rating' : 'ratings'} from this order are now part of what the next diner sees.`
-              : 'Nothing left to rate from this order.'}
+              : moreToCome
+                ? "You've rated everything that's arrived so far. We'll let you know when there's more to rate."
+                : 'Nothing left to rate from this order.'}
           </p>
           <Link to={base} className={cx(BTN, BTN_SIZE_LG, 'w-full max-w-80 bg-flame text-white shadow-flame')}>
             Back to the menu
@@ -237,7 +241,7 @@ export function ReviewFlow() {
           {draft.overall > 0 && (
             <div className="flex animate-rise flex-col gap-5 border-t border-hairline pt-4.5">
               <div className="flex flex-col gap-2.5">
-                <b className="text-[13.5px] font-semibold">Would you order it again?</b>
+                <b className="text-[13.5px] font-semibold">Would you order it again next time?</b>
                 <div className="flex gap-2">
                   {(
                     [

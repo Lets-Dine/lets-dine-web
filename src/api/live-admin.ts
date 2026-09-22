@@ -1,11 +1,12 @@
-import { nextStatus } from './admin';
 import type { DishDraft } from './admin';
+import { nextItemStatus } from '../domain/orderStatus';
 import type {
   AuditAction,
   AuditEntry,
   DiningTable,
   Dish,
   DishStats,
+  ItemStatus,
   Menu,
   MenuCategory,
   Order,
@@ -132,6 +133,8 @@ interface ApiOrderItem {
   unitPrice: number;
   quantity: number;
   notes: string;
+  status: ItemStatus;
+  statusUpdatedAt: string;
 }
 
 interface ApiDiningTable {
@@ -168,6 +171,8 @@ interface ApiOrder {
   tableName: string;
   sessionId: string;
   status: OrderStatus;
+  acceptedAt: string | null;
+  cancelledAt: string | null;
   items: ApiOrderItem[];
   subtotal: number;
   serviceCharge: number;
@@ -280,6 +285,8 @@ function toOrder(api: ApiOrder): Order {
     tableName: api.tableName,
     sessionId: api.sessionId,
     status: api.status,
+    acceptedAt: api.acceptedAt,
+    cancelledAt: api.cancelledAt,
     items: api.items.map((item) => ({
       id: item.id,
       dishId: item.dishId,
@@ -288,6 +295,8 @@ function toOrder(api: ApiOrder): Order {
       unitPrice: item.unitPrice,
       quantity: item.quantity,
       notes: item.notes,
+      status: item.status,
+      statusUpdatedAt: item.statusUpdatedAt,
     })),
     subtotal: api.subtotal,
     serviceCharge: api.serviceCharge,
@@ -583,16 +592,31 @@ export async function completePayment(
   });
 }
 
-/** `expected` is the status the UI last saw; the actual next step is read off the same table the server enforces. */
-export async function advanceOrder(orderId: string, expected: OrderStatus): Promise<Order> {
-  const to = nextStatus(expected);
-  if (!to) throw new ApiError(409, 'This order is already finished.');
+/** The one remaining whole-order transition: accept. Everything after that follows the items. */
+export async function acceptOrder(orderId: string, expected: 'PENDING'): Promise<Order> {
+  if (expected !== 'PENDING') throw new ApiError(409, 'This order has already been accepted.');
 
   const order = await apiRequest<ApiOrder>(`/restaurant/orders/${encodeURIComponent(orderId)}/status`, {
     method: 'PATCH',
     headers: authHeaders(),
-    body: JSON.stringify({ status: to }),
+    body: JSON.stringify({ status: 'ACCEPTED' }),
   });
+  return toOrder(order);
+}
+
+/** `expected` is the item's status the UI last saw; the actual next step is read off the same table the server enforces. */
+export async function advanceOrderItem(orderId: string, itemId: string, expected: ItemStatus): Promise<Order> {
+  const to = nextItemStatus(expected);
+  if (!to) throw new ApiError(409, 'This item is already finished.');
+
+  const order = await apiRequest<ApiOrder>(
+    `/restaurant/orders/${encodeURIComponent(orderId)}/items/${encodeURIComponent(itemId)}/status`,
+    {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ status: to }),
+    },
+  );
   return toOrder(order);
 }
 
@@ -628,6 +652,31 @@ export function subscribeToQueue(onCreated: (order: Order) => void, onUpdated: (
   return () => {
     socket.off('order.created', handleCreated);
     socket.off('order.updated', handleUpdated);
+    leaveRoom();
+  };
+}
+
+/**
+ * The floor's realtime feed — a table flips between free and occupied the
+ * moment a diner's QR scan opens a session or a session ends (staff ending
+ * it, or a payment settling with `endSession`), on whichever device notices
+ * first. `onResync` fires on every (re)join, including the first, so the
+ * caller can refetch the whole table list once over HTTP, covering the
+ * initial load and anything missed while disconnected. A signed-out tab has
+ * no token to authenticate with, so this is a no-op until the next sign-in.
+ */
+export function subscribeToTables(onUpdated: (table: DiningTable) => void, onResync: () => void): () => void {
+  const token = readToken();
+  if (!token) return () => {};
+
+  const socket = getSocket();
+  const handleUpdated = (api: ApiDiningTable) => onUpdated(toTable(api));
+  socket.on('table.updated', handleUpdated);
+
+  const leaveRoom = joinRoom('subscribe:tables', { token }, onResync);
+
+  return () => {
+    socket.off('table.updated', handleUpdated);
     leaveRoom();
   };
 }

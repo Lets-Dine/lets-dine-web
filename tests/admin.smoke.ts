@@ -10,7 +10,8 @@
  * screenshot, not a feature.
  */
 import {
-  advanceOrder,
+  acceptOrder,
+  advanceOrderItem,
   createCategory,
   createTable,
   deleteCategory,
@@ -31,6 +32,7 @@ import { orderHistory } from '../src/data/history';
 import { dishPerformance, feedbackSummary, periodReport, totalsIn } from '../src/domain/adminMetrics';
 import { dataCodewords, encodeData, encodeQr, interleave, reedSolomon } from '../src/domain/qr';
 import { can } from '../src/domain/permissions';
+import type { ItemStatus, Order, StaffMember } from '../src/domain/types';
 
 let failures = 0;
 function check(name: string, cond: boolean, extra = '') {
@@ -139,22 +141,31 @@ check('References are unique', new Set(queue.map((o) => o.reference)).size === q
 const pending = queue.filter((o) => o.status === 'PENDING');
 check('Some tickets are waiting to be accepted', pending.length > 0);
 
+/** Every item on an order shares the same expected status — true right after accept, and after each uniform step below. */
+async function advanceAllItems(actor: StaffMember, order: Order, from: ItemStatus): Promise<Order> {
+  let current = order;
+  for (const item of order.items) current = await advanceOrderItem(actor, order.id, item.id, from);
+  return current;
+}
+
 const ticket = pending[0];
-const accepted = await advanceOrder(server, ticket.id, 'PENDING');
+const accepted = await acceptOrder(server, ticket.id, 'PENDING');
 check('Staff can accept a ticket', accepted.status === 'ACCEPTED');
 
 // The second tablet to press Accept has to lose, not double-advance the order.
-await refuses('A stale transition is rejected', 409, () => advanceOrder(server, ticket.id, 'PENDING'));
+await refuses('A stale transition is rejected', 409, () => acceptOrder(server, ticket.id, 'PENDING'));
 
-const preparing = await advanceOrder(server, ticket.id, 'ACCEPTED');
-const ready = await advanceOrder(server, ticket.id, 'PREPARING');
-const done = await advanceOrder(server, ticket.id, 'READY');
-check(
-  'A ticket walks the whole pipeline',
-  preparing.status === 'PREPARING' && ready.status === 'READY' && done.status === 'COMPLETED',
-);
+const preparing = await advanceAllItems(server, accepted, 'PENDING');
+check('Order moves to PREPARING once its items start', preparing.status === 'PREPARING');
+await refuses('An item cannot skip a step', 409, () => advanceOrderItem(server, ticket.id, preparing.items[0].id, 'PENDING'));
+
+const ready = await advanceAllItems(server, preparing, 'PREPARING');
+check('Order becomes READY once every item is plated', ready.status === 'READY');
+
+const done = await advanceAllItems(server, ready, 'READY');
+check('A ticket walks the whole pipeline', done.status === 'COMPLETED');
 check('Completion is timestamped', done.completedAt !== null);
-await refuses('A completed ticket cannot advance further', 409, () => advanceOrder(server, ticket.id, 'COMPLETED'));
+await refuses('A served item cannot advance further', 409, () => advanceOrderItem(server, ticket.id, done.items[0].id, 'SERVED'));
 await refuses('Staff cannot cancel', 403, () => rejectOrder(server, ticket.id, 'no'));
 
 const readyTicket = (await listQueue(manager)).find((o) => o.status === 'READY');

@@ -70,7 +70,7 @@ export function OrderDock({ base }: { base: string }) {
                 : `Order ${order.reference} · ${DINER_STATUS_LABEL[order.status]}`}
           </b>
           <span className={cx('truncate text-[12px] font-semibold', loud ? 'opacity-70' : 'text-ink-3')}>
-            {reviewing ? 'Rate it when you are done — it takes 20 seconds' : DINER_STATUS_HINT[order.status]}
+            {reviewing ? 'It takes 20 seconds — no need to wait for the rest' : DINER_STATUS_HINT[order.status]}
           </span>
         </span>
         <ChevronRight size={18} className={loud ? undefined : 'text-ink-3'} />

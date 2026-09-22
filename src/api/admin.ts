@@ -2,7 +2,15 @@ import { HISTORY_REF_CEILING, orderHistory } from '../data/history';
 import { CATEGORIES, DISHES } from '../data/menu';
 import { SEED_REVIEWS } from '../data/reviews';
 import { DEMO_PIN, STAFF } from '../data/staff';
-import { formatMoney, percentOf, sumLines } from '../domain/money';
+import { formatMoney, percentOf, recomputeTotals, sumLines } from '../domain/money';
+import {
+  ITEM_STATUS_LABEL,
+  STATUS_LABEL,
+  billableItems,
+  canCancelOrder,
+  deriveOrderStatus,
+  nextItemStatus,
+} from '../domain/orderStatus';
 import { ROLE_LABEL, can } from '../domain/permissions';
 import type { Permission } from '../domain/permissions';
 import type {
@@ -10,6 +18,7 @@ import type {
   AuditEntry,
   DiningTable,
   Dish,
+  ItemStatus,
   Menu,
   MenuCategory,
   Minor,
@@ -99,6 +108,26 @@ export async function listAudit(actor: StaffMember, limit = 80): Promise<AuditEn
  * open. Seeded once and then persisted, because staff have to be able to move
  * these tickets — a re-generated ticket would forget it had been accepted.
  */
+/**
+ * What each seeded item's status should be for a given seeded order-level
+ * status, so a shift ticket reads correctly on first paint even before
+ * `deriveOrderStatus` re-derives it. PREPARING and READY seed a partially-
+ * through ticket rather than a uniform one, to show off per-item progress
+ * from the moment the demo loads.
+ */
+function seedItemStatus(orderStatus: OrderStatus, index: number, count: number): ItemStatus {
+  switch (orderStatus) {
+    case 'PREPARING':
+      return index === 0 ? 'PREPARING' : 'PENDING';
+    case 'READY':
+      return index === count - 1 && count > 1 ? 'READY' : 'SERVED';
+    case 'COMPLETED':
+      return 'SERVED';
+    default:
+      return 'PENDING';
+  }
+}
+
 function seedQueue(store: Store): Store {
   if (store.seededQueue) return store;
 
@@ -124,6 +153,7 @@ function seedQueue(store: Store): Store {
   let ref = Math.max(store.nextRef, HISTORY_REF_CEILING);
   const orders: Order[] = shift.map(([minutesAgo, status, tableIndex, dishIndices], i) => {
     const table = tables[tableIndex % tables.length];
+    const placed = new Date(now - minutesAgo * 60_000);
     const items: OrderItem[] = dishIndices.map((dishIndex, line) => {
       const dish = popular[dishIndex % popular.length];
       return {
@@ -134,13 +164,17 @@ function seedQueue(store: Store): Store {
         unitPrice: dish.price,
         quantity: line === 0 && dishIndices.length > 2 ? 2 : 1,
         notes: line === 1 && i % 3 === 0 ? 'No onion please' : '',
+        status: seedItemStatus(status, line, dishIndices.length),
+        statusUpdatedAt: placed.toISOString(),
       };
     });
 
-    const placed = new Date(now - minutesAgo * 60_000);
-    const subtotal = sumLines(items);
+    const acceptedAt = status === 'PENDING' ? null : placed.toISOString();
+    const cancelledAt = status === 'CANCELLED' ? new Date(placed.getTime() + 3 * 60_000).toISOString() : null;
+    const subtotal = sumLines(billableItems(items));
     const serviceCharge = percentOf(subtotal, restaurant.serviceChargeRate);
     const tax = percentOf(subtotal + serviceCharge, restaurant.taxRate);
+    const derived = deriveOrderStatus({ acceptedAt, cancelledAt, items });
 
     return {
       id: `ord_seed${i}`,
@@ -151,7 +185,9 @@ function seedQueue(store: Store): Store {
       // Not one of this browser's dining sessions, so the demo kitchen leaves
       // these alone — they move when staff move them.
       sessionId: `ses_floor${i}`,
-      status,
+      status: derived,
+      acceptedAt,
+      cancelledAt,
       items,
       subtotal,
       serviceCharge,
@@ -161,7 +197,7 @@ function seedQueue(store: Store): Store {
       currency: restaurant.currency,
       createdAt: placed.toISOString(),
       updatedAt: placed.toISOString(),
-      completedAt: status === 'COMPLETED' ? new Date(placed.getTime() + 22 * 60_000).toISOString() : null,
+      completedAt: derived === 'COMPLETED' ? new Date(placed.getTime() + 22 * 60_000).toISOString() : null,
       reviewedDishIds: [],
     };
   });
@@ -192,30 +228,8 @@ export async function allOrders(actor: StaffMember): Promise<Order[]> {
   return [...orderHistory(), ...store.orders];
 }
 
-const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
-  PENDING: 'ACCEPTED',
-  ACCEPTED: 'PREPARING',
-  PREPARING: 'READY',
-  READY: 'COMPLETED',
-};
-
-export const ADVANCE_LABEL: Partial<Record<OrderStatus, string>> = {
-  PENDING: 'Accept',
-  ACCEPTED: 'Start preparing',
-  PREPARING: 'Mark ready',
-  READY: 'Complete',
-};
-
-export function nextStatus(status: OrderStatus): OrderStatus | null {
-  return NEXT_STATUS[status] ?? null;
-}
-
-/** Staff can still pull a ticket before it is plated; after that it is food. */
-export function canCancel(status: OrderStatus): boolean {
-  return status === 'PENDING' || status === 'ACCEPTED' || status === 'PREPARING';
-}
-
-export async function advanceOrder(actor: StaffMember, orderId: string, expected: OrderStatus): Promise<Order> {
+/** The one remaining whole-order transition: accept. Everything after that follows the items. */
+export async function acceptOrder(actor: StaffMember, orderId: string, expected: 'PENDING'): Promise<Order> {
   authorize(actor, 'orders:advance');
   await latency();
   const store = seedQueue(readStore());
@@ -226,15 +240,13 @@ export async function advanceOrder(actor: StaffMember, orderId: string, expected
   if (order.status !== expected)
     throw new ApiError(409, `${order.reference} already moved to ${STATUS_LABEL[order.status].toLowerCase()}.`);
 
-  const to = nextStatus(order.status);
-  if (!to) throw new ApiError(409, `${order.reference} is already finished.`);
-
   const now = new Date().toISOString();
+  const acceptedAt = now;
   const updated: Order = {
     ...order,
-    status: to,
+    status: deriveOrderStatus({ acceptedAt, cancelledAt: order.cancelledAt, items: order.items }),
+    acceptedAt,
     updatedAt: now,
-    completedAt: to === 'COMPLETED' ? now : order.completedAt,
   };
 
   writeStore(
@@ -243,7 +255,54 @@ export async function advanceOrder(actor: StaffMember, orderId: string, expected
       actor,
       'order_status_changed',
       `Order ${order.reference}`,
-      `${STATUS_LABEL[order.status]} → ${STATUS_LABEL[to]}`,
+      `${STATUS_LABEL[order.status]} → ${STATUS_LABEL[updated.status]}`,
+    ),
+  );
+  return updated;
+}
+
+/** Advances one item's own progress through the kitchen, independent of its siblings. */
+export async function advanceOrderItem(
+  actor: StaffMember,
+  orderId: string,
+  itemId: string,
+  expected: ItemStatus,
+): Promise<Order> {
+  authorize(actor, 'orders:advance');
+  await latency();
+  const store = seedQueue(readStore());
+  const order = store.orders.find((o) => o.id === orderId);
+  if (!order) throw new ApiError(404, 'That order is no longer on the queue.');
+  const item = order.items.find((i) => i.id === itemId);
+  if (!item) throw new ApiError(404, 'That item is no longer on this order.');
+
+  // Two tablets on the same pass will both press the same button. The second one loses.
+  if (item.status !== expected)
+    throw new ApiError(409, `${item.dishNameSnapshot} already moved to ${ITEM_STATUS_LABEL[item.status].toLowerCase()}.`);
+
+  const to = nextItemStatus(item.status);
+  if (!to) throw new ApiError(409, `${item.dishNameSnapshot} is already finished.`);
+
+  const now = new Date().toISOString();
+  const items = order.items.map((i) => (i.id === itemId ? { ...i, status: to, statusUpdatedAt: now } : i));
+  const updated: Order = {
+    ...order,
+    items,
+    status: deriveOrderStatus({ acceptedAt: order.acceptedAt, cancelledAt: order.cancelledAt, items }),
+    updatedAt: now,
+    completedAt:
+      deriveOrderStatus({ acceptedAt: order.acceptedAt, cancelledAt: order.cancelledAt, items }) === 'COMPLETED'
+        ? now
+        : order.completedAt,
+  };
+
+  writeStore(
+    record(
+      { ...store, orders: store.orders.map((o) => (o.id === orderId ? updated : o)) },
+      actor,
+      'order_status_changed',
+      `Order ${order.reference}`,
+      `${item.dishNameSnapshot} — ${ITEM_STATUS_LABEL[item.status]} → ${ITEM_STATUS_LABEL[to]}`,
     ),
   );
   return updated;
@@ -255,9 +314,10 @@ export async function rejectOrder(actor: StaffMember, orderId: string, reason: s
   const store = seedQueue(readStore());
   const order = store.orders.find((o) => o.id === orderId);
   if (!order) throw new ApiError(404, 'That order is no longer on the queue.');
-  if (!canCancel(order.status)) throw new ApiError(409, 'That order has already left the kitchen.');
+  if (!canCancelOrder(order)) throw new ApiError(409, 'That order has already left the kitchen.');
 
-  const updated: Order = { ...order, status: 'CANCELLED', updatedAt: new Date().toISOString() };
+  const now = new Date().toISOString();
+  const updated: Order = { ...order, status: 'CANCELLED', cancelledAt: now, updatedAt: now };
   writeStore(
     record(
       { ...store, orders: store.orders.map((o) => (o.id === orderId ? updated : o)) },
@@ -296,9 +356,7 @@ export async function settleTable(actor: StaffMember, tableId: string): Promise<
 
   const now = new Date().toISOString();
   const openIds = new Set(open.map((o) => o.id));
-  const settled = store.orders.map((o) =>
-    openIds.has(o.id) ? { ...o, status: 'COMPLETED' as const, updatedAt: now, completedAt: now } : o,
-  );
+  const settled = store.orders.map((o) => (openIds.has(o.id) ? forceCompleteOrder(o, now) : o));
   const total = open.reduce((sum, o) => sum + o.total, 0);
   const currency = restaurantOf(store).currency;
 
@@ -367,7 +425,7 @@ export async function completePayment(
   if (endSession) {
     const now = new Date().toISOString();
     const orders = next.orders.map((o) =>
-      o.sessionId === sessionId && isTableOpen(o.status) ? { ...o, status: 'COMPLETED' as const, updatedAt: now, completedAt: now } : o,
+      o.sessionId === sessionId && isTableOpen(o.status) ? forceCompleteOrder(o, now) : o,
     );
     const sessions = { ...next.sessions };
     delete sessions[`${session.restaurantId}:${session.tableId}`];
@@ -378,12 +436,23 @@ export async function completePayment(
   writeStore(next);
 }
 
-function recomputeTotals(store: Store, order: Order): Order {
-  const restaurant = restaurantOf(store);
-  const subtotal = sumLines(order.items);
-  const serviceCharge = percentOf(subtotal, restaurant.serviceChargeRate);
-  const tax = percentOf(subtotal + serviceCharge, restaurant.taxRate);
-  return { ...order, subtotal, serviceCharge, tax, total: subtotal + serviceCharge + tax };
+/**
+ * Settling/payment force a table's orders closed regardless of kitchen
+ * progress — "completed" there means paid, not cooked. Every live item is
+ * marked served (rather than leaving `status` inconsistent with its items)
+ * so `deriveOrderStatus` still lands on COMPLETED afterward.
+ */
+function forceCompleteOrder(order: Order, now: string): Order {
+  const acceptedAt = order.acceptedAt ?? now;
+  const items = order.items.map((i) => (i.status === 'CANCELLED' ? i : { ...i, status: 'SERVED' as ItemStatus, statusUpdatedAt: now }));
+  return {
+    ...order,
+    acceptedAt,
+    items,
+    status: deriveOrderStatus({ acceptedAt, cancelledAt: order.cancelledAt, items }),
+    updatedAt: now,
+    completedAt: now,
+  };
 }
 
 /**
@@ -407,9 +476,13 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
   const dish = menuOf(store).dishes.find((d) => d.id === dishId);
   if (!dish) throw new ApiError(404, 'That dish is no longer on the menu.');
 
-  const existing = order.items.find((i) => i.dishId === dishId);
+  const now = new Date().toISOString();
+  // Merging into an already-started line would silently mark the new unit as
+  // already cooked, so a second helping only merges while the existing line
+  // is still untouched — otherwise it's a fresh line, its own ticket.
+  const existing = order.items.find((i) => i.dishId === dishId && i.status === 'PENDING');
   const items: OrderItem[] = existing
-    ? order.items.map((i) => (i.dishId === dishId ? { ...i, quantity: i.quantity + 1 } : i))
+    ? order.items.map((i) => (i.id === existing.id ? { ...i, quantity: i.quantity + 1 } : i))
     : [
         ...order.items,
         {
@@ -420,10 +493,14 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
           unitPrice: dish.price,
           quantity: 1,
           notes: '',
+          status: 'PENDING',
+          statusUpdatedAt: now,
         },
       ];
 
-  const updated = recomputeTotals(store, { ...order, items, updatedAt: new Date().toISOString() });
+  const next = { ...order, items, updatedAt: now };
+  next.status = deriveOrderStatus(next);
+  const updated = recomputeTotals(next, restaurantOf(store));
   writeStore(
     record(
       { ...store, orders: store.orders.map((o) => (o.id === order.id ? updated : o)) },
@@ -452,7 +529,9 @@ export async function removeOrderItem(actor: StaffMember, orderId: string, itemI
       ? order.items.map((i) => (i.id === itemId ? { ...i, quantity: i.quantity - 1 } : i))
       : order.items.filter((i) => i.id !== itemId);
 
-  const updated = recomputeTotals(store, { ...order, items, updatedAt: new Date().toISOString() });
+  const next = { ...order, items, updatedAt: new Date().toISOString() };
+  next.status = deriveOrderStatus(next);
+  const updated = recomputeTotals(next, restaurantOf(store));
   writeStore(
     record(
       { ...store, orders: store.orders.map((o) => (o.id === orderId ? updated : o)) },
@@ -464,15 +543,6 @@ export async function removeOrderItem(actor: StaffMember, orderId: string, itemI
   );
   return updated;
 }
-
-export const STATUS_LABEL: Record<OrderStatus, string> = {
-  PENDING: 'New',
-  ACCEPTED: 'Accepted',
-  PREPARING: 'Preparing',
-  READY: 'Ready',
-  COMPLETED: 'Completed',
-  CANCELLED: 'Cancelled',
-};
 
 /* ── Menu ──────────────────────────────────────────────────────────── */
 
@@ -913,6 +983,38 @@ export async function regenerateQr(actor: StaffMember, tableId: string): Promise
 }
 
 /**
+ * §20/§27 — ending a visit does not un-cook food, so this is not a blanket
+ * "mark completed": a line the kitchen never started is dropped — and never
+ * billed, the same rule any other item cancel already follows — while a line
+ * already cooking or plated is treated as delivered, since the kitchen made
+ * it and the visit is over. A ticket staff never even accepted has no
+ * `acceptedAt` for `deriveOrderStatus` to key off, so this is the one place
+ * that sets `cancelledAt` by hand rather than leaving it to read as still
+ * PENDING forever. Mirrors the live backend's own `DiningSessionService.endSession`.
+ */
+function closeOrderForSessionEnd(order: Order, restaurant: Restaurant, now: string): Order {
+  const items: OrderItem[] = order.items.map((item) => {
+    if (item.status === 'PENDING') return { ...item, status: 'CANCELLED' as ItemStatus, statusUpdatedAt: now };
+    if (item.status === 'PREPARING' || item.status === 'READY') return { ...item, status: 'SERVED' as ItemStatus, statusUpdatedAt: now };
+    return item;
+  });
+
+  const cancelledAt = order.acceptedAt ? order.cancelledAt : now;
+  const status = deriveOrderStatus({ acceptedAt: order.acceptedAt, cancelledAt, items });
+  const settled = recomputeTotals({ ...order, items, cancelledAt, updatedAt: now }, restaurant);
+  return { ...settled, status, completedAt: status === 'COMPLETED' ? now : null };
+}
+
+/** Ending a visit can close a ticket either way — never just a count of "completed". */
+function closingSummary(closed: Order[]): string {
+  const completed = closed.filter((o) => o.status === 'COMPLETED').length;
+  const cancelled = closed.length - completed;
+  if (cancelled === 0) return `${completed} order${completed === 1 ? '' : 's'} marked completed`;
+  if (completed === 0) return `${cancelled} order${cancelled === 1 ? '' : 's'} cancelled — the kitchen never started them`;
+  return `${completed} order${completed === 1 ? '' : 's'} completed, ${cancelled} cancelled`;
+}
+
+/**
  * Clears the table's active visit so the next QR scan starts a fresh one,
  * rather than joining whatever the last party left behind. Available
  * whenever a session is open — a manager may need this with no orders on
@@ -921,17 +1023,29 @@ export async function regenerateQr(actor: StaffMember, tableId: string): Promise
 export async function endTableSession(actor: StaffMember, tableId: string): Promise<DiningTable> {
   authorize(actor, 'tables:edit');
   await latency();
-  const base = readStore();
+  const base = seedQueue(readStore());
   const table = tablesOf(base).find((t) => t.id === tableId);
   if (!table) throw new ApiError(404, 'That table no longer exists.');
 
   const key = `${table.restaurantId}:${table.id}`;
-  if (!base.sessions[key]) throw new ApiError(409, `${table.name} has no active visit to end.`);
+  const session = base.sessions[key];
+  if (!session) throw new ApiError(409, `${table.name} has no active visit to end.`);
+
+  const restaurant = restaurantOf(base);
+  const now = new Date().toISOString();
+  const closed: Order[] = [];
+  const orders = base.orders.map((o) => {
+    if (o.sessionId !== session.id || !isTableOpen(o.status)) return o;
+    const settled = closeOrderForSessionEnd(o, restaurant, now);
+    closed.push(settled);
+    return settled;
+  });
 
   const sessions = { ...base.sessions };
   delete sessions[key];
 
-  writeStore(record({ ...base, sessions }, actor, 'table_session_ended', table.name, 'Table cleared for the next visit'));
+  const detail = closed.length > 0 ? `Table cleared — ${closingSummary(closed)}` : 'Table cleared for the next visit';
+  writeStore(record({ ...base, sessions, orders }, actor, 'table_session_ended', table.name, detail));
   return { ...table, currentSessionId: null };
 }
 

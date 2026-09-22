@@ -9,6 +9,9 @@ export type OrderStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
+/** An item's own progress through the kitchen — independent of its siblings. */
+export type ItemStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
+
 export interface Restaurant {
   id: string;
   name: string;
@@ -49,6 +52,8 @@ export interface DiningSession {
   anonymousSessionToken: string;
   startedAt: string;
   expiresAt: string;
+  /** Set once staff clears the table (or a payment settles it) — null while the visit is still open. */
+  endedAt: string | null;
 }
 
 export interface MenuCategory {
@@ -131,6 +136,8 @@ export interface OrderItem {
   unitPrice: Minor;
   quantity: number;
   notes: string;
+  status: ItemStatus;
+  statusUpdatedAt: string;
 }
 
 export interface Order {
@@ -140,7 +147,12 @@ export interface Order {
   tableId: string;
   tableName: string;
   sessionId: string;
+  /** Computed from `items` (plus `acceptedAt`/`cancelledAt`) — never assigned directly. See `domain/orderStatus.ts`. */
   status: OrderStatus;
+  /** Set once, the one remaining whole-order transition. Items stay PENDING until each is started individually. */
+  acceptedAt: string | null;
+  /** Set only by a whole-order cancel (staff, and only while every item is still PENDING). */
+  cancelledAt: string | null;
   items: OrderItem[];
   subtotal: Minor;
   serviceCharge: Minor;
@@ -214,6 +226,7 @@ export type AuditAction =
   | 'order_cancelled'
   | 'order_item_added'
   | 'order_item_removed'
+  | 'order_item_cancelled'
   | 'table_settled'
   | 'payment_completed'
   | 'settings_updated'

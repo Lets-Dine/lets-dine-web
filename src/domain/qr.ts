@@ -503,13 +503,128 @@ export function qrViewBox(matrix: QrMatrix, margin = 2): string {
   return `0 0 ${extent} ${extent}`;
 }
 
+/* ── Styled rendering ──────────────────────────────────────────────
+   The softened look most diners now expect: capsule-shaped runs of
+   modules instead of hard squares, and a rounded-square "eye" standing
+   in for each finder pattern's flat ring. Purely cosmetic — the modules
+   behind it are exactly what `qrPath` draws, so a scanner reads either
+   rendering the same way.                                              */
+
+interface CornerRadii {
+  tl: number;
+  tr: number;
+  br: number;
+  bl: number;
+}
+
+function moduleDark(matrix: QrMatrix, x: number, y: number): boolean {
+  return x >= 0 && y >= 0 && x < matrix.size && y < matrix.size && matrix.modules[y][x];
+}
+
+/** Inside one of the three finder patterns' 7×7 footprint — drawn as an eye instead of loose dots. */
+function inFinderZone(matrix: QrMatrix, x: number, y: number): boolean {
+  const n = matrix.size;
+  const zone = (cx: number, cy: number) => Math.abs(x - cx) <= 3 && Math.abs(y - cy) <= 3;
+  return zone(3, 3) || zone(n - 4, 3) || zone(3, n - 4);
+}
+
+/** Half a module — a fully isolated module rounds to a full dot, a run of them to a capsule. */
+const DOT_RADIUS = 0.5;
+
+/** A corner only bulges outward where nothing continues the shape past it — an `A r,r` with r=0 degenerates to a plain corner per the SVG spec, so every corner can go through the same arc command. */
+function dotCorners(matrix: QrMatrix, x: number, y: number): CornerRadii {
+  const up = moduleDark(matrix, x, y - 1);
+  const down = moduleDark(matrix, x, y + 1);
+  const left = moduleDark(matrix, x - 1, y);
+  const right = moduleDark(matrix, x + 1, y);
+  return {
+    tl: !up && !left ? DOT_RADIUS : 0,
+    tr: !up && !right ? DOT_RADIUS : 0,
+    br: !down && !right ? DOT_RADIUS : 0,
+    bl: !down && !left ? DOT_RADIUS : 0,
+  };
+}
+
+function modulePath(x: number, y: number, r: CornerRadii): string {
+  return (
+    `M${x + r.tl} ${y}` +
+    `L${x + 1 - r.tr} ${y}` +
+    `A${r.tr} ${r.tr} 0 0 1 ${x + 1} ${y + r.tr}` +
+    `L${x + 1} ${y + 1 - r.br}` +
+    `A${r.br} ${r.br} 0 0 1 ${x + 1 - r.br} ${y + 1}` +
+    `L${x + r.bl} ${y + 1}` +
+    `A${r.bl} ${r.bl} 0 0 1 ${x} ${y + 1 - r.bl}` +
+    `L${x} ${y + r.tl}` +
+    `A${r.tl} ${r.tl} 0 0 1 ${x + r.tl} ${y}` +
+    'Z'
+  );
+}
+
+/** Every dark module outside the three finder eyes, rounded per `dotCorners`. */
+export function qrDotsPath(matrix: QrMatrix, margin = 2): string {
+  const parts: string[] = [];
+  for (let y = 0; y < matrix.size; y++) {
+    for (let x = 0; x < matrix.size; x++) {
+      if (!matrix.modules[y][x] || inFinderZone(matrix, x, y)) continue;
+      parts.push(modulePath(x + margin, y + margin, dotCorners(matrix, x, y)));
+    }
+  }
+  return parts.join('');
+}
+
+/** A square of the given side, centred at (cx, cy), with uniform rounded corners. */
+function roundedSquare(cx: number, cy: number, side: number, radius: number): string {
+  const r = Math.min(radius, side / 2);
+  const x = cx - side / 2;
+  const y = cy - side / 2;
+  return (
+    `M${x + r} ${y}` +
+    `H${x + side - r}` +
+    `A${r} ${r} 0 0 1 ${x + side} ${y + r}` +
+    `V${y + side - r}` +
+    `A${r} ${r} 0 0 1 ${x + side - r} ${y + side}` +
+    `H${x + r}` +
+    `A${r} ${r} 0 0 1 ${x} ${y + side - r}` +
+    `V${y + r}` +
+    `A${r} ${r} 0 0 1 ${x + r} ${y}` +
+    'Z'
+  );
+}
+
+/**
+ * Each finder pattern redrawn as a rounded-square "eye" — an outer ring (an
+ * evenodd hole cut through a 7-wide square down to a 5-wide one) plus a
+ * solid 3-wide pupil — in place of the flat ring the raw matrix draws there.
+ * `ring` needs `fill-rule="evenodd"`; `pupil` is a plain fill.
+ */
+export function qrEyesPath(matrix: QrMatrix, margin = 2): { ring: string; pupil: string } {
+  const centres: [number, number][] = [
+    [3, 3],
+    [matrix.size - 4, 3],
+    [3, matrix.size - 4],
+  ];
+  const ring: string[] = [];
+  const pupil: string[] = [];
+  for (const [mx, my] of centres) {
+    const cx = mx + margin + 0.5;
+    const cy = my + margin + 0.5;
+    ring.push(roundedSquare(cx, cy, 7, 2.1));
+    ring.push(roundedSquare(cx, cy, 5, 1.5));
+    pupil.push(roundedSquare(cx, cy, 3, 0.9));
+  }
+  return { ring: ring.join(''), pupil: pupil.join('') };
+}
+
 /** A standalone black-on-white SVG file — what actually goes to the printer. */
 export function qrSvgDocument(matrix: QrMatrix, margin = 4): string {
   const extent = matrix.size + margin * 2;
+  const eyes = qrEyesPath(matrix, margin);
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${extent} ${extent}" width="${extent * 8}" height="${extent * 8}" shape-rendering="crispEdges">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${extent} ${extent}" width="${extent * 8}" height="${extent * 8}">`,
     `<rect width="${extent}" height="${extent}" fill="#ffffff"/>`,
-    `<path d="${qrPath(matrix, margin)}" fill="#000000"/>`,
+    `<path d="${qrDotsPath(matrix, margin)}" fill="#000000"/>`,
+    `<path d="${eyes.ring}" fill="#000000" fill-rule="evenodd"/>`,
+    `<path d="${eyes.pupil}" fill="#000000"/>`,
     '</svg>',
   ].join('');
 }

@@ -131,6 +131,11 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       else chosen.set(dish.dishId, { dish, quantity: 1 + (rand() < 0.22 ? 1 : 0), notes: pick(rand, NOTES) });
     }
 
+    const { hour, minute } = serviceTime(rand);
+    const placed = new Date(dayStart + hour * 3600_000 + minute * 60_000);
+    const cancelled = rand() < 0.035;
+    // History is always closed one way or the other — every surviving item on a
+    // completed visit made it to the table; a cancelled visit never started.
     const items: OrderItem[] = [...chosen.values()].map(({ dish, quantity, notes }, index) => ({
       id: `itm_h${dayIndex}_${i}_${index}`,
       dishId: dish.dishId,
@@ -139,11 +144,10 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       unitPrice: dish.price,
       quantity,
       notes,
+      status: cancelled ? 'CANCELLED' : 'SERVED',
+      statusUpdatedAt: placed.toISOString(),
     }));
 
-    const { hour, minute } = serviceTime(rand);
-    const placed = new Date(dayStart + hour * 3600_000 + minute * 60_000);
-    const cancelled = rand() < 0.035;
     const subtotal = sumLines(items);
     const serviceCharge = percentOf(subtotal, RESTAURANT.serviceChargeRate);
     const tax = percentOf(subtotal + serviceCharge, RESTAURANT.taxRate);
@@ -158,6 +162,8 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       tableName: table.name,
       sessionId: `ses_h${dayIndex}_${i}`,
       status: cancelled ? 'CANCELLED' : 'COMPLETED',
+      acceptedAt: cancelled ? null : placed.toISOString(),
+      cancelledAt: cancelled ? placed.toISOString() : null,
       items,
       subtotal,
       serviceCharge,

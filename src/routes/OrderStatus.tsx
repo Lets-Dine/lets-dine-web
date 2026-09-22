@@ -1,15 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { cancelOrder, statusIndex } from '../api/client';
-import { getOrder } from '../api/diner';
+import { cancelOrder } from '../api/client';
+import { cancelOrderItem, getOrder } from '../api/diner';
 import { IS_LIVE_API } from '../api/http';
 import { formatMoney } from '../domain/money';
-import { DINER_STATUS_HINT, needsReview } from '../domain/orderStatus';
-import type { Order, OrderStatus as Status } from '../domain/types';
+import {
+  DINER_STATUS_HINT,
+  ITEM_STATUS_LABEL,
+  canCancelItem,
+  itemStatusSummary,
+  needsReview,
+  reviewableItems,
+} from '../domain/orderStatus';
+import type { Order, OrderItem } from '../domain/types';
 import { haptic } from '../platform/haptics';
 import { Skeleton } from '../components/Bits';
 import { BTN, BTN_FLAME, BTN_GHOST, BTN_SIZE, EYEBROW, SHELL, cx } from '../components/ui';
-import { Check, Clock, Sparkle } from '../components/icons';
+import { Check, Clock, Sparkle, X } from '../components/icons';
 import { clockTime } from '../components/time';
 import { useSessionOrders } from '../state/SessionOrdersContext';
 import { useToast } from '../state/ToastContext';
@@ -17,13 +24,13 @@ import { PAGE, SPLIT } from './Cart';
 import { useRestaurant } from './RestaurantLayout';
 import { ErrorScreen, TopBar } from './Shell';
 
-const STEPS: { key: Status; label: string; hint: string }[] = [
-  { key: 'PENDING', label: 'Order placed', hint: DINER_STATUS_HINT.PENDING },
-  { key: 'ACCEPTED', label: 'Restaurant accepted', hint: DINER_STATUS_HINT.ACCEPTED },
-  { key: 'PREPARING', label: 'Preparing', hint: DINER_STATUS_HINT.PREPARING },
-  { key: 'READY', label: 'Ready', hint: DINER_STATUS_HINT.READY },
-  { key: 'COMPLETED', label: 'Completed', hint: DINER_STATUS_HINT.COMPLETED },
-];
+const ITEM_PILL_STYLE: Record<OrderItem['status'], string> = {
+  PENDING: 'bg-surface-3 text-ink-3',
+  PREPARING: 'bg-[#7e9bff]/16 text-[#a4b6ff]',
+  READY: 'bg-flame-3/18 text-[#ff9270]',
+  SERVED: 'bg-mint/16 text-[#6fd7a4]',
+  CANCELLED: 'bg-berry/14 text-[#ff8098]',
+};
 
 export function OrderStatus() {
   const { orderId = '' } = useParams();
@@ -35,6 +42,8 @@ export function OrderStatus() {
   const [error, setError] = useState<Error | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [cancellingItemId, setCancellingItemId] = useState<string | null>(null);
+  const [confirmingItemId, setConfirmingItemId] = useState<string | null>(null);
 
   // Status changes are pushed (or polled) at the visit level so a diner who
   // went back to the menu still hears them. This screen just paints the ticket.
@@ -61,10 +70,23 @@ export function OrderStatus() {
     );
   }
 
-  const currentIndex = statusIndex(order.status);
   const cancelled = order.status === 'CANCELLED';
-  const pendingReviews = order.items.filter((i) => !order.reviewedDishIds.includes(i.dishId));
+  const pendingReviews = reviewableItems(order);
   const canReview = needsReview(order);
+  const summary = itemStatusSummary(order);
+
+  const cancelItem = async (item: OrderItem) => {
+    setCancellingItemId(item.id);
+    try {
+      rememberOrder(await cancelOrderItem(order.id, item.id, session.anonymousSessionToken));
+      setConfirmingItemId(null);
+    } catch (e) {
+      haptic.warn();
+      toast(e instanceof Error ? e.message : 'Could not cancel', '!');
+    } finally {
+      setCancellingItemId(null);
+    }
+  };
 
   return (
     <main className={SHELL}>
@@ -90,61 +112,45 @@ export function OrderStatus() {
               <span className="flex-1">
                 <b className="block text-[15.5px] font-bold tracking-tight">How was your meal?</b>
                 <span className="text-[12.5px] leading-snug text-ink-3">
-                  Rate {pendingReviews.length} {pendingReviews.length === 1 ? 'dish' : 'dishes'} when you are finished —
-                  it takes 20 seconds and helps the next diner.
+                  Rate {pendingReviews.length} served {pendingReviews.length === 1 ? 'dish' : 'dishes'} — it takes 20
+                  seconds and helps the next diner. No need to wait for the rest of the order.
                 </span>
               </span>
             </Link>
           )}
 
-          <div className="rounded-3xl bg-surface px-4.5 pb-2 pt-5 ring-1 ring-hairline ring-inset">
+          <div className="rounded-3xl bg-surface px-4.5 pb-3 pt-5 ring-1 ring-hairline ring-inset">
             {cancelled ? (
               <div className="flex flex-col gap-1 pb-3">
                 <b className="text-[15.5px]">Order cancelled</b>
                 <span className="text-[13px] text-ink-3">Nothing was sent to the kitchen.</span>
               </div>
             ) : (
-              STEPS.map((step, i) => {
-                const done = i < currentIndex;
-                const active = i === currentIndex;
-                return (
-                  <div className="relative flex gap-3.5 pb-5.5 last:pb-3" key={step.key}>
-                    <span
-                      className={cx(
-                        'relative z-1 grid size-5.5 shrink-0 place-items-center rounded-full text-white transition-colors duration-200',
-                        done && 'bg-mint',
-                        active && 'bg-flame ring-5 ring-flame-2/16',
-                        !done && !active && 'bg-surface-3 ring-[1.5px] ring-hairline ring-inset',
-                      )}
-                      aria-hidden
-                    >
-                      {done ? <Check size={13} /> : active ? <span className="size-2 animate-breathe rounded-full bg-ember" /> : null}
-                    </span>
-
-                    <span className="flex flex-col gap-px pt-px">
-                      <b
-                        className={cx(
-                          'text-[14.5px] transition-colors duration-200',
-                          active ? 'font-bold text-ink' : done ? 'font-semibold text-ink-2' : 'font-semibold text-ink-4',
-                        )}
-                      >
-                        {step.label}
-                      </b>
-                      <span className="text-[12px] text-ink-4">{active ? step.hint : done ? 'Done' : ''}</span>
-                    </span>
-
-                    {i < STEPS.length - 1 && (
-                      <span
-                        className={cx(
-                          'absolute bottom-0 left-2.5 top-5.5 w-[1.5px]',
-                          done ? 'bg-mint/55' : 'bg-hairline-strong',
-                        )}
-                        aria-hidden
-                      />
-                    )}
-                  </div>
-                );
-              })
+              <>
+                <Headline
+                  done={Boolean(order.acceptedAt)}
+                  active={!order.acceptedAt}
+                  label={order.acceptedAt ? 'Restaurant accepted' : 'Order placed'}
+                  hint={order.acceptedAt ? DINER_STATUS_HINT.ACCEPTED : DINER_STATUS_HINT.PENDING}
+                  hasNext
+                />
+                {order.acceptedAt && order.status !== 'COMPLETED' && (
+                  <Headline
+                    done={false}
+                    active
+                    label={summary.total > 0 ? `${summary.ready} of ${summary.total} items ready` : 'Preparing'}
+                    hint="Check the list below for what's on its way"
+                    hasNext
+                  />
+                )}
+                <Headline
+                  done={order.status === 'COMPLETED'}
+                  active={false}
+                  label="Completed"
+                  hint={DINER_STATUS_HINT.COMPLETED}
+                  hasNext={false}
+                />
+              </>
             )}
           </div>
 
@@ -230,19 +236,74 @@ export function OrderStatus() {
           <div className="flex flex-col gap-3 lg:rounded-3xl lg:bg-surface lg:p-5 lg:ring-1 lg:ring-hairline lg:ring-inset">
             <h2 className={EYEBROW}>What you ordered</h2>
             <ul className="flex flex-col gap-3.5">
-              {order.items.map((item) => (
-                <li className="flex items-start gap-3 text-[14px]" key={item.id}>
-                  <span className="min-w-6 font-bold text-flame-1 tnum">{item.quantity}×</span>
-                  <span className="min-w-0 flex-1">
-                    <b className="font-semibold">{item.dishNameSnapshot}</b>
-                    {item.notes && <em className="mt-0.5 block text-[12px] italic text-ink-4">“{item.notes}”</em>}
-                    <span className="mt-0.5 block text-[11.5px] text-ink-4 tnum">
-                      {formatMoney(item.unitPrice, order.currency)} each
-                    </span>
-                  </span>
-                  <span className="tnum">{formatMoney(item.unitPrice * item.quantity, order.currency)}</span>
-                </li>
-              ))}
+              {order.items.map((item) => {
+                const itemCancelled = item.status === 'CANCELLED';
+                return (
+                  <li className="flex flex-col gap-1.5 text-[14px]" key={item.id}>
+                    <div className="flex items-start gap-3">
+                      <span className={cx('min-w-6 font-bold tnum', itemCancelled ? 'text-ink-4' : 'text-flame-1')}>
+                        {item.quantity}×
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <b className={cx('font-semibold', itemCancelled && 'text-ink-4 line-through')}>
+                          {item.dishNameSnapshot}
+                        </b>
+                        {item.notes && <em className="mt-0.5 block text-[12px] italic text-ink-4">“{item.notes}”</em>}
+                        <span className="mt-0.5 block text-[11.5px] text-ink-4 tnum">
+                          {formatMoney(item.unitPrice, order.currency)} each
+                        </span>
+                      </span>
+                      <span className={cx('tnum', itemCancelled && 'text-ink-4 line-through')}>
+                        {formatMoney(item.unitPrice * item.quantity, order.currency)}
+                      </span>
+                    </div>
+
+                    {!cancelled && (
+                      <div className="ml-9 flex items-center gap-2">
+                        <span
+                          className={cx(
+                            'inline-flex h-5 items-center rounded-full px-2 text-[10.5px] font-bold uppercase tracking-[0.05em]',
+                            ITEM_PILL_STYLE[item.status],
+                          )}
+                        >
+                          {ITEM_STATUS_LABEL[item.status]}
+                        </span>
+                        {canCancelItem(item) && confirmingItemId !== item.id && (
+                          <button
+                            type="button"
+                            className="text-[11.5px] font-semibold text-ink-4 underline-offset-2 hover:text-berry hover:underline"
+                            onClick={() => setConfirmingItemId(item.id)}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {confirmingItemId === item.id && (
+                      <div className="ml-9 flex items-center gap-2 rounded-xl bg-surface-2 py-1.5 pl-3 pr-1.5 ring-1 ring-hairline ring-inset">
+                        <span className="flex-1 text-[12px] text-ink-2">Cancel this dish?</span>
+                        <button
+                          type="button"
+                          className="rounded-lg px-2 py-1 text-[11.5px] font-semibold text-ink-3"
+                          onClick={() => setConfirmingItemId(null)}
+                        >
+                          <X size={11} className="inline -mt-px mr-1" />
+                          Keep
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-lg bg-berry/16 px-2 py-1 text-[11.5px] font-semibold text-berry disabled:opacity-50"
+                          disabled={cancellingItemId === item.id}
+                          onClick={() => void cancelItem(item)}
+                        >
+                          {cancellingItemId === item.id ? 'Cancelling…' : 'Cancel it'}
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
 
             <div className="mt-1 flex flex-col gap-2.5">
@@ -274,5 +335,54 @@ export function OrderStatus() {
 
       <div className="h-10" />
     </main>
+  );
+}
+
+function Headline({
+  done,
+  active,
+  label,
+  hint,
+  hasNext,
+}: {
+  done: boolean;
+  active: boolean;
+  label: string;
+  hint: string;
+  hasNext: boolean;
+}) {
+  return (
+    <div className="relative flex gap-3.5 pb-5.5 last:pb-3">
+      <span
+        className={cx(
+          'relative z-1 grid size-5.5 shrink-0 place-items-center rounded-full text-white transition-colors duration-200',
+          done && 'bg-mint',
+          active && 'bg-flame ring-5 ring-flame-2/16',
+          !done && !active && 'bg-surface-3 ring-[1.5px] ring-hairline ring-inset',
+        )}
+        aria-hidden
+      >
+        {done ? <Check size={13} /> : active ? <span className="size-2 animate-breathe rounded-full bg-ember" /> : null}
+      </span>
+
+      <span className="flex flex-col gap-px pt-px">
+        <b
+          className={cx(
+            'text-[14.5px] transition-colors duration-200',
+            active ? 'font-bold text-ink' : done ? 'font-semibold text-ink-2' : 'font-semibold text-ink-4',
+          )}
+        >
+          {label}
+        </b>
+        <span className="text-[12px] text-ink-4">{active ? hint : done ? 'Done' : ''}</span>
+      </span>
+
+      {hasNext && (
+        <span
+          className={cx('absolute bottom-0 left-2.5 top-5.5 w-[1.5px]', done ? 'bg-mint/55' : 'bg-hairline-strong')}
+          aria-hidden
+        />
+      )}
+    </div>
   );
 }

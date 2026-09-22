@@ -297,7 +297,7 @@ export function Menu() {
                       else sectionRefs.current.delete(category.id);
                     }}
                   >
-                    <h2 className={cx(DISPLAY, 'flex items-center gap-2.5 pb-1 pt-5.5 text-[21px] lg:text-2xl')}>
+                    <h2 className={cx(DISPLAY, 'flex items-center gap-2.5 pb-1 pt-5.5 text-[28px] lg:text-2xl')}>
                       <span aria-hidden>{category.emoji}</span>
                       {category.name}
                       <span className="rounded-full bg-surface-2 px-2 py-0.5 font-sans text-[12px] font-semibold text-ink-4 tnum">
