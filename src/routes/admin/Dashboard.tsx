@@ -30,6 +30,7 @@ import { relativeTime } from '../../components/time';
 import {
   ADMIN_TINY,
   Confirm,
+  Empty,
   Loading,
   PageTitle,
   Panel,
@@ -69,7 +70,7 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
 const ACCENT_BORDER: Record<OrderStatus, string> = {
   PENDING: 'border-flame-3',
   ACCEPTED: 'border-gold',
-  PREPARING: 'border-[#7e9bff]',
+  PREPARING: 'border-pass',
   READY: 'border-mint',
   COMPLETED: 'border-ink-4',
   CANCELLED: 'border-berry',
@@ -78,7 +79,7 @@ const ACCENT_BORDER: Record<OrderStatus, string> = {
 const ACCENT_BUTTON: Record<OrderStatus, string> = {
   PENDING: 'bg-flame-3',
   ACCEPTED: 'bg-gold',
-  PREPARING: 'bg-[#7e9bff]',
+  PREPARING: 'bg-pass',
   READY: 'bg-mint',
   COMPLETED: 'bg-ink-4',
   CANCELLED: 'bg-berry',
@@ -198,7 +199,7 @@ export function Dashboard() {
             </span>
             <div>
               <h2 className={cx(DISPLAY, 'text-[19px] sm:text-[22px]')}>On the pass</h2>
-              <p className={cx('mt-0.5 text-[12.5px]', overdue > 0 ? 'font-semibold text-[#ff8098]' : 'text-ink-3')}>
+              <p className={cx('mt-0.5 text-[12.5px]', overdue > 0 ? 'font-semibold text-berry-ink' : 'text-ink-3')}>
                 {overdue > 0 ? `${overdue} past due · overdue tickets first` : 'Live tickets, oldest first'}
               </p>
             </div>
@@ -224,13 +225,11 @@ export function Dashboard() {
 
         <div className="relative p-4 sm:p-5">
           {working.length === 0 ? (
-            <div className="grid place-items-center gap-2 px-4 py-14 text-center">
-              <div className="text-3xl" aria-hidden>
-                ✅
-              </div>
-              <p className="text-[14.5px] font-semibold">The kitchen is clear</p>
-              <p className="max-w-[36ch] text-[13px] text-ink-3">A new ticket will appear here the moment a table orders.</p>
-            </div>
+            <Empty
+              image="/empty.svg"
+              title="The kitchen is clear"
+              message="A new ticket will appear here the moment a table orders."
+            />
           ) : filtered.length === 0 ? (
             <p className="px-4 py-14 text-center text-[13.5px] text-ink-3">Nothing in this lane right now.</p>
           ) : (
@@ -447,7 +446,7 @@ function PassCard({
               <span className="text-[14px] font-bold tnum">{order.reference}</span>
               <span className="truncate text-[13px] font-semibold text-ink-2">{order.tableName}</span>
             </div>
-            <div className={cx('mt-0.5 text-[11.5px] tnum', focus ? 'font-semibold text-[#ff8098]' : 'text-ink-4')}>
+            <div className={cx('mt-0.5 text-[11.5px] tnum', focus ? 'font-semibold text-berry-ink' : 'text-ink-4')}>
               {relativeTime(order.createdAt)}
             </div>
           </div>

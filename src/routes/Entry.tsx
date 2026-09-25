@@ -109,9 +109,15 @@ export function Entry() {
                 <code>.env.example</code>.
               </div>
             )}
-            <div className="flex items-center justify-center gap-1 lg:justify-start">
+            <div className="flex flex-wrap items-center justify-center gap-1 lg:justify-start">
               <Link to="/admin" className={BTN_QUIET}>
                 Restaurant dashboard
+              </Link>
+              <span className="text-ink-4" aria-hidden>
+                ·
+              </span>
+              <Link to="/platform" className={BTN_QUIET}>
+                Platform admin
               </Link>
               <span className="text-ink-4" aria-hidden>
                 ·

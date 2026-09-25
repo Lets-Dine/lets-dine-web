@@ -74,7 +74,7 @@ const TICK_MS = 15_000;
 const ACCENT: Record<OrderStatus, string> = {
   PENDING: 'border-l-flame-3',
   ACCEPTED: 'border-l-gold',
-  PREPARING: 'border-l-[#7e9bff]',
+  PREPARING: 'border-l-pass',
   READY: 'border-l-mint',
   COMPLETED: 'border-l-ink-4',
   CANCELLED: 'border-l-berry',
@@ -130,7 +130,7 @@ export function Orders() {
           className="mb-3 flex w-full items-center gap-2.5 rounded-xl bg-berry/12 px-3.5 py-2.5 text-left ring-1 ring-berry/25 ring-inset transition-move active:scale-[0.99]"
         >
           <span className="size-2 shrink-0 rounded-full bg-berry animate-breathe" aria-hidden />
-          <span className="min-w-0 flex-1 text-[13.5px] font-semibold text-[#ff8098]">
+          <span className="min-w-0 flex-1 text-[13.5px] font-semibold text-berry-ink">
             {overdue} ticket{overdue === 1 ? '' : 's'} past due
           </span>
           <span className="hidden shrink-0 gap-1.5 sm:flex">
@@ -138,7 +138,7 @@ export function Orders() {
               .filter((o) => flags.has(o.id))
               .slice(0, 4)
               .map((o) => (
-                <span key={o.id} className="rounded-md bg-berry/15 px-1.5 py-0.5 text-[11.5px] font-bold tnum text-[#ff8098]">
+                <span key={o.id} className="rounded-md bg-berry/15 px-1.5 py-0.5 text-[11.5px] font-bold tnum text-berry-ink">
                   {o.reference}
                 </span>
               ))}
@@ -162,7 +162,7 @@ export function Orders() {
       {shown.length === 0 ? (
         <Panel>
           <Empty
-            emoji={lane === 'focus' ? '🎯' : lane === 'new' ? '✅' : '🍽️'}
+            image="/empty.svg"
             title={lane === 'focus' ? 'Nothing is overdue' : lane === 'new' ? 'Nothing waiting' : 'Nothing here'}
             message={
               lane === 'focus'
@@ -253,7 +253,7 @@ function Ticket({ order, focus, now, onApply, onResync }: TicketProps) {
         </div>
         <div className="shrink-0 text-right">
           <StatusPill status={order.status} label={STATUS_LABEL[order.status]} />
-          <div className={cx('mt-1 text-[12px] tnum', focus ? 'font-semibold text-[#ff8098]' : 'text-ink-4')}>
+          <div className={cx('mt-1 text-[12px] tnum', focus ? 'font-semibold text-berry-ink' : 'text-ink-4')}>
             {clockTime(order.createdAt)} · {relativeTime(order.createdAt)}
           </div>
         </div>

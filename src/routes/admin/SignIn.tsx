@@ -6,6 +6,7 @@ import { IS_LIVE_API } from '../../api/http';
 import { DEMO_PIN } from '../../data/staff';
 import { ROLE_LABEL, ROLE_SCOPE } from '../../domain/permissions';
 import { useAuth } from '../../state/AuthContext';
+import { AdminThemeToggle } from '../../state/AdminTheme';
 import { ADMIN_PRIMARY, Field, PANEL, TextInput } from '../../components/admin/kit';
 import { DISPLAY, SHELL, cx } from '../../components/ui';
 
@@ -42,7 +43,8 @@ export function SignIn() {
   };
 
   return (
-    <main className={cx(SHELL, 'grid place-items-center px-4 py-10')}>
+    <main className={cx(SHELL, 'relative grid place-items-center px-4 py-10')}>
+      <AdminThemeToggle className="absolute right-4 top-[calc(12px+var(--safe-t))]" />
       <div className="w-full max-w-[440px]">
         <div className="mb-6 text-center">
           <h1 className={cx(DISPLAY, 'text-[28px]')}>Restaurant dashboard</h1>
@@ -108,6 +110,12 @@ export function SignIn() {
         <p className="mt-6 text-center text-[13px] text-ink-4">
           <Link to="/" className="font-semibold text-ink-3 hover:text-ink">
             ← Back to the diner app
+          </Link>
+          <span className="mx-2" aria-hidden>
+            ·
+          </span>
+          <Link to="/platform" className="font-semibold text-ink-3 hover:text-ink">
+            Platform admin
           </Link>
         </p>
       </div>

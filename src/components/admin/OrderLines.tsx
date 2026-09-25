@@ -31,7 +31,7 @@ import { ADMIN_TINY, INPUT_BOX, useCommand } from './kit';
 
 const ITEM_DOT: Record<ItemStatus, string> = {
   PENDING: 'bg-ink-4',
-  PREPARING: 'bg-[#7e9bff]',
+  PREPARING: 'bg-pass',
   READY: 'bg-mint',
   SERVED: 'bg-mint/40',
   CANCELLED: 'bg-berry',
@@ -40,7 +40,7 @@ const ITEM_DOT: Record<ItemStatus, string> = {
 /** The colour of the *next* move, so the button says what it does before it is read. */
 const ITEM_ACTION: Partial<Record<ItemStatus, string>> = {
   PENDING: 'bg-flame-2/18 text-flame-1 ring-1 ring-flame-2/35 ring-inset',
-  PREPARING: 'bg-mint/16 text-[#6fd7a4] ring-1 ring-mint/30 ring-inset',
+  PREPARING: 'bg-mint/16 text-mint-ink ring-1 ring-mint/30 ring-inset',
   READY: 'bg-flame text-white shadow-flame',
 };
 
@@ -71,7 +71,7 @@ export function FocusRibbon({ focus, className }: { focus: Focus; className?: st
     <div
       className={cx(
         'flex items-center gap-2 text-[12.5px] font-semibold',
-        focus.level === 'critical' ? 'bg-berry/14 text-[#ff8098]' : 'bg-gold/12 text-[#ffd479]',
+        focus.level === 'critical' ? 'bg-berry/14 text-berry-ink' : 'bg-gold/12 text-gold-ink',
         className,
       )}
     >
@@ -100,7 +100,7 @@ export function Progress({ order, className }: { order: Order; className?: strin
     <div className={cx('flex h-[3px] w-full overflow-hidden bg-surface-2', className)} role="presentation">
       <span className="bg-mint/40" style={{ width: `${share('SERVED')}%` }} />
       <span className="bg-mint" style={{ width: `${share('READY')}%` }} />
-      <span className="bg-[#7e9bff]" style={{ width: `${share('PREPARING')}%` }} />
+      <span className="bg-pass" style={{ width: `${share('PREPARING')}%` }} />
     </div>
   );
 }
@@ -178,7 +178,7 @@ export function ItemRow({
         <span
           className={cx(
             'text-[12px] font-semibold',
-            flag?.level === 'critical' ? 'text-[#ff8098]' : flag ? 'text-[#ffd479]' : 'text-ink-4',
+            flag?.level === 'critical' ? 'text-berry-ink' : flag ? 'text-gold-ink' : 'text-ink-4',
           )}
         >
           {ITEM_STATUS_LABEL[item.status]}

@@ -7,9 +7,10 @@ import { ROLE_LABEL } from '../../domain/permissions';
 import type { Permission } from '../../domain/permissions';
 import type { Menu, Order } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
+import { AdminThemeToggle } from '../../state/AdminTheme';
 import { Loading } from '../../components/admin/kit';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Folder, Grid, Plate, Receipt, Sliders, Star, Table, TrendUp } from '../../components/icons';
+import { Folder, Grid, Plate, Receipt, Sliders, Star, Table, TrendUp, Users } from '../../components/icons';
 
 /**
  * The dashboard frame. Navigation is filtered by role rather than disabled by
@@ -58,6 +59,7 @@ const NAV: NavItem[] = [
   { to: '/admin/tables', label: 'Tables', icon: Table, permission: 'tables:view' },
   { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view' },
   { to: '/admin/analytics', label: 'Analytics', icon: TrendUp, permission: 'analytics:view' },
+  { to: '/admin/staff', label: 'Staff', icon: Users, permission: 'settings:view' },
   { to: '/admin/settings', label: 'Settings', icon: Sliders, permission: 'settings:view' },
 ];
 
@@ -172,10 +174,11 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
               <div className="truncate text-[13.5px] font-semibold">{staff.name}</div>
               <div className="text-[12px] text-ink-4">{ROLE_LABEL[staff.role]}</div>
             </div>
+            <AdminThemeToggle className="mt-2 w-full justify-start" />
             <button
               type="button"
               onClick={signOut}
-              className="mt-2 w-full rounded-lg px-3 py-2 text-left text-[13px] font-semibold text-ink-3 transition-colors hover:text-ink"
+              className="mt-1 w-full rounded-lg px-3 py-2 text-left text-[13px] font-semibold text-ink-3 transition-colors hover:text-ink"
             >
               Sign out
             </button>
@@ -194,9 +197,12 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
                   {staff.name} · {ROLE_LABEL[staff.role]}
                 </div>
               </div>
-              <button type="button" onClick={signOut} className="shrink-0 text-[13px] font-semibold text-ink-3">
-                Sign out
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <AdminThemeToggle />
+                <button type="button" onClick={signOut} className="text-[13px] font-semibold text-ink-3">
+                  Sign out
+                </button>
+              </div>
             </div>
             <nav className="flex gap-1 overflow-x-auto no-scrollbar px-3 pb-2">
               {items.map((item) => (

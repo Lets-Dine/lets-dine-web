@@ -1,7 +1,7 @@
 import { HISTORY_REF_CEILING, orderHistory } from '../data/history';
 import { CATEGORIES, DISHES } from '../data/menu';
 import { SEED_REVIEWS } from '../data/reviews';
-import { DEMO_PIN, STAFF } from '../data/staff';
+import { DEMO_PIN } from '../data/staff';
 import { formatMoney, percentOf, recomputeTotals, sumLines } from '../domain/money';
 import {
   ITEM_STATUS_LABEL,
@@ -28,6 +28,7 @@ import type {
   Restaurant,
   Review,
   StaffMember,
+  StaffRole,
 } from '../domain/types';
 import type { Store } from './store';
 import {
@@ -37,9 +38,11 @@ import {
   newQrToken,
   readStore,
   restaurantOf,
+  staffOf,
   tablesOf,
   uid,
   withEditableMenu,
+  withEditableStaff,
   withEditableTables,
   writeStore,
 } from './store';
@@ -62,13 +65,63 @@ function authorize(actor: StaffMember, permission: Permission): void {
 
 export async function signIn(email: string, pin: string): Promise<StaffMember> {
   await latency();
-  const member = STAFF.find((s) => s.email.toLowerCase() === email.trim().toLowerCase());
+  const member = staffOf(readStore()).find((s) => s.email.toLowerCase() === email.trim().toLowerCase());
   if (!member || pin.trim() !== DEMO_PIN) throw new ApiError(401, 'That email and PIN do not match an account.');
   return member;
 }
 
 export function staffDirectory(): StaffMember[] {
-  return STAFF;
+  return staffOf(readStore());
+}
+
+/* ── Staff ─────────────────────────────────────────────────────────── */
+
+export interface StaffDraft {
+  name: string;
+  email: string;
+  /**
+   * Collected so the form matches the live backend, which authenticates each
+   * staff member by their own PIN. The mock has no per-member PIN store —
+   * every demo account, seeded or added here, signs in with `DEMO_PIN` — so
+   * this is validated for shape and then dropped.
+   */
+  pin: string;
+  role: StaffRole;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function listStaff(actor: StaffMember): Promise<StaffMember[]> {
+  authorize(actor, 'settings:view');
+  const roster = [...staffOf(readStore())];
+  const rank: Record<StaffRole, number> = { OWNER: 0, MANAGER: 1, STAFF: 2 };
+  return roster.sort((a, b) => rank[a.role] - rank[b.role] || a.name.localeCompare(b.name));
+}
+
+export async function createStaffMember(actor: StaffMember, draft: StaffDraft): Promise<StaffMember> {
+  authorize(actor, 'settings:edit');
+  await latency();
+
+  const name = draft.name.trim();
+  const email = draft.email.trim().toLowerCase();
+  if (name.length < 2) throw new ApiError(400, 'A name is required.');
+  if (!EMAIL_RE.test(email)) throw new ApiError(400, 'Enter a valid email address.');
+
+  const base = withEditableStaff(readStore());
+  if (base.staff.some((s) => s.email.toLowerCase() === email)) throw new ApiError(409, 'This person is already on the team.');
+
+  const member: StaffMember = { id: uid('stf'), restaurantId: actor.restaurantId, name, email, role: draft.role };
+
+  writeStore(
+    record(
+      { ...base, staff: [...base.staff, member] },
+      actor,
+      'staff_invited',
+      member.name,
+      `Added as ${ROLE_LABEL[member.role]}`,
+    ),
+  );
+  return member;
 }
 
 /* ── Audit trail ───────────────────────────────────────────────────── */

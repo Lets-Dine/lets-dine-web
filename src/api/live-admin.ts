@@ -1,4 +1,4 @@
-import type { DishDraft } from './admin';
+import type { DishDraft, StaffDraft } from './admin';
 import { nextItemStatus } from '../domain/orderStatus';
 import type {
   AuditAction,
@@ -151,6 +151,15 @@ interface ApiDiningTable {
   updatedAt: string;
 }
 
+interface ApiStaffMember {
+  id: string;
+  restaurantId: string;
+  role: StaffRole;
+  isActive: boolean;
+  name: string;
+  email: string;
+}
+
 interface ApiAuditLog {
   id: string;
   restaurantId: string;
@@ -247,6 +256,10 @@ function toDish(api: ApiDish, currency: string): Dish {
   };
 }
 
+function toStaffMember(api: ApiStaffMember): StaffMember {
+  return { id: api.id, restaurantId: api.restaurantId, name: api.name, email: api.email, role: api.role };
+}
+
 function toTable(api: ApiDiningTable): DiningTable {
   return {
     id: api.id,
@@ -320,6 +333,24 @@ export async function signIn(email: string, pin: string): Promise<StaffMember> {
   });
   storeToken(session.accessToken);
   return toStaff(session.profile);
+}
+
+/* ── Staff ─────────────────────────────────────────────────────── */
+
+export async function listStaff(): Promise<StaffMember[]> {
+  const page = await apiRequest<Paginated<ApiStaffMember>>('/restaurant/staff?limit=0', {
+    headers: authHeaders(),
+  });
+  return page.rows.filter((row) => row.isActive).map(toStaffMember);
+}
+
+export async function createStaffMember(draft: StaffDraft): Promise<StaffMember> {
+  const member = await apiRequest<ApiStaffMember>('/restaurant/staff', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ name: draft.name.trim(), email: draft.email.trim(), pin: draft.pin.trim(), role: draft.role }),
+  });
+  return toStaffMember(member);
 }
 
 /* ── Menu ──────────────────────────────────────────────────────── */

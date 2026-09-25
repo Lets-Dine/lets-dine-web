@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { BrowserRouter, Route, Routes, useLocation, useNavigationType } from 'react-router-dom';
 import { AuthProvider } from './state/AuthContext';
+import { AdminThemeProvider } from './state/AdminTheme';
 import { ToastProvider } from './state/ToastContext';
 import { Cart } from './routes/Cart';
 import { Checkout } from './routes/Checkout';
@@ -22,7 +23,11 @@ import { Orders } from './routes/admin/Orders';
 import { Reviews } from './routes/admin/Reviews';
 import { Settings } from './routes/admin/Settings';
 import { SignIn } from './routes/admin/SignIn';
+import { Staff } from './routes/admin/Staff';
 import { Tables } from './routes/admin/Tables';
+import { PlatformLayout } from './routes/platform/PlatformLayout';
+import { PlatformSignIn } from './routes/platform/PlatformSignIn';
+import { PlatformRestaurants } from './routes/platform/Restaurants';
 
 /**
  * Scroll and focus, per navigation.
@@ -79,35 +84,43 @@ export default function App() {
       <Navigation />
       <ToastProvider>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Entry />} />
-            {/* The QR encodes only the restaurant slug and an opaque table token. */}
-            <Route path="/r/:slug/t/:token" element={<RestaurantLayout />}>
-              <Route index element={<Menu />} />
-              <Route path="d/:dishId" element={<DishDetail />} />
-              <Route path="cart" element={<Cart />} />
-              <Route path="checkout" element={<Checkout />} />
-              <Route path="orders" element={<OrderHistory />} />
-              <Route path="order/:orderId" element={<OrderStatus />} />
-              <Route path="order/:orderId/review" element={<ReviewFlow />} />
-            </Route>
+          <AdminThemeProvider>
+            <Routes>
+              <Route path="/" element={<Entry />} />
+              {/* The QR encodes only the restaurant slug and an opaque table token. */}
+              <Route path="/r/:slug/t/:token" element={<RestaurantLayout />}>
+                <Route index element={<Menu />} />
+                <Route path="d/:dishId" element={<DishDetail />} />
+                <Route path="cart" element={<Cart />} />
+                <Route path="checkout" element={<Checkout />} />
+                <Route path="orders" element={<OrderHistory />} />
+                <Route path="order/:orderId" element={<OrderStatus />} />
+                <Route path="order/:orderId/review" element={<ReviewFlow />} />
+              </Route>
 
-            {/* The restaurant side: same store, same rules, different job. */}
-            <Route path="/admin/signin" element={<SignIn />} />
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="orders" element={<Orders />} />
-              <Route path="menu" element={<MenuBoard />} />
-              <Route path="menu/:dishId" element={<DishEditor />} />
-              <Route path="categories" element={<Categories />} />
-              <Route path="tables" element={<Tables />} />
-              <Route path="reviews" element={<Reviews />} />
-              <Route path="analytics" element={<Analytics />} />
-              <Route path="settings" element={<Settings />} />
-            </Route>
+              {/* The restaurant side: same store, same rules, different job. */}
+              <Route path="/admin/signin" element={<SignIn />} />
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<Dashboard />} />
+                <Route path="orders" element={<Orders />} />
+                <Route path="menu" element={<MenuBoard />} />
+                <Route path="menu/:dishId" element={<DishEditor />} />
+                <Route path="categories" element={<Categories />} />
+                <Route path="tables" element={<Tables />} />
+                <Route path="reviews" element={<Reviews />} />
+                <Route path="analytics" element={<Analytics />} />
+                <Route path="staff" element={<Staff />} />
+                <Route path="settings" element={<Settings />} />
+              </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="/platform/signin" element={<PlatformSignIn />} />
+              <Route path="/platform" element={<PlatformLayout />}>
+                <Route index element={<PlatformRestaurants />} />
+              </Route>
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AdminThemeProvider>
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>

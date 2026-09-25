@@ -1,8 +1,10 @@
 import type { AuditEntry, DiningTable, ItemStatus, Menu, MenuCategory, Order, StaffMember } from '../domain/types';
 import * as mock from './admin';
-import type { DishDraft } from './admin';
+import type { DishDraft, StaffDraft } from './admin';
 import { IS_LIVE_API } from './http';
 import * as live from './live-admin';
+
+export type { StaffDraft } from './admin';
 
 /**
  * The manager-facing reads/writes that have a real backend behind them so
@@ -145,4 +147,13 @@ export function subscribeToTables(onUpdated: (table: DiningTable) => void, onRes
 /** §51 — every management action, most recent first. */
 export function listAudit(actor: StaffMember, limit = 80): Promise<AuditEntry[]> {
   return IS_LIVE_API ? live.listAudit(limit) : mock.listAudit(actor, limit);
+}
+
+/** §50 — the team roster, owner and manager down to whoever works the pass. */
+export function listStaff(actor: StaffMember): Promise<StaffMember[]> {
+  return IS_LIVE_API ? live.listStaff() : mock.listStaff(actor);
+}
+
+export function createStaffMember(actor: StaffMember, draft: StaffDraft): Promise<StaffMember> {
+  return IS_LIVE_API ? live.createStaffMember(draft) : mock.createStaffMember(actor, draft);
 }

@@ -189,3 +189,24 @@ export const Sliders = ({ size = 16, className }: IconProps) => (
     <circle cx="12" cy="17" r="2" />
   </svg>
 );
+
+export const Sun = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 3v1.6M12 19.4V21M4.9 4.9l1.1 1.1M18 18l1.1 1.1M3 12h1.6M19.4 12H21M4.9 19.1L6 18M18 6l1.1-1.1" />
+  </svg>
+);
+
+export const Moon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M16.5 13.2A7 7 0 119.2 4.4 5.6 5.6 0 0016.5 13.2z" />
+  </svg>
+);
+
+export const Users = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="9" cy="8" r="3" />
+    <path d="M3.5 19a5.5 5.5 0 0111 0" />
+    <path d="M15.5 6.2a3 3 0 010 5.6M18.5 19a5 5 0 00-3.3-6.8" />
+  </svg>
+);

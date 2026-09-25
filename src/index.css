@@ -66,6 +66,13 @@
   --color-berry: #ff5e7a;
   --color-leaf: #7bd66f;
 
+  /* Status ink — bright enough on charcoal, overridden for the admin light theme. */
+  --color-gold-ink: #ffd479;
+  --color-mint-ink: #6fd7a4;
+  --color-berry-ink: #ff8098;
+  --color-pass: #7e9bff;
+  --color-pending-ink: #ff9270;
+
   --shadow-lift: 0 8px 24px -8px rgb(0 0 0 / 0.65);
   --shadow-deep: 0 24px 60px -20px rgb(0 0 0 / 0.8);
   --shadow-flame: 0 12px 32px -12px rgb(255 110 50 / 0.55);
@@ -182,6 +189,7 @@
   }
 
   html {
+    color-scheme: dark;
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
   }
@@ -346,6 +354,46 @@
   }
 }
 
+/* ── Admin light theme ────────────────────────────────────────────
+   The diner app stays on the dark table. The dashboard is a shift-long
+   tool, so it can step into paper and brass without dragging the menu
+   with it. Tokens live on `html` so `body` and toasts inherit them. */
+
+html[data-admin-theme='light'] {
+  color-scheme: light;
+  --color-bg: #f3ebe1;
+  --color-bg-deep: #ebe1d4;
+  --color-surface: #fffaf4;
+  --color-surface-2: #f0e5d8;
+  --color-surface-3: #e5d7c7;
+  --color-hairline: rgb(58 38 18 / 0.11);
+  --color-hairline-strong: rgb(58 38 18 / 0.2);
+
+  --color-ink: #241910;
+  --color-ink-2: #564636;
+  --color-ink-3: #6f5c4b;
+  --color-ink-4: #8a7460;
+
+  --color-ember: #fff4e8;
+  --color-flame-1: #d97816;
+  --color-gold-ink: #8a5a08;
+  --color-mint-ink: #187a4e;
+  --color-berry-ink: #c12d4c;
+  --color-pass: #3d5cb0;
+  --color-pending-ink: #c24a22;
+
+  --shadow-lift: 0 8px 24px -10px rgb(70 40 12 / 0.18);
+  --shadow-deep: 0 22px 50px -24px rgb(70 40 12 / 0.28);
+  --shadow-flame: 0 12px 28px -12px rgb(200 80 30 / 0.35);
+  --shadow-flame-lg: 0 18px 36px -14px rgb(200 80 30 / 0.42);
+}
+
+html[data-admin-theme='light'] .bg-room {
+  background-image:
+    radial-gradient(1100px 760px at 50% -12%, rgb(255 180 90 / 0.18), transparent 62%),
+    radial-gradient(760px 520px at 88% 100%, rgb(255 140 80 / 0.1), transparent 60%);
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .glass,
   .glass-chip {
@@ -361,6 +409,13 @@
     --color-hairline-strong: rgb(255 236 214 / 0.4);
     --color-ink-3: #c2b5a8;
     --color-ink-4: #ab9d8f;
+  }
+
+  html[data-admin-theme='light'] {
+    --color-hairline: rgb(50 32 14 / 0.22);
+    --color-hairline-strong: rgb(50 32 14 / 0.38);
+    --color-ink-3: #4e3f32;
+    --color-ink-4: #6a5748;
   }
 
   .glass,

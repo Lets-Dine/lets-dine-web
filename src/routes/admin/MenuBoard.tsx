@@ -220,7 +220,7 @@ function CategoryGroup({ category, dishes, currency, editable, pending, ...handl
                 <span className="truncate text-[14.5px] font-semibold">{dish.name}</span>
                 {dish.isFeatured && <span title="Staff pick">👨‍🍳</span>}
                 {!dish.isAvailable && !dish.isArchived && (
-                  <span className="rounded-full bg-berry/14 px-2 py-0.5 text-[11px] font-bold text-[#ff8098]">Off</span>
+                  <span className="rounded-full bg-berry/14 px-2 py-0.5 text-[11px] font-bold text-berry-ink">Off</span>
                 )}
               </div>
               <div className="mt-0.5 flex items-center gap-2 text-[12.5px] text-ink-4">
@@ -274,7 +274,7 @@ function CategoryGroup({ category, dishes, currency, editable, pending, ...handl
                         ADMIN_TINY,
                         dish.isAvailable
                           ? 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset'
-                          : 'bg-mint/14 text-[#6fd7a4]',
+                          : 'bg-mint/14 text-mint-ink',
                       )}
                       onClick={() => handlers.onToggleAvailable(dish)}
                     >

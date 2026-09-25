@@ -19,7 +19,7 @@ export const PANEL = 'rounded-2xl bg-surface ring-1 ring-hairline ring-inset';
 export const PAD = 'p-4 sm:p-5';
 
 export const ADMIN_BTN = `${BTN} h-10 px-4 text-[14px]`;
-export const ADMIN_PRIMARY = `${ADMIN_BTN} bg-flame shadow-flame`;
+export const ADMIN_PRIMARY = `${ADMIN_BTN} bg-flame text-white shadow-flame`;
 export const ADMIN_GHOST = `${ADMIN_BTN} bg-surface-2 text-ink ring-1 ring-hairline ring-inset`;
 export const ADMIN_QUIET = `${ADMIN_BTN} text-ink-3 hover:text-ink`;
 export const ADMIN_DANGER = `${ADMIN_BTN} bg-berry/14 text-berry ring-1 ring-berry/30 ring-inset`;
@@ -124,12 +124,12 @@ export function Money({ value, currency, className }: { value: Minor; currency: 
 /* ── Status ────────────────────────────────────────────────────────── */
 
 const STATUS_STYLE: Record<OrderStatus, string> = {
-  PENDING: 'bg-flame-3/18 text-[#ff9270]',
-  ACCEPTED: 'bg-gold/15 text-[#ffd479]',
-  PREPARING: 'bg-[#7e9bff]/16 text-[#a4b6ff]',
-  READY: 'bg-mint/16 text-[#6fd7a4]',
-  COMPLETED: 'bg-white/8 text-ink-3',
-  CANCELLED: 'bg-berry/14 text-[#ff8098]',
+  PENDING: 'bg-flame-3/18 text-pending-ink',
+  ACCEPTED: 'bg-gold/15 text-gold-ink',
+  PREPARING: 'bg-pass/16 text-pass',
+  READY: 'bg-mint/16 text-mint-ink',
+  COMPLETED: 'bg-ink/8 text-ink-3',
+  CANCELLED: 'bg-berry/14 text-berry-ink',
 };
 
 export function StatusPill({ status, label }: { status: OrderStatus; label: string }) {
@@ -170,6 +170,7 @@ export function Field({
 export function TextInput({
   value,
   onChange,
+  className,
   placeholder,
   maxLength,
   type = 'text',
@@ -177,6 +178,7 @@ export function TextInput({
 }: {
   value: string;
   onChange: (next: string) => void;
+  className?: string;
   placeholder?: string;
   maxLength?: number;
   type?: 'text' | 'email' | 'password';
@@ -184,7 +186,7 @@ export function TextInput({
 }) {
   return (
     <input
-      className={INPUT_BOX}
+      className={cx(INPUT_BOX, className)}
       value={value}
       type={type}
       placeholder={placeholder}
@@ -230,7 +232,7 @@ export function Select<T extends string>({
   options: { value: T; label: string }[];
 }) {
   return (
-    <select className={cx(INPUT_BOX, 'appearance-none')} value={value} onChange={(e) => onChange(e.target.value as T)}>
+    <select className={cx(INPUT_BOX, 'cursor-pointer')} value={value} onChange={(e) => onChange(e.target.value as T)}>
       {options.map((o) => (
         <option key={o.value} value={o.value} className="bg-surface-2">
           {o.label}
@@ -463,12 +465,28 @@ export function useCommand() {
 
 /* ── Odds and ends ─────────────────────────────────────────────────── */
 
-export function Empty({ emoji, title, message, action }: { emoji: string; title: string; message: string; action?: ReactNode }) {
+export function Empty({
+  emoji,
+  image,
+  title,
+  message,
+  action,
+}: {
+  emoji?: string;
+  image?: string;
+  title: string;
+  message: string;
+  action?: ReactNode;
+}) {
   return (
     <div className="grid justify-items-center gap-2 px-4 py-12 text-center">
-      <div className="text-3xl" aria-hidden>
-        {emoji}
-      </div>
+      {image ? (
+        <img src={image} alt="" className="mb-1 h-36 w-36 object-contain" />
+      ) : emoji ? (
+        <div className="text-3xl" aria-hidden>
+          {emoji}
+        </div>
+      ) : null}
       <h3 className="text-[15.5px] font-semibold tracking-tight">{title}</h3>
       <p className="max-w-[40ch] text-[13px] leading-relaxed text-ink-3">{message}</p>
       {action && <div className="mt-2">{action}</div>}

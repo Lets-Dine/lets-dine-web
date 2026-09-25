@@ -1,4 +1,5 @@
 import { CATEGORIES, DISHES, RESTAURANT, TABLES } from '../data/menu';
+import { STAFF } from '../data/staff';
 import type {
   AuditEntry,
   DiningSession,
@@ -8,6 +9,7 @@ import type {
   Order,
   Restaurant,
   Review,
+  StaffMember,
 } from '../domain/types';
 
 /**
@@ -48,6 +50,8 @@ export interface Store {
   /** Null until someone edits: the seed menu materialises into the store then. */
   menu: MenuState | null;
   tables: DiningTable[] | null;
+  /** Null until an owner adds someone: the seed roster materialises into the store then. */
+  staff: StaffMember[] | null;
   restaurantPatch: Partial<Restaurant> | null;
   audit: AuditEntry[];
   /**
@@ -70,6 +74,7 @@ export function emptyStore(): Store {
     sessions: {},
     menu: null,
     tables: null,
+    staff: null,
     restaurantPatch: null,
     audit: [],
     autoKitchen: true,
@@ -137,6 +142,10 @@ export function tablesOf(store: Store): DiningTable[] {
   return store.tables ?? TABLES;
 }
 
+export function staffOf(store: Store): StaffMember[] {
+  return store.staff ?? STAFF;
+}
+
 export function restaurantOf(store: Store): Restaurant {
   return store.restaurantPatch ? { ...RESTAURANT, ...store.restaurantPatch } : RESTAURANT;
 }
@@ -156,6 +165,11 @@ export function withEditableMenu(store: Store): Store & { menu: MenuState } {
 export function withEditableTables(store: Store): Store & { tables: DiningTable[] } {
   if (store.tables) return store as Store & { tables: DiningTable[] };
   return { ...store, tables: TABLES.map((t) => ({ ...t })) };
+}
+
+export function withEditableStaff(store: Store): Store & { staff: StaffMember[] } {
+  if (store.staff) return store as Store & { staff: StaffMember[] };
+  return { ...store, staff: STAFF.map((s) => ({ ...s })) };
 }
 
 export function takeReference(store: Store): { store: Store; reference: string } {

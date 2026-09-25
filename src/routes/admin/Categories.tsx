@@ -139,13 +139,7 @@ export function Categories() {
               <TextInput value={name} onChange={setName} maxLength={40} placeholder="Breakfast" />
             </Field>
             <Field label="Emoji" hint="Shown beside the name on the diner menu.">
-              <input
-                className={cx(INPUT_BOX, 'w-20 text-center text-[20px]')}
-                value={emoji}
-                maxLength={4}
-                placeholder="🍳"
-                onChange={(e) => setEmoji(e.target.value)}
-              />
+              <TextInput value={emoji} onChange={setEmoji} maxLength={4} placeholder="🥐" className={cx('w-20 text-center text-sm')} />
             </Field>
             <button type="submit" className={ADMIN_PRIMARY} disabled={busy || name.trim().length < 2}>
               {pending === 'new' ? 'Adding…' : 'Add category'}
