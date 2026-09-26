@@ -140,6 +140,34 @@ export interface OrderItem {
   statusUpdatedAt: string;
 }
 
+export type PaymentMethod = 'CASH' | 'CARD';
+
+export interface PaymentItem {
+  id: string;
+  dishId: string;
+  dishNameSnapshot: string;
+  unitPrice: Minor;
+  quantity: number;
+}
+
+/** A settled charge against a dining session — the record the till leaves behind once a table is paid. */
+export interface Payment {
+  id: string;
+  restaurantId: string;
+  sessionId: string;
+  tableId: string;
+  subtotal: Minor;
+  serviceCharge: Minor;
+  tax: Minor;
+  discount: Minor;
+  total: Minor;
+  method: PaymentMethod;
+  currency: string;
+  createdAt: string;
+  createdBy: string | null;
+  items: PaymentItem[];
+}
+
 export interface Order {
   id: string;
   reference: string;

@@ -15,7 +15,9 @@ import { Check, X } from '../icons';
  * numbers rather than photographs.
  */
 
-export const PANEL = 'rounded-2xl bg-surface ring-1 ring-hairline ring-inset';
+export const PANEL = 'rounded-2xl bg-docket-surface text-docket-ink ring-1 ring-hairline ring-inset';
+export const PANEL_ACCENT = 'rounded-2xl bg-surface ring-1.5 ring-flame/20 ring-inset shadow-sm';
+export const PANEL_SUBTLE = 'rounded-2xl bg-surface-2/40 ring-1 ring-hairline ring-inset';
 export const PAD = 'p-4 sm:p-5';
 
 export const ADMIN_BTN = `${BTN} h-10 px-4 text-[14px]`;
@@ -40,6 +42,7 @@ export function Panel({
   children,
   className,
   bare = false,
+  variant = 'default',
 }: {
   title?: string;
   hint?: string;
@@ -48,9 +51,11 @@ export function Panel({
   className?: string;
   /** Skip the inner padding when the panel holds its own rows or a table. */
   bare?: boolean;
+  variant?: 'default' | 'accent' | 'subtle';
 }) {
+  const variantClass = variant === 'accent' ? PANEL_ACCENT : variant === 'subtle' ? PANEL_SUBTLE : PANEL;
   return (
-    <section className={cx(PANEL, className)}>
+    <section className={cx(variantClass, className)}>
       {(title || action) && (
         <header className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3 sm:px-5">
           <div className="min-w-0">
@@ -85,6 +90,7 @@ export function StatTile({
   sub,
   change,
   emphasis = false,
+  variant = 'default',
 }: {
   label: string;
   value: string;
@@ -92,9 +98,11 @@ export function StatTile({
   /** Fraction, where 0.12 is +12%. Null means there is nothing to compare to. */
   change?: number | null;
   emphasis?: boolean;
+  variant?: 'default' | 'primary' | 'subtle';
 }) {
+  const baseClass = variant === 'subtle' ? PANEL_SUBTLE : variant === 'primary' ? PANEL_ACCENT : PANEL;
   return (
-    <div className={cx(PANEL, 'px-4 py-3.5', emphasis && 'bg-flame-dim')}>
+    <div className={cx(baseClass, 'px-4 py-3.5', emphasis && 'bg-flame-dim')}>
       <div className="text-[11.5px] font-semibold uppercase tracking-[0.09em] text-ink-4">{label}</div>
       <div className={cx(DISPLAY, 'mt-1.5 text-[24px] tnum sm:text-[27px]')}>{value}</div>
       <div className="mt-1 flex items-center gap-2 text-[12.5px]">
@@ -119,6 +127,79 @@ export function Change({ value }: { value: number | null | undefined }) {
 
 export function Money({ value, currency, className }: { value: Minor; currency: string; className?: string }) {
   return <span className={cx('tnum', className)}>{formatMoney(value, currency)}</span>;
+}
+
+/**
+ * A dashed tear line across a docket surface (`bg-docket-surface`) — plain
+ * between rows, or carrying a torn-off section label. Shared by every screen
+ * styled as a printed slip (Payments' ledger, the menu board), so the roll
+ * reads the same wherever it shows up.
+ */
+export function Perforation({ label, thick = false }: { label?: string; thick?: boolean }) {
+  if (!label) {
+    return <div className={cx('mx-6 border-t border-dashed border-docket-line', thick && 'border-t-2')} />;
+  }
+  return (
+    <div className="relative my-1 flex items-center px-6">
+      <div className="h-0 flex-1 border-t border-dashed border-docket-line" />
+      <span className="shrink-0 px-3 text-[10.5px] font-bold tracking-[0.14em] text-docket-inksoft uppercase">{label}</span>
+      <div className="h-0 flex-1 border-t border-dashed border-docket-line" />
+    </div>
+  );
+}
+
+/** The rounded slip a docket-styled listing (Payments' ledger, the audit log) renders each section in. */
+export const DOCKET_CARD = 'overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line';
+
+/** One figure in a docket ledger's header stats row — the count, the average, the flagged total. */
+export function LedgerStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="px-3 py-4 text-center">
+      <div className="text-[10px] font-bold tracking-[0.1em] text-docket-inksoft uppercase">{label}</div>
+      <div className="font-display mt-1 text-[18px] font-black tnum">{value}</div>
+      {sub && <div className="mt-0.5 text-[10.5px] text-docket-inksoft">{sub}</div>}
+    </div>
+  );
+}
+
+/** One day's worth of rows in a docket listing — a torn-paper card with a count against its date. */
+export function DocketDaySection({
+  label,
+  count,
+  itemLabel,
+  children,
+}: {
+  label: string;
+  count: number;
+  itemLabel: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={DOCKET_CARD}>
+      <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
+        <h3 className="font-display text-[18px] font-black tracking-tight">{label}</h3>
+        <span className="shrink-0 text-[11px] font-bold tracking-wide text-docket-inksoft uppercase">
+          {count} {itemLabel}
+          {count === 1 ? '' : 's'}
+        </span>
+      </div>
+      <Perforation />
+      {children}
+    </div>
+  );
+}
+
+/** The empty/no-matches card for a docket listing, styled as the roll itself rather than a generic panel. */
+export function DocketEmpty({ icon, title, message }: { icon: ReactNode; title: string; message: string }) {
+  return (
+    <div className={DOCKET_CARD}>
+      <div className="grid justify-items-center gap-2 px-6 py-14 text-center">
+        {icon}
+        <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
+        <p className="max-w-[38ch] text-[13px] leading-relaxed text-docket-inksoft">{message}</p>
+      </div>
+    </div>
+  );
 }
 
 /* ── Status ────────────────────────────────────────────────────────── */
@@ -383,6 +464,7 @@ export function Confirm({
   onConfirm,
   className,
   disabled = false,
+  tone = 'default',
 }: {
   label: ReactNode;
   question: string;
@@ -390,15 +472,18 @@ export function Confirm({
   onConfirm: () => void;
   className?: string;
   disabled?: boolean;
+  /** 'paper' swaps the asking chip to the docket palette — for a control that lives on a `bg-docket-surface`, which the dashboard's own ink/surface tokens don't track. */
+  tone?: 'default' | 'paper';
 }) {
   const [asking, setAsking] = useState(false);
+  const paper = tone === 'paper';
 
   if (!asking)
     return (
       <button
         type="button"
         disabled={disabled}
-        className={cx(ADMIN_TINY, 'text-ink-3 hover:text-berry', className)}
+        className={cx(ADMIN_TINY, paper ? 'text-docket-inksoft hover:text-docket-berry' : 'text-ink-3 hover:text-berry', className)}
         onClick={() => {
           haptic.warn();
           setAsking(true);
@@ -409,14 +494,19 @@ export function Confirm({
     );
 
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface-2 py-1 pl-2.5 pr-1 ring-1 ring-hairline ring-inset">
-      <span className="text-[12.5px] text-ink-2">{question}</span>
-      <button type="button" className={cx(ADMIN_TINY, 'text-ink-3')} onClick={() => setAsking(false)}>
+    <span
+      className={cx(
+        'inline-flex items-center gap-1.5 rounded-lg py-1 pl-2.5 pr-1 ring-1 ring-inset',
+        paper ? 'bg-docket-line/70 ring-docket-line' : 'bg-surface-2 ring-hairline',
+      )}
+    >
+      <span className={cx('text-[12.5px]', paper ? 'text-docket-ink' : 'text-ink-2')}>{question}</span>
+      <button type="button" className={cx(ADMIN_TINY, paper ? 'text-docket-ink' : 'text-ink-3')} onClick={() => setAsking(false)}>
         <X size={13} /> Keep
       </button>
       <button
         type="button"
-        className={cx(ADMIN_TINY, 'bg-berry/16 text-berry')}
+        className={cx(ADMIN_TINY, paper ? 'bg-docket-berry/16 text-docket-berry' : 'bg-berry/16 text-berry')}
         onClick={() => {
           setAsking(false);
           onConfirm();

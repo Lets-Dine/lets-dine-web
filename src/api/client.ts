@@ -13,6 +13,7 @@ import type {
   Menu,
   Order,
   OrderItem,
+  Payment,
   Restaurant,
   Review,
 } from '../domain/types';
@@ -367,6 +368,16 @@ export async function getSessionOrders(sessionId: string): Promise<Order[]> {
   return store.orders
     .filter((o) => o.sessionId === sessionId)
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+}
+
+/** Once staff settle the table, this is the receipt — `null` while nothing has been charged yet. */
+export async function getSessionPayment(sessionId: string): Promise<Payment | null> {
+  const store = readStore();
+  return (
+    store.payments
+      .filter((p) => p.sessionId === sessionId)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0] ?? null
+  );
 }
 
 export async function cancelOrder(orderId: string): Promise<Order> {

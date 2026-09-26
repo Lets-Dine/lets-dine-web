@@ -12,6 +12,25 @@
   --color-paperline: var(--paperline);
   --color-ink: var(--ink);
   --color-inksoft: var(--inksoft);
+  /*
+   * `bg-paper`/`--color-ink` above are the *literal* paper tokens — always the
+   * cream case, because they also back a physical-paper preview (QrCard's
+   * printed QR card) that has to keep matching what actually comes out of the
+   * printer regardless of admin theme.
+   *
+   * `docket-*` below is the *ambient* docket surface the Payments ledger and
+   * Menu board render their sections in. It reuses the literal paper look in
+   * the light admin theme (so nothing changes there) but gets its own dark
+   * variant — a raised warm card, not a cream sheet — for the dark theme,
+   * defined in `:root` below and overridden back to literal paper by the
+   * light theme block further down this file.
+   */
+  --color-docket-surface: var(--docket-surface);
+  --color-docket-line: var(--docket-line);
+  --color-docket-ink: var(--docket-ink);
+  --color-docket-inksoft: var(--docket-inksoft);
+  --color-docket-mint: var(--docket-mint);
+  --color-docket-berry: var(--docket-berry);
   --color-brass: var(--brass);
   --color-occupied: var(--occupied);
   --color-freedot: var(--freedot);
@@ -146,6 +165,20 @@
   --occupied: oklch(0.539 0.163 36);
   --freedot: oklch(0.578 0.081 111);
 
+  /*
+   * The docket surface as it reads on the dark admin theme (this file's
+   * default scope — the light theme block further down overrides these back
+   * to the literal paper/ink/hairline values). A raised warm-dark card, not
+   * the light theme's cream sheet, so the ledger and menu board still feel
+   * native to a dark dashboard rather than a lit window cut into it.
+   */
+  --docket-surface: var(--color-surface);
+  --docket-line: rgb(255 236 214 / 14%);
+  --docket-ink: #fdf6ee;
+  --docket-inksoft: #a89a8d;
+  --docket-mint: #6fd7a4;
+  --docket-berry: #ff8098;
+
   --background: var(--board);
   --foreground: var(--paper);
   --card: var(--railed);
@@ -274,6 +307,32 @@
   overflow: hidden;
 }
 
+/* Breaks up flat photography and gradients with a whisper of film grain —
+   cheap texture that keeps the hero from reading as a sterile vector fill.
+   Callers must already be positioned (absolute/relative/fixed): this only
+   sets the ::after itself, so it never fights a sibling `absolute` utility
+   over the `position` property in the cascade. */
+@utility bg-grain {
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.5;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+}
+
+/* Shadow tinted with the same ember hue as the surface it sits on, instead of
+   flat black — makes elevated cards feel lit rather than merely darkened. */
+@utility shadow-warm {
+  box-shadow: 0 16px 36px -16px rgb(10 6 3 / 0.75), 0 2px 8px -4px rgb(0 0 0 / 0.5);
+}
+@utility shadow-warm-lg {
+  box-shadow: 0 28px 56px -20px rgb(8 5 2 / 0.85), 0 4px 14px -6px rgb(0 0 0 / 0.55);
+}
+
 /* Tailwind v4 emits `scale-*`, `translate-*` and `rotate-*` as their own CSS
    properties rather than folding them into `transform` — so the obvious
    `transition-transform` silently animates nothing and every press snaps.
@@ -381,6 +440,14 @@ html[data-admin-theme='light'] {
   --color-berry-ink: #c12d4c;
   --color-pass: #3d5cb0;
   --color-pending-ink: #c24a22;
+
+  /* On the light admin theme the docket surface IS the literal paper — no separate dark card. */
+  --docket-surface: var(--paper);
+  --docket-line: var(--paperline);
+  --docket-ink: var(--ink);
+  --docket-inksoft: var(--inksoft);
+  --docket-mint: #187a4e;
+  --docket-berry: #c12d4c;
 
   --shadow-lift: 0 8px 24px -10px rgb(70 40 12 / 0.18);
   --shadow-deep: 0 22px 50px -24px rgb(70 40 12 / 0.28);

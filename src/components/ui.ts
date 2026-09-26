@@ -47,7 +47,7 @@ export const CHIP =
   'font-semibold transition-[color,background-color,scale] duration-150 ease-out-quart active:scale-95';
 
 export const CHIP_OFF = 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset';
-export const CHIP_ON = 'bg-flame text-white shadow-[0_6px_18px_-8px_rgb(255_120_55_/_0.7)]';
+export const CHIP_ON = 'bg-flame text-white shadow-[0_6px_18px_-8px_rgb(255_120_55_/_0.7)] ring-1 ring-white/15 ring-inset';
 
 export const TAG =
   'inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold ' +

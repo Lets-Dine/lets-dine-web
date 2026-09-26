@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { isTableOpen } from '../../api/admin';
 import { IS_LIVE_API } from '../../api/http';
 import { STATUS_LABEL } from '../../domain/orderStatus';
@@ -13,12 +13,15 @@ import {
   subscribeToTables,
   updateTable,
 } from '../../api/staff';
-import type { DiningTable, Dish, Order, OrderStatus } from '../../domain/types';
-import { formatMoney, percentOf } from '../../domain/money';
+import type { DiningTable, Dish, Order, OrderStatus, PaymentMethod } from '../../domain/types';
+import { formatMoney, percentOf, symbolFor } from '../../domain/money';
+import { can } from '../../domain/permissions';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useToast } from '../../state/ToastContext';
-import { QrDialog, printQrSheet, tableUrl } from '../../components/admin/QrCard';
+import { QrDialog, QrImage, printQrSheet, tableUrl } from '../../components/admin/QrCard';
+import { printReceipt } from '../../components/admin/receipt';
+import type { ReceiptLine, ReceiptTotals } from '../../components/admin/receipt';
 import {
   ADMIN_GHOST,
   ADMIN_PRIMARY,
@@ -30,10 +33,11 @@ import {
   PANEL,
   PageTitle,
   Panel,
+  Segmented,
   TextInput,
   useCommand,
 } from '../../components/admin/kit';
-import { Receipt } from '../../components/icons';
+import { Cash, Check, ChevronLeft, Qr, Receipt } from '../../components/icons';
 import { SessionCode } from '../../components/Bits';
 import { DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
@@ -150,26 +154,17 @@ export function Tables() {
       />
 
       {rows.length > 0 && (
-        <div className="flex gap-1.5 pb-1">
-          {(
-            [
-              ['all', 'All', rows.length],
-              ['free', 'Free', rows.length - occupiedCount],
-              ['occupied', 'Occupied', occupiedCount],
-            ] as const
-          ).map(([key, label, count]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key)}
-              className={cx(
-                'rounded-full px-3 py-1.5 text-[11px] font-bold tracking-wide uppercase transition-colors',
-                filter === key ? 'bg-flame text-white shadow-flame' : 'bg-surface-2 text-ink-3 ring-1 ring-hairline ring-inset hover:text-ink',
-              )}
-            >
-              {label} · {count}
-            </button>
-          ))}
+        <div className="mb-3 overflow-x-auto no-scrollbar">
+          <Segmented
+            label="Filter"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: `All · ${rows.length}` },
+              { value: 'free', label: `Free · ${rows.length - occupiedCount}` },
+              { value: 'occupied', label: `Occupied · ${occupiedCount}` },
+            ]}
+          />
         </div>
       )}
 
@@ -273,17 +268,19 @@ export function Tables() {
         pending={pending}
         onClose={() => setBillId(null)}
         onSettle={(changes) => {
-          if (!billTable || !billTable.currentSessionId) return;
+          if (!billTable || !billTable.currentSessionId) return Promise.resolve(false);
           const sessionId = billTable.currentSessionId;
-          void run(
+          return run(
             billTable.id,
-            () => completePayment(staff, sessionId, changes.items, changes.endSession),
+            () => completePayment(staff, sessionId, changes.items, changes.method, changes.discount, changes.endSession),
             changes.endSession ? `${billTable.name} paid up and cleared` : `${billTable.name} paid up`,
           ).then((ok) => {
-            if (!ok) return;
-            reloadOrders();
-            bill.reload();
-            if (changes.endSession) tables.reload();
+            if (ok) {
+              reloadOrders();
+              bill.reload();
+              if (changes.endSession) tables.reload();
+            }
+            return ok;
           });
         }}
         onEndSession={() => {
@@ -453,76 +450,18 @@ function TableCard({ table, slug, restaurantName, editable, canSettle, openOrder
   );
 }
 
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
-}
+/** How long the QR step waits before it settles on its own — a cashier who'd rather not wait can always skip it. */
+const QR_AUTO_MS = 8000;
 
-interface ReceiptLine {
-  dishNameSnapshot: string;
-  quantity: number;
-  total: number;
-}
-
-interface ReceiptTotals {
-  currency: string;
-  subtotal: number;
-  serviceCharge: number;
-  tax: number;
-  total: number;
-}
-
-function printReceipt(table: DiningTable, lines: ReceiptLine[], totals: ReceiptTotals, restaurantName: string): boolean {
-  const sheet = window.open('', '_blank', 'width=420,height=640');
-  if (!sheet) return false;
-
-  const { currency, subtotal, serviceCharge, tax, total } = totals;
-  const rows = lines
-    .map(
-      (i) =>
-        `<tr><td>${escapeHtml(i.dishNameSnapshot)}</td><td class="num">${i.quantity}</td><td class="num"><b>${formatMoney(i.total, currency)}</b></td></tr>`,
-    )
-    .join('');
-
-  sheet.document.write(`<!doctype html><html><head><meta charset="utf-8">
-  <title>${escapeHtml(restaurantName)} — ${escapeHtml(table.name)} receipt</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 24px; background: #fff; color: #111; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
-    .sheet { width: 320px; margin: 0 auto; }
-    .center { text-align: center; }
-    .muted { color: #6a5a45; font-size: 11px; }
-    .rule { border-top: 1px dashed rgba(33,26,17,.35); margin: 12px 0; }
-    .row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; margin: 6px 0; }
-    .items { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .items th { padding-bottom: 6px; border-bottom: 1px dashed rgba(33,26,17,.35); text-align: left; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #6a5a45; }
-    .items td { padding: 6px 0; vertical-align: top; }
-    .items th.num, .items td.num { text-align: right; white-space: nowrap; padding-left: 10px; }
-    .total { font-weight: 900; font-size: 20px; }
-    @media print { body { padding: 0; } }
-  </style></head><body>
-  <div class="sheet">
-    <div class="center">
-      <h1 style="font-size:22px;margin:0">${escapeHtml(restaurantName)}</h1>
-      <p class="muted" style="margin:6px 0 0">${escapeHtml(table.name)} · ${table.capacity} seats</p>
-    </div>
-    <div class="rule"></div>
-    <table class="items">
-      <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Total</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div class="rule"></div>
-    <div class="row"><span>Subtotal</span><span>${formatMoney(subtotal, currency)}</span></div>
-    <div class="row"><span>Service</span><span>${formatMoney(serviceCharge, currency)}</span></div>
-    <div class="row"><span>Tax</span><span>${formatMoney(tax, currency)}</span></div>
-    <div class="row" style="align-items:baseline"><span style="font-size:16px;font-weight:900">Total</span><span class="total">${formatMoney(total, currency)}</span></div>
-    <div class="rule"></div>
-    <p class="center muted">Thank you · ${new Date().toLocaleString()}</p>
-  </div>
-  <script>window.onload = function () { setTimeout(function () { window.print(); }, 350); };</script>
-  </body></html>`);
-  sheet.document.close();
-  sheet.focus();
-  return true;
+/**
+ * There's no payment gateway behind this yet (§ take-payment flow — front end
+ * only for now), so this isn't a real charge link. "Dynamic" is what still
+ * matters for the till: a fresh reference baked in per attempt, so the code
+ * on screen changes every time a payment is started, the way a real one would.
+ */
+function paymentQrPayload(table: DiningTable, amount: number, currency: string): string {
+  const ref = `${table.qrToken.slice(0, 6)}${Date.now().toString(36)}`.toUpperCase();
+  return `letsdine-pay://charge?table=${encodeURIComponent(table.name)}&amount=${amount}&currency=${currency}&ref=${ref}`;
 }
 
 /** One underlying order item a displayed bill line is backed by — a served line can merge several of these. */
@@ -552,8 +491,20 @@ interface DraftLine {
 
 interface PendingBillChanges {
   items: { dishId: string; quantity: number }[];
+  method: PaymentMethod;
+  discount: number;
   endSession: boolean;
 }
+
+/** What's actually being charged, frozen the moment "Take payment" is tapped — so an in-flight QR
+ *  wait (or the reload that follows a successful cash payment) can never shift the total underfoot. */
+interface CommittedBill {
+  items: { dishId: string; quantity: number }[];
+  lines: ReceiptLine[];
+  totals: ReceiptTotals;
+}
+
+type PayStep = 'bill' | 'method' | 'qr' | 'done';
 
 function PaymentSheet({
   table,
@@ -575,27 +526,77 @@ function PaymentSheet({
   taxRate: number;
   pending: string | null;
   onClose: () => void;
-  onSettle: (changes: PendingBillChanges) => void;
+  onSettle: (changes: PendingBillChanges) => Promise<boolean>;
   onShowQr: () => void;
   onEndSession: () => void;
 }) {
+  const staff = useStaff();
+  const canDiscount = can(staff.role, 'payments:discount');
+
   const [adding, setAdding] = useState(false);
   // Edits made in the sheet are a draft until "Take payment" — closing without
   // paying (or backdrop-clicking) discards them, nothing was ever sent.
   const [pendingAdds, setPendingAdds] = useState<string[]>([]);
   const [pendingRemoves, setPendingRemoves] = useState<{ orderId: string; itemId: string }[]>([]);
   const [_endSessionOnPay, setEndSessionOnPay] = useState(false);
+  // A flat minor-unit reduction the cashier can dial in before taking payment — Manager/Owner only.
+  const [discount, setDiscount] = useState(0);
+  const [discountText, setDiscountText] = useState('0.00');
+
+  // "Take payment" no longer settles directly — it freezes the bill into `committed` and hands off
+  // to a payment-method step. Nothing is charged until cash is confirmed or the QR step resolves.
+  const [step, setStep] = useState<PayStep>('bill');
+  const [method, setMethod] = useState<'cash' | 'qr' | null>(null);
+  const [committed, setCommitted] = useState<CommittedBill | null>(null);
+  const [qrPayload, setQrPayload] = useState<string | null>(null);
+  const [qrProgress, setQrProgress] = useState(false);
 
   // The sheet stays mounted (just hidden) between tables, so its own UI state
-  // — the dish picker being expanded, any unsent edits — has to be reset by
-  // hand on every close or table switch, or it carries over into whatever
-  // opens next.
+  // — the dish picker being expanded, any unsent edits, which step of taking
+  // payment it's on — has to be reset by hand on every close or table switch,
+  // or it carries over into whatever opens next.
   useEffect(() => {
     setAdding(false);
     setPendingAdds([]);
     setPendingRemoves([]);
     setEndSessionOnPay(false);
+    setDiscount(0);
+    setDiscountText('0.00');
+    setStep('bill');
+    setMethod(null);
+    setCommitted(null);
+    setQrPayload(null);
+    setQrProgress(false);
   }, [table?.id]);
+
+  // `onSettle` runs the real mutation and is closed over freshly every render — a ref keeps the
+  // QR auto-advance timer below from needing it in its dependency array (same trick as useAsync).
+  const finalize = async (chosenMethod: 'cash' | 'qr') => {
+    if (!committed) return;
+    setMethod(chosenMethod);
+    const ok = await onSettle({
+      items: committed.items,
+      method: chosenMethod === 'cash' ? 'CASH' : 'CARD',
+      discount: committed.totals.discount,
+      endSession: true,
+    });
+    setStep(ok ? 'done' : 'method');
+  };
+  const finalizeRef = useRef(finalize);
+  finalizeRef.current = finalize;
+
+  // The QR step is a stand-in for a real gateway callback: it counts down on its own, but "Mark as
+  // paid now" lets a cashier who already has the cash in hand (or whose customer paid off-screen)
+  // skip the wait instead of standing there watching a progress bar.
+  useEffect(() => {
+    if (step !== 'qr') return;
+    const raf = requestAnimationFrame(() => setQrProgress(true));
+    const timer = setTimeout(() => void finalizeRef.current('qr'), QR_AUTO_MS);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [step]);
 
   if (!table) return null;
 
@@ -738,7 +739,10 @@ function PaymentSheet({
   const subtotal = draftLines.reduce((sum, l) => sum + l.total, 0);
   const serviceCharge = percentOf(subtotal, serviceChargeRate);
   const tax = percentOf(subtotal + serviceCharge, taxRate);
-  const total = subtotal + serviceCharge + tax;
+  const preDiscountTotal = subtotal + serviceCharge + tax;
+  // Never let a stale discount (typed against a bigger bill, before an item was pulled off) push the total negative.
+  const appliedDiscount = canDiscount ? Math.min(discount, preDiscountTotal) : 0;
+  const total = preDiscountTotal - appliedDiscount;
   const busy = pending === table.id;
   const oldest = orders.reduce<string | null>(
     (min, o) => (min === null || o.createdAt < min ? o.createdAt : min),
@@ -748,7 +752,7 @@ function PaymentSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-end bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={() => {
         setAdding(false);
         onClose();
@@ -756,16 +760,14 @@ function PaymentSheet({
       role="presentation"
     >
       <div
-        className="animate-dock-in mx-auto max-h-[88svh] w-full max-w-4xl overflow-y-auto rounded-t-4xl bg-[oklch(0.943_0.024_85)] px-4 pt-3 pb-6 font-mono shadow-[0_-8px_30px_rgba(0,0,0,0.45)]"
+        className="animate-pop mx-auto max-h-[85vh] w-full max-w-4xl overflow-y-auto rounded-4xl bg-[oklch(0.943_0.024_85)] px-4 pt-4 pb-6 font-mono shadow-deep"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={`${table.name} bill`}
       >
-        <div className="mb-1 flex justify-center">
-          <div className="size-3 rounded-full bg-[oklch(0.232_0.019_70)]/20 ring-4 ring-[oklch(0.943_0.024_85)]" />
-        </div>
-
+        {step === 'bill' && (
+        <>
         <div className="flex items-start justify-between pt-2">
           <div>
             <h2 className={cx(DISPLAY, 'mt-1 text-[30px] leading-none font-black text-[oklch(0.232_0.019_70)]')}>{table.name}</h2>
@@ -889,6 +891,12 @@ function PaymentSheet({
             <span>Tax</span>
             <span className="tnum">{formatMoney(tax, currency)}</span>
           </div>
+          {appliedDiscount > 0 && (
+            <div className="flex items-baseline justify-between">
+              <span>Discount</span>
+              <span className="tnum">−{formatMoney(appliedDiscount, currency)}</span>
+            </div>
+          )}
           <div className="flex items-baseline justify-between pt-1">
             <span className={cx(DISPLAY, 'text-[18px] font-black text-[oklch(0.232_0.019_70)]')}>Total</span>
             <span className={cx(DISPLAY, 'text-[26px] leading-none font-black tnum text-[oklch(0.665_0.111_70)]')}>
@@ -896,6 +904,31 @@ function PaymentSheet({
             </span>
           </div>
         </div>
+
+        {canDiscount && hasItems && (
+          <label className="mt-3 flex items-center justify-between gap-3 text-[11.5px] font-semibold text-[oklch(0.463_0.031_74)]">
+            Discount
+            <span className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[12px] font-semibold text-[oklch(0.463_0.031_74)]">
+                {symbolFor(currency)}
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={discountText}
+                disabled={busy}
+                onChange={(e) => {
+                  const next = e.target.value.replace(/[^0-9.]/g, '');
+                  setDiscountText(next);
+                  const parsed = Number.parseFloat(next);
+                  setDiscount(Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100)) : 0);
+                }}
+                onBlur={() => setDiscountText((appliedDiscount / 100).toFixed(2))}
+                className="w-24 rounded-full bg-[oklch(0.879_0.033_85)] py-1.5 pr-3 pl-7 text-right text-[12.5px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none disabled:opacity-40"
+              />
+            </span>
+          </label>
+        )}
 
         {/* <label className="mt-3 flex items-center gap-2 text-[11.5px] font-semibold text-[oklch(0.463_0.031_74)]">
           <input
@@ -915,20 +948,25 @@ function PaymentSheet({
             onClick={() => {
               // The draft, collapsed to what's actually being charged — dish + quantity, nothing
               // tied to a specific order row, since the cashier's edits are what defines the bill.
+              // Frozen into `committed` rather than settled right away: the next step is picking
+              // cash or QR, and neither should let the live bill shift underneath the total shown.
               const merged = new Map<string, number>();
               for (const line of draftLines) merged.set(line.dishId, (merged.get(line.dishId) ?? 0) + line.quantity);
               const items = [...merged.entries()].map(([dishId, quantity]) => ({ dishId, quantity }));
 
-              // Cleared eagerly: once this is committed, the server owns this state — the
-              // reload after settling replaces it with the real thing, not this draft again.
+              setCommitted({
+                items,
+                lines: draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total })),
+                totals: { currency, subtotal, serviceCharge, tax, discount: appliedDiscount, total },
+              });
               setPendingAdds([]);
               setPendingRemoves([]);
               setEndSessionOnPay(false);
-              onSettle({ items, endSession: true });
+              setStep('method');
             }}
             className="col-span-2 rounded-[14px] bg-[oklch(0.539_0.163_36)] py-3.5 text-[14px] font-bold tracking-wide text-[oklch(0.943_0.024_85)] ring-2 ring-[oklch(0.539_0.163_36)]/30 transition-transform active:translate-y-px disabled:opacity-40"
           >
-            {busy ? 'Taking payment…' : 'Take payment'}
+            Take payment
           </button>
           <button
             type="button"
@@ -937,7 +975,7 @@ function PaymentSheet({
               printReceipt(
                 table,
                 draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total })),
-                { currency, subtotal, serviceCharge, tax, total },
+                { currency, subtotal, serviceCharge, tax, discount: appliedDiscount, total },
                 restaurantName,
               )
             }
@@ -946,26 +984,133 @@ function PaymentSheet({
             Print
           </button>
         </div>
+        </>
+        )}
 
-        {/* <div className="mt-2 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={onShowQr}
-            className="rounded-[14px] bg-[oklch(0.879_0.033_85)] py-3 text-[12px] font-bold tracking-wide text-[oklch(0.232_0.019_70)] transition-transform active:translate-y-px"
-          >
-            Print table QR
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAdding(false);
-              onClose();
-            }}
-            className="rounded-[14px] py-3 text-[12px] font-bold tracking-wide text-[oklch(0.539_0.163_36)] ring-1 ring-[oklch(0.539_0.163_36)]/40 transition-transform active:translate-y-px"
-          >
-            Close
-          </button>
-        </div> */}
+        {step === 'method' && committed && (
+          <div className="flex flex-col gap-5 py-2">
+            <button
+              type="button"
+              onClick={() => setStep('bill')}
+              className="flex w-fit items-center gap-1 text-[11px] font-bold tracking-wide text-[oklch(0.463_0.031_74)] uppercase active:translate-y-px"
+            >
+              <ChevronLeft size={14} /> Back to bill
+            </button>
+
+            <div className="flex flex-col items-center gap-1 py-1 text-center">
+              <span className="text-[10px] tracking-[0.14em] text-[oklch(0.463_0.031_74)] uppercase">
+                {table.name} · amount due
+              </span>
+              <span className={cx(DISPLAY, 'text-[34px] leading-none font-black tnum text-[oklch(0.232_0.019_70)]')}>
+                {formatMoney(committed.totals.total, committed.totals.currency)}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void finalize('cash')}
+                className="flex flex-col items-center gap-2 rounded-2xl bg-[oklch(0.879_0.033_85)] py-6 text-[oklch(0.232_0.019_70)] ring-2 ring-transparent transition-move active:scale-[0.97] disabled:opacity-40"
+              >
+                <Cash size={26} />
+                <span className="text-[13px] font-bold tracking-wide uppercase">
+                  {busy && method === 'cash' ? 'Processing…' : 'Cash'}
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setQrPayload(paymentQrPayload(table, committed.totals.total, committed.totals.currency));
+                  setQrProgress(false);
+                  setStep('qr');
+                }}
+                className="flex flex-col items-center gap-2 rounded-2xl bg-[oklch(0.879_0.033_85)] py-6 text-[oklch(0.232_0.019_70)] ring-2 ring-transparent transition-move active:scale-[0.97] disabled:opacity-40"
+              >
+                <Qr size={26} />
+                <span className="text-[13px] font-bold tracking-wide uppercase">Scan to pay</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'qr' && committed && qrPayload && (
+          <div className="flex flex-col items-center gap-4 py-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setStep('method')}
+              className="flex w-fit items-center gap-1 self-start text-[11px] font-bold tracking-wide text-[oklch(0.463_0.031_74)] uppercase active:translate-y-px disabled:opacity-40"
+            >
+              <ChevronLeft size={14} /> Choose a different method
+            </button>
+
+            <span className={cx(DISPLAY, 'text-[28px] leading-none font-black tnum text-[oklch(0.232_0.019_70)]')}>
+              {formatMoney(committed.totals.total, committed.totals.currency)}
+            </span>
+
+            <div className="size-60 overflow-hidden rounded-2xl">
+              <QrImage value={qrPayload} className="w-full h-full" />
+            </div>
+
+            <div className="flex items-center gap-2 text-[11.5px] font-semibold text-[oklch(0.463_0.031_74)]">
+              <span className="size-2 shrink-0 rounded-full bg-[oklch(0.539_0.163_36)] animate-breathe" aria-hidden />
+              Waiting for the scan…
+            </div>
+
+            <div className="h-1 w-full max-w-56 overflow-hidden rounded-full bg-[oklch(0.879_0.033_85)]">
+              <div
+                className="h-full rounded-full bg-[oklch(0.539_0.163_36)] transition-[width] ease-linear"
+                style={{ width: qrProgress ? '100%' : '0%', transitionDuration: `${QR_AUTO_MS}ms` }}
+              />
+            </div>
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void finalize('qr')}
+              className="rounded-full px-5 py-2 text-[11.5px] font-bold tracking-wide text-[oklch(0.539_0.163_36)] uppercase ring-1 ring-[oklch(0.539_0.163_36)]/40 active:translate-y-px disabled:opacity-40"
+            >
+              {busy ? 'Confirming…' : 'Mark as paid now'}
+            </button>
+          </div>
+        )}
+
+        {step === 'done' && committed && (
+          <div className="flex flex-col items-center gap-4 py-4 text-center">
+            <span className="grid size-16 place-items-center rounded-full bg-[oklch(0.62_0.15_150)]/15 text-[oklch(0.62_0.15_150)]">
+              <Check size={30} />
+            </span>
+            <div>
+              <h3 className={cx(DISPLAY, 'text-[24px] font-black text-[oklch(0.232_0.019_70)]')}>Payment successful</h3>
+              <p className="mt-1 text-[12.5px] text-[oklch(0.463_0.031_74)]">
+                {method === 'cash' ? 'Collected in cash' : 'Paid by QR'} ·{' '}
+                {formatMoney(committed.totals.total, committed.totals.currency)}
+              </p>
+            </div>
+
+            <div className="mt-1 grid w-full grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => printReceipt(table, committed.lines, committed.totals, restaurantName)}
+                className="rounded-[14px] bg-[oklch(0.232_0.019_70)] py-3.5 text-[12px] font-bold tracking-wide text-[oklch(0.943_0.024_85)] transition-transform active:translate-y-px"
+              >
+                Print receipt
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdding(false);
+                  onClose();
+                }}
+                className="rounded-[14px] bg-[oklch(0.539_0.163_36)] py-3.5 text-[12px] font-bold tracking-wide text-[oklch(0.943_0.024_85)] transition-transform active:translate-y-px"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

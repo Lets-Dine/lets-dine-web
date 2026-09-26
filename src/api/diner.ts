@@ -1,5 +1,5 @@
 import type { CreateOrderInput, ReviewDraft } from './client';
-import type { DiningSession, Dish, Menu, Order, Restaurant, Review } from '../domain/types';
+import type { DiningSession, Dish, Menu, Order, Payment, Restaurant, Review } from '../domain/types';
 import * as mock from './client';
 import { IS_LIVE_API } from './http';
 import * as live from './live';
@@ -73,6 +73,11 @@ export function cancelOrderItem(orderId: string, itemId: string, sessionToken: s
 /** §21 — every order placed during this dining session, newest first. */
 export function getSessionOrders(session: DiningSession): Promise<Order[]> {
   return IS_LIVE_API ? live.getSessionOrders(session.anonymousSessionToken) : mock.getSessionOrders(session.id);
+}
+
+/** Once staff settle the table, this is the receipt — `null` while nothing has been charged yet. */
+export function getSessionPayment(session: DiningSession): Promise<Payment | null> {
+  return IS_LIVE_API ? live.getSessionPayment(session.anonymousSessionToken) : mock.getSessionPayment(session.id);
 }
 
 /** `sessionToken` is only used live — the mock reads its own local store instead. */

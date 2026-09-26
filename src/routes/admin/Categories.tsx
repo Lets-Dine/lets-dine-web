@@ -10,7 +10,7 @@ import {
   Field,
   INPUT_BOX,
   PageTitle,
-  Panel,
+  Perforation,
   TextInput,
   useCommand,
 } from '../../components/admin/kit';
@@ -51,10 +51,14 @@ export function Categories() {
       <PageTitle title="Categories" subtitle="The order here is the order diners scroll through the menu." />
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr] lg:items-start">
-        <Panel title="Menu order" bare>
+        <div className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
+          <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
+            <h2 className="font-display text-[18px] font-black tracking-tight">Menu order</h2>
+          </div>
+          <Perforation />
           <ul>
             {ordered.map((category, index) => (
-              <li key={category.id} className="border-b border-hairline last:border-0">
+              <li key={category.id}>
                 {editing === category.id ? (
                   <CategoryEditor
                     category={category}
@@ -66,7 +70,8 @@ export function Categories() {
                     }}
                   />
                 ) : (
-                  <div className={cx('flex items-center gap-3 px-4 py-3 sm:px-5', pending === category.id && 'opacity-50')}>
+                  <>
+                    <div className={cx('flex items-center gap-3 px-6 py-4', pending === category.id && 'opacity-50')}>
                     <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-surface-2 text-[17px]" aria-hidden>
                       {category.emoji}
                     </span>
@@ -118,16 +123,22 @@ export function Categories() {
                         }
                       />
                     </div>
-                  </div>
+                    </div>
+                    {index < ordered.length - 1 && <Perforation />}
+                  </>
                 )}
               </li>
             ))}
           </ul>
-        </Panel>
+        </div>
 
-        <Panel title="Add a category">
+        <div className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
+          <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
+            <h2 className="font-display text-[18px] font-black tracking-tight">Add a category</h2>
+          </div>
+          <Perforation />
           <form
-            className="grid gap-4"
+            className="grid gap-4 px-6 py-4"
             onSubmit={(e) => {
               e.preventDefault();
               act('new', () => createCategory(staff, name, emoji), `${name.trim()} added`);
@@ -144,12 +155,12 @@ export function Categories() {
             <button type="submit" className={ADMIN_PRIMARY} disabled={busy || name.trim().length < 2}>
               {pending === 'new' ? 'Adding…' : 'Add category'}
             </button>
-            <p className="text-[12.5px] leading-relaxed text-ink-4">
+            <p className="text-[12.5px] leading-relaxed text-docket-inksoft">
               A category can only be deleted once it is empty — move or archive its dishes first, so no dish is left
               without a home.
             </p>
           </form>
-        </Panel>
+        </div>
       </div>
     </>
   );
@@ -171,7 +182,7 @@ function CategoryEditor({
 
   return (
     <form
-      className="flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5"
+      className="flex flex-wrap items-center gap-2 px-6 py-4"
       onSubmit={(e) => {
         e.preventDefault();
         onSave(name, emoji);

@@ -1,4 +1,5 @@
-import type { AuditEntry, DiningTable, ItemStatus, Menu, MenuCategory, Order, StaffMember } from '../domain/types';
+import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
+import type { AuditEntry, DiningTable, ItemStatus, Menu, MenuCategory, Order, Payment, PaymentMethod, StaffMember } from '../domain/types';
 import * as mock from './admin';
 import type { DishDraft, StaffDraft } from './admin';
 import { IS_LIVE_API } from './http';
@@ -111,11 +112,26 @@ export function completePayment(
   actor: StaffMember,
   sessionId: string,
   items: { dishId: string; quantity: number }[],
+  method: PaymentMethod,
+  discount: number,
   endSession: boolean,
-): Promise<void> {
+): Promise<Payment> {
   return IS_LIVE_API
-    ? live.completePayment(sessionId, items, endSession)
-    : mock.completePayment(actor, sessionId, items, endSession);
+    ? live.completePayment(sessionId, items, method, discount, endSession)
+    : mock.completePayment(actor, sessionId, items, method, discount, endSession);
+}
+
+export function listPayments(
+  actor: StaffMember,
+  offset?: number,
+  limit?: number,
+  query: { tableId?: string; from?: string; to?: string } = {},
+): Promise<{ rows: Payment[]; count: number }> {
+  return IS_LIVE_API ? live.listPayments(offset, limit, query) : mock.listPayments(actor, offset, limit, query);
+}
+
+export function getPayment(actor: StaffMember, paymentId: string): Promise<Payment> {
+  return IS_LIVE_API ? live.getPayment(paymentId) : mock.getPayment(actor, paymentId);
 }
 
 export function acceptOrder(actor: StaffMember, orderId: string, expected: 'PENDING'): Promise<Order> {
@@ -145,8 +161,18 @@ export function subscribeToTables(onUpdated: (table: DiningTable) => void, onRes
 }
 
 /** §51 — every management action, most recent first. */
-export function listAudit(actor: StaffMember, limit = 80): Promise<AuditEntry[]> {
-  return IS_LIVE_API ? live.listAudit(limit) : mock.listAudit(actor, limit);
+export function listAudit(actor: StaffMember, limit = 80, offset = 0): Promise<{ rows: AuditEntry[]; count: number }> {
+  return IS_LIVE_API ? live.listAudit(limit, offset) : mock.listAudit(actor, limit, offset);
+}
+
+/** §31 — settled-payment revenue for the period against the whole of the one before it. */
+export function fetchRevenueComparison(actor: StaffMember, period: Period): Promise<RevenueComparison> {
+  return IS_LIVE_API ? live.fetchRevenueComparison(period) : mock.fetchRevenueComparison(actor, period);
+}
+
+/** §31 — order count for the period against the whole of the one before it. */
+export function fetchOrderComparison(actor: StaffMember, period: Period): Promise<OrderComparison> {
+  return IS_LIVE_API ? live.fetchOrderComparison(period) : mock.fetchOrderComparison(actor, period);
 }
 
 /** §50 — the team roster, owner and manager down to whoever works the pass. */

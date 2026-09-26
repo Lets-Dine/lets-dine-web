@@ -10,7 +10,7 @@ import { useAuth, useStaff } from '../../state/AuthContext';
 import { AdminThemeToggle } from '../../state/AdminTheme';
 import { Loading } from '../../components/admin/kit';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Folder, Grid, Plate, Receipt, Sliders, Star, Table, TrendUp, Users } from '../../components/icons';
+import { Cash, Folder, Grid, History, Plate, Receipt, Sliders, Star, Table, TrendUp, Users } from '../../components/icons';
 
 /**
  * The dashboard frame. Navigation is filtered by role rather than disabled by
@@ -57,9 +57,11 @@ const NAV: NavItem[] = [
   { to: '/admin/menu', label: 'Menu', icon: Plate, permission: 'menu:view' },
   { to: '/admin/categories', label: 'Categories', icon: Folder, permission: 'menu:edit' },
   { to: '/admin/tables', label: 'Tables', icon: Table, permission: 'tables:view' },
+  { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view' },
   { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view' },
   { to: '/admin/analytics', label: 'Analytics', icon: TrendUp, permission: 'analytics:view' },
   { to: '/admin/staff', label: 'Staff', icon: Users, permission: 'settings:view' },
+  { to: '/admin/audit', label: 'Audit log', icon: History, permission: 'audit:view' },
   { to: '/admin/settings', label: 'Settings', icon: Sliders, permission: 'settings:view' },
 ];
 

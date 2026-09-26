@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { allOrders } from '../../api/admin';
-import { acceptOrder, advanceOrderItem, rejectOrder } from '../../api/staff';
+import { acceptOrder, advanceOrderItem, fetchOrderComparison, fetchRevenueComparison, rejectOrder } from '../../api/staff';
 import { funnel } from '../../domain/analytics';
 import {
   ADVANCE_LABEL,
@@ -100,6 +100,8 @@ export function Dashboard() {
   const staff = useStaff();
   const { menu, orders: queue, reloadOrders, applyOrder } = useDashboard();
   const history = useAsync(() => allOrders(staff), [staff]);
+  const revenue = useAsync(() => fetchRevenueComparison(staff, 'today'), [staff]);
+  const orderComparison = useAsync(() => fetchOrderComparison(staff, 'today'), [staff]);
   const now = useNow(TICK_MS);
   const [lane, setLane] = useState<Lane>('all');
 
@@ -264,20 +266,23 @@ export function Dashboard() {
       <div className="mb-5 grid grid-cols-3 gap-3">
         <StatTile
           label="Orders today"
-          value={today ? String(today.current.orders) : '—'}
-          change={today?.orderChange}
+          value={orderComparison.data ? String(orderComparison.data.current) : '—'}
+          change={orderComparison.data ? orderComparison.data.differencePercentage / 100 : null}
           sub="vs yesterday"
+          variant="primary"
         />
         <StatTile
           label="Revenue today"
-          value={today ? formatMoney(today.current.revenue, menu.restaurant.currency) : '—'}
-          change={today?.revenueChange}
+          value={revenue.data ? formatMoney(revenue.data.current, menu.restaurant.currency) : '—'}
+          change={revenue.data ? revenue.data.differencePercentage / 100 : null}
           sub="vs yesterday"
+          variant="primary"
         />
         <StatTile
           label="Average order"
           value={today ? formatMoney(today.current.averageOrder, menu.restaurant.currency) : '—'}
           sub={today ? `${today.current.covers} dishes served` : undefined}
+          variant="primary"
         />
       </div>
 
@@ -345,21 +350,25 @@ export function Dashboard() {
           label="Restaurant rating"
           value={feedback.restaurantRating ? `${feedback.restaurantRating.toFixed(2)} ★` : '—'}
           sub={`${feedback.reviewCount.toLocaleString()} verified reviews`}
+          variant="subtle"
         />
         <StatTile
           label="Would order again"
           value={feedback.recommendRate !== null ? `${Math.round(feedback.recommendRate * 100)}%` : '—'}
           sub="across rated dishes"
+          variant="subtle"
         />
         <StatTile
           label="Dishes without ratings"
           value={String(feedback.unratedDishes)}
           sub={`of ${feedback.ratedDishes + feedback.unratedDishes} on the menu`}
+          variant="subtle"
         />
         <StatTile
           label="Dish decision rate"
           value={dishDecisionRate !== null ? `${Math.round(dishDecisionRate * 100)}%` : '—'}
           sub="dish page → added to cart"
+          variant="subtle"
         />
       </div>
     </>

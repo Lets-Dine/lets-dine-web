@@ -78,8 +78,9 @@ export function DishRow({ dish, href, ctx }: Props) {
     <article
       className={cx(
         'flex items-start gap-3.5 border-b border-hairline py-4 last:border-b-0',
-        'md:rounded-2xl md:border-0 md:bg-surface md:p-4 md:ring-1 md:ring-hairline md:ring-inset',
-        'md:transition-colors md:duration-200 md:hover:bg-surface-2',
+        'md:rounded-2xl md:border-0 md:bg-surface md:p-4 md:shadow-warm md:ring-1 md:ring-hairline md:ring-inset',
+        'md:transition-[background-color,box-shadow,transform] md:duration-200 md:ease-out-quart',
+        'md:hover:-translate-y-0.5 md:hover:bg-surface-2 md:hover:shadow-warm-lg',
         !dish.isAvailable && 'opacity-50',
       )}
     >
@@ -126,7 +127,7 @@ export function DishTile({ dish, href, ctx, rank }: Props & { rank?: number }) {
     >
       <Link
         to={href}
-        className="group relative block h-44 overflow-hidden rounded-3xl shadow-lift ring-1 ring-hairline ring-inset lg:h-56"
+        className="group relative block h-44 overflow-hidden rounded-3xl shadow-warm ring-1 ring-hairline ring-inset transition-move duration-300 lg:h-56 lg:hover:-translate-y-1 lg:hover:shadow-warm-lg"
       >
         <DishImage
           dish={dish}

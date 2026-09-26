@@ -15,6 +15,30 @@ export const PERIOD_LABEL: Record<Period, string> = {
   month: 'This month',
 };
 
+/**
+ * `GET /restaurant/analytics/revenue?period=...` — settled-payment revenue for
+ * the period so far against the whole of the one before it (today vs. all of
+ * yesterday, not just the hours so far). `current`/`previous` are minor units;
+ * `differencePercentage` is already a percent (12.34 means +12.34%), not the
+ * fraction `changeRatio` below returns.
+ */
+export interface RevenueComparison {
+  current: Minor;
+  previous: Minor;
+  differencePercentage: number;
+}
+
+/**
+ * `GET /restaurant/analytics/orders?period=...` — order count for the period
+ * so far against the whole of the one before it, same shape and boundaries as
+ * `RevenueComparison`. `differencePercentage` is a percent, not a fraction.
+ */
+export interface OrderComparison {
+  current: number;
+  previous: number;
+  differencePercentage: number;
+}
+
 const DAY_MS = 86_400_000;
 
 function startOfDay(ms: number): number {

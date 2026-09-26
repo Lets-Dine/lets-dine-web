@@ -9,25 +9,24 @@ import {
   ADMIN_PRIMARY,
   ADMIN_TINY,
   Confirm,
-  Empty,
   INPUT_BOX,
-  PANEL,
   PageTitle,
-  Panel,
+  Perforation,
   Segmented,
   useCommand,
 } from '../../components/admin/kit';
-import { ChevronLeft, Search } from '../../components/icons';
+import { ChevronLeft, Plate, Search, Sparkle } from '../../components/icons';
 import { cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
 /**
- * §28. The menu, as the restaurant sees it.
- *
- * The two changes that happen daily — a dish selling out, a dish coming back —
- * are one tap from the list. Everything slower lives behind Edit. Archived
- * dishes are hidden by default but never gone: they hold the names and prices
- * that historical orders point at.
+ * §28. The menu, as the restaurant sees it — styled as the board it is:
+ * one printed sheet, categories torn apart by a dashed rule, same paper
+ * the till ledger (Payments.tsx) reads off. The two changes that happen
+ * daily — a dish selling out, a dish coming back — are one tap from the
+ * list. Everything slower lives behind Edit. Archived dishes are hidden
+ * by default but never gone: they hold the names and prices that
+ * historical orders point at.
  */
 
 type Scope = 'live' | 'unavailable' | 'archived';
@@ -82,7 +81,7 @@ export function MenuBoard() {
     <>
       <PageTitle
         title="Menu"
-        subtitle={`${counts.live} dishes across ${menu.categories.length} categories`}
+        subtitle="Every dish live on the board, one tap from selling out or coming back."
         action={
           editable && (
             <Link to="/admin/menu/new" className={ADMIN_PRIMARY}>
@@ -92,7 +91,7 @@ export function MenuBoard() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <Segmented
           label="Which dishes"
           value={scope}
@@ -135,21 +134,21 @@ export function MenuBoard() {
       </div>
 
       {grouped.length === 0 ? (
-        <Panel>
-          <Empty
-            emoji="🍳"
-            title="No dishes here"
-            message={
-              scope === 'archived'
+        <div className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
+          <div className="grid justify-items-center gap-2 px-6 py-14 text-center">
+            <Plate size={28} className="text-docket-inksoft/70" />
+            <h3 className="text-[15px] font-semibold tracking-tight">No dishes here</h3>
+            <p className="max-w-[38ch] text-[13px] leading-relaxed text-docket-inksoft">
+              {scope === 'archived'
                 ? 'Nothing has been archived. Archived dishes keep their order history but leave the diner menu.'
-                : 'Nothing matches those filters.'
-            }
-          />
-        </Panel>
+                : 'Nothing matches those filters.'}
+            </p>
+          </div>
+        </div>
       ) : (
         <div className="grid gap-4">
           {grouped.map(({ category, dishes }) => (
-            <CategoryGroup
+            <CategorySection
               key={category.id}
               category={category}
               dishes={dishes}
@@ -200,127 +199,186 @@ interface GroupProps {
   onArchive: (dish: Dish) => void;
 }
 
-function CategoryGroup({ category, dishes, currency, editable, pending, ...handlers }: GroupProps) {
+function CategorySection({ category, dishes, currency, editable, pending, ...handlers }: GroupProps) {
   return (
-    <Panel title={`${category.emoji} ${category.name}`} hint={`${dishes.length} dishes`} bare>
-      <ul>
-        {dishes.map((dish, index) => (
-          <li
-            key={dish.id}
-            className={cx(
-              'flex flex-wrap items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5',
-              pending === dish.id && 'opacity-50',
-              !dish.isAvailable && !dish.isArchived && 'bg-berry/[0.04]',
-            )}
-          >
-            <DishImage dish={dish} className="size-12 shrink-0 rounded-xl" monogram="text-base" />
+    <div className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
+      <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
+        <h3 className="font-display text-[18px] font-black tracking-tight">
+          {category.emoji} {category.name}
+        </h3>
+        <span className="shrink-0 text-[11px] font-bold tracking-wide text-docket-inksoft uppercase">
+          {dishes.length} dish{dishes.length === 1 ? '' : 'es'}
+        </span>
+      </div>
+      <Perforation />
+      {dishes.map((dish, index) => (
+        <DishRow
+          key={dish.id}
+          dish={dish}
+          index={index}
+          count={dishes.length}
+          currency={currency}
+          editable={editable}
+          pending={pending}
+          onToggleAvailable={() => handlers.onToggleAvailable(dish)}
+          onToggleFeatured={() => handlers.onToggleFeatured(dish)}
+          onMove={(direction) => handlers.onMove(dish, direction)}
+          onArchive={() => handlers.onArchive(dish)}
+        />
+      ))}
+    </div>
+  );
+}
 
-            <div className="min-w-0 flex-1 basis-45">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-[14.5px] font-semibold">{dish.name}</span>
-                {dish.isFeatured && <span title="Staff pick">👨‍🍳</span>}
-                {!dish.isAvailable && !dish.isArchived && (
-                  <span className="rounded-full bg-berry/14 px-2 py-0.5 text-[11px] font-bold text-berry-ink">Off</span>
-                )}
+function Stamp({ tone, children }: { tone: 'pick' | 'off'; children: React.ReactNode }) {
+  return (
+    <span
+      className={cx(
+        'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9.5px] font-bold tracking-wide uppercase',
+        tone === 'pick' ? 'border-docket-ink/35 text-docket-ink/85' : 'border-docket-berry/45 text-docket-berry',
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function DishRow({
+  dish,
+  index,
+  count,
+  currency,
+  editable,
+  pending,
+  onToggleAvailable,
+  onToggleFeatured,
+  onMove,
+  onArchive,
+}: {
+  dish: Dish;
+  index: number;
+  count: number;
+  currency: string;
+  editable: boolean;
+  pending: string | null;
+  onToggleAvailable: () => void;
+  onToggleFeatured: () => void;
+  onMove: (direction: -1 | 1) => void;
+  onArchive: () => void;
+}) {
+  const busy = pending === dish.id;
+  const off = !dish.isAvailable && !dish.isArchived;
+
+  return (
+    <div
+      className={cx(
+        'flex flex-wrap items-center gap-3.5 border-t border-dashed border-docket-line px-6 py-4 first:border-t-0',
+        busy && 'opacity-50',
+      )}
+    >
+      <DishImage dish={dish} className="size-11 shrink-0 rounded-full ring-1 ring-docket-line" monogram="text-[13px]" />
+
+      <div className="min-w-0 flex-1 basis-45">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate text-[14px] font-bold">{dish.name}</span>
+          {dish.isFeatured && (
+            <Stamp tone="pick">
+              <Sparkle size={9} /> Pick
+            </Stamp>
+          )}
+          {off && <Stamp tone="off">Off</Stamp>}
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-docket-inksoft">
+          <span className="tnum">
+            {dish.stats.avgRating !== null
+              ? `${dish.stats.avgRating.toFixed(1)} ★ (${dish.stats.ratingCount})`
+              : 'No ratings yet'}
+          </span>
+          <span aria-hidden className="hidden sm:inline">
+            ·
+          </span>
+          <span className="hidden tnum sm:inline">{dish.stats.orders30d} orders / 30d</span>
+        </div>
+      </div>
+
+      <span className="font-display shrink-0 text-[17px] font-black tnum">{formatMoney(dish.price, currency)}</span>
+
+      {editable ? (
+        <div className="flex shrink-0 items-center gap-1">
+          {!dish.isArchived && (
+            <>
+              <div className="mr-0.5 hidden items-center gap-0.5 sm:flex">
+                <button
+                  type="button"
+                  aria-label={`Move ${dish.name} up`}
+                  disabled={index === 0 || pending !== null}
+                  className={cx(ADMIN_TINY, 'px-1.5 text-docket-inksoft hover:text-docket-ink')}
+                  onClick={() => onMove(-1)}
+                >
+                  <span className="rotate-90">
+                    <ChevronLeft size={15} />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Move ${dish.name} down`}
+                  disabled={index === count - 1 || pending !== null}
+                  className={cx(ADMIN_TINY, 'px-1.5 text-docket-inksoft hover:text-docket-ink')}
+                  onClick={() => onMove(1)}
+                >
+                  <span className="-rotate-90">
+                    <ChevronLeft size={15} />
+                  </span>
+                </button>
               </div>
-              <div className="mt-0.5 flex items-center gap-2 text-[12.5px] text-ink-4">
-                <span className="font-semibold tnum text-ink-2">{formatMoney(dish.price, currency)}</span>
-                <span aria-hidden>·</span>
-                <span className="tnum">
-                  {dish.stats.avgRating !== null
-                    ? `${dish.stats.avgRating.toFixed(1)} ★ (${dish.stats.ratingCount})`
-                    : 'No ratings yet'}
-                </span>
-                <span aria-hidden className="hidden sm:inline">
-                  ·
-                </span>
-                <span className="hidden tnum sm:inline">{dish.stats.orders30d} orders / 30d</span>
-              </div>
-            </div>
 
-            {editable ? (
-              <div className="flex shrink-0 items-center gap-1">
-                {!dish.isArchived && (
-                  <>
-                    <div className="mr-1 hidden items-center gap-0.5 sm:flex">
-                      <button
-                        type="button"
-                        aria-label={`Move ${dish.name} up`}
-                        disabled={index === 0 || pending !== null}
-                        className={cx(ADMIN_TINY, 'px-1.5 text-ink-4 hover:text-ink')}
-                        onClick={() => handlers.onMove(dish, -1)}
-                      >
-                        <span className="rotate-90">
-                          <ChevronLeft size={15} />
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Move ${dish.name} down`}
-                        disabled={index === dishes.length - 1 || pending !== null}
-                        className={cx(ADMIN_TINY, 'px-1.5 text-ink-4 hover:text-ink')}
-                        onClick={() => handlers.onMove(dish, 1)}
-                      >
-                        <span className="-rotate-90">
-                          <ChevronLeft size={15} />
-                        </span>
-                      </button>
-                    </div>
+              <button
+                type="button"
+                disabled={pending !== null}
+                className={cx(ADMIN_TINY, dish.isAvailable ? 'bg-docket-line/70 text-docket-ink' : 'bg-mint/16 text-docket-mint')}
+                onClick={onToggleAvailable}
+              >
+                {dish.isAvailable ? 'Mark unavailable' : 'Put back on'}
+              </button>
 
-                    <button
-                      type="button"
-                      disabled={pending !== null}
-                      className={cx(
-                        ADMIN_TINY,
-                        dish.isAvailable
-                          ? 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset'
-                          : 'bg-mint/14 text-mint-ink',
-                      )}
-                      onClick={() => handlers.onToggleAvailable(dish)}
-                    >
-                      {dish.isAvailable ? 'Mark unavailable' : 'Put back on'}
-                    </button>
+              <button
+                type="button"
+                disabled={pending !== null}
+                className={cx(ADMIN_TINY, 'hidden text-docket-inksoft hover:text-docket-ink lg:inline-flex')}
+                onClick={onToggleFeatured}
+              >
+                {dish.isFeatured ? 'Unpick' : 'Staff pick'}
+              </button>
+            </>
+          )}
 
-                    <button
-                      type="button"
-                      disabled={pending !== null}
-                      className={cx(ADMIN_TINY, 'hidden text-ink-4 hover:text-ink lg:inline-flex')}
-                      onClick={() => handlers.onToggleFeatured(dish)}
-                    >
-                      {dish.isFeatured ? 'Unpick' : 'Staff pick'}
-                    </button>
-                  </>
-                )}
+          <Link to={`/admin/menu/${dish.id}`} className={cx(ADMIN_TINY, 'bg-docket-line/70 text-docket-ink')}>
+            Edit
+          </Link>
 
-                <Link to={`/admin/menu/${dish.id}`} className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')}>
-                  Edit
-                </Link>
-
-                {dish.isArchived ? (
-                  <button
-                    type="button"
-                    disabled={pending !== null}
-                    className={cx(ADMIN_TINY, 'text-mint')}
-                    onClick={() => handlers.onArchive(dish)}
-                  >
-                    Restore
-                  </button>
-                ) : (
-                  <Confirm
-                    label="Archive"
-                    question="Archive it?"
-                    confirmLabel="Archive"
-                    disabled={pending !== null}
-                    onConfirm={() => handlers.onArchive(dish)}
-                  />
-                )}
-              </div>
-            ) : (
-              <span className={cx(PANEL, 'px-2.5 py-1 text-[12px] text-ink-4')}>View only</span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </Panel>
+          {dish.isArchived ? (
+            <button
+              type="button"
+              disabled={pending !== null}
+              className={cx(ADMIN_TINY, 'text-docket-mint')}
+              onClick={onArchive}
+            >
+              Restore
+            </button>
+          ) : (
+            <Confirm
+              label="Archive"
+              question="Archive it?"
+              confirmLabel="Archive"
+              disabled={pending !== null}
+              onConfirm={onArchive}
+              tone="paper"
+            />
+          )}
+        </div>
+      ) : (
+        <span className="rounded-lg bg-docket-line/60 px-2.5 py-1 text-[12px] text-docket-inksoft">View only</span>
+      )}
+    </div>
   );
 }

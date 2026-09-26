@@ -7,6 +7,7 @@ import type {
   Dish,
   MenuCategory,
   Order,
+  Payment,
   Restaurant,
   Review,
   StaffMember,
@@ -54,6 +55,7 @@ export interface Store {
   staff: StaffMember[] | null;
   restaurantPatch: Partial<Restaurant> | null;
   audit: AuditEntry[];
+  payments: Payment[];
   /**
    * The demo kitchen advances orders on a timer so the diner flow works with
    * nobody at the pass. Staff working the real queue turn it off, otherwise
@@ -77,6 +79,7 @@ export function emptyStore(): Store {
     staff: null,
     restaurantPatch: null,
     audit: [],
+    payments: [],
     autoKitchen: true,
     nextRef: 1000,
     seededQueue: false,

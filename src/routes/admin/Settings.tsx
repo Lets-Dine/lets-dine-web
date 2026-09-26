@@ -1,16 +1,16 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { getSettings, restoreSeedMenu, setAutoKitchen, updateSettings } from '../../api/admin';
 import { listAudit } from '../../api/staff';
 import { resetDemoData } from '../../api/client';
 import { ROLE_LABEL, ROLE_SCOPE } from '../../domain/permissions';
-import type { AuditAction, AuditEntry } from '../../domain/types';
+import type { AuditEntry } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../../components/time';
 import {
   ADMIN_PRIMARY,
   Confirm,
-  Empty,
   Field,
   INPUT_BOX,
   PageTitle,
@@ -20,6 +20,7 @@ import {
   Toggle,
   useCommand,
 } from '../../components/admin/kit';
+import { History } from '../../components/icons';
 import { cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
@@ -49,7 +50,7 @@ export function Settings() {
   const [kitchenOverride, setKitchen] = useState<boolean | null>(null);
   const autoKitchen = kitchenOverride ?? settings.data?.autoKitchen ?? true;
 
-  const audit = useAsync(() => listAudit(staff, 60), [staff]);
+  const audit = useAsync(async () => (await listAudit(staff, 5)).rows, [staff]);
 
   const dirty =
     name !== restaurant.name ||
@@ -119,22 +120,27 @@ export function Settings() {
             </div>
           )}
 
-          <Panel title="Audit log" hint="Price changes, availability, menu edits, order status — §51" bare>
+          <Panel title="Recent activity" hint="Price changes, availability, menu edits, order status — §51" bare>
             {audit.loading && !audit.data ? (
               <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">Loading…</p>
             ) : (audit.data ?? []).length === 0 ? (
-              <Empty
-                emoji="🗒️"
-                title="Nothing logged yet"
-                message="Every management action from here on is recorded with who did it and what changed."
-              />
+              <p className="px-4 py-8 text-center text-[13px] leading-relaxed text-ink-3 sm:px-5">
+                Every management action from here on is recorded with who did it and what changed.
+              </p>
             ) : (
-              <ul className="max-h-125 overflow-y-auto">
+              <ul>
                 {(audit.data ?? []).map((entry) => (
-                  <AuditRow key={entry.id} entry={entry} />
+                  <ActivityRow key={entry.id} entry={entry} />
                 ))}
               </ul>
             )}
+            <Link
+              to="/admin/audit"
+              className="flex items-center gap-2 border-t border-hairline px-4 py-3 text-[13px] font-semibold text-flame-1 transition-colors hover:text-flame-2 sm:px-5"
+            >
+              <History size={15} />
+              View the full audit log
+            </Link>
           </Panel>
         </div>
 
@@ -215,24 +221,14 @@ function PercentInput({ value, onChange }: { value: string; onChange: (next: str
   );
 }
 
-const ACTION_TONE: Partial<Record<AuditAction, string>> = {
-  price_changed: 'text-gold',
-  availability_changed: 'text-flame-1',
-  dish_archived: 'text-berry',
-  category_deleted: 'text-berry',
-  order_cancelled: 'text-berry',
-  qr_regenerated: 'text-berry',
-  settings_updated: 'text-flame-1',
-};
-
-function AuditRow({ entry }: { entry: AuditEntry }) {
+/** Deliberately quiet — no colour coding here. The full-colour, filterable
+ *  version of this same row lives on the dedicated audit page (`AuditLog.tsx`),
+ *  which is where a long list actually needs to be scanned at a glance. */
+function ActivityRow({ entry }: { entry: AuditEntry }) {
   return (
     <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-hairline px-4 py-2.5 last:border-0 sm:px-5">
-      <span className={cx('text-[11px] font-bold uppercase tracking-[0.06em]', ACTION_TONE[entry.action] ?? 'text-ink-4')}>
-        {entry.action.replace(/_/g, ' ')}
-      </span>
+      <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-4">{entry.action.replace(/_/g, ' ')}</span>
       <span className="text-[13.5px] font-semibold">{entry.subject}</span>
-      <span className="text-[13px] text-ink-3">{entry.detail}</span>
       <span className="ml-auto whitespace-nowrap text-[11.5px] text-ink-4">
         {entry.actorName} · {relativeTime(entry.at)}
       </span>

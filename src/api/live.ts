@@ -1,6 +1,6 @@
 import type { CreateOrderInput } from './client';
 import type { ReviewDraft } from './client';
-import type { CartLine, DiningSession, DiningTable, Dish, DishStats, Menu, MenuCategory, Order, Restaurant, Review } from '../domain/types';
+import type { CartLine, DiningSession, DiningTable, Dish, DishStats, Menu, MenuCategory, Order, Payment, PaymentMethod, Restaurant, Review } from '../domain/types';
 import { apiRequest } from './http';
 import type { Paginated } from './http';
 import { getSocket, joinRoom } from './socket';
@@ -283,6 +283,56 @@ function toOrder(api: ApiOrder): Order {
   };
 }
 
+interface ApiPaymentItem {
+  id: string;
+  dishId: string;
+  dishNameSnapshot: string;
+  unitPrice: number;
+  quantity: number;
+}
+
+interface ApiPayment {
+  id: string;
+  restaurantId: string;
+  sessionId: string;
+  tableId: string;
+  subtotal: number;
+  serviceCharge: number;
+  tax: number;
+  discount: number;
+  total: number;
+  method: PaymentMethod;
+  currency: string;
+  createdAt: string;
+  createdBy: string | null;
+  items: ApiPaymentItem[];
+}
+
+function toPayment(api: ApiPayment): Payment {
+  return {
+    id: api.id,
+    restaurantId: api.restaurantId,
+    sessionId: api.sessionId,
+    tableId: api.tableId,
+    subtotal: api.subtotal,
+    serviceCharge: api.serviceCharge,
+    tax: api.tax,
+    discount: api.discount,
+    total: api.total,
+    method: api.method,
+    currency: api.currency,
+    createdAt: api.createdAt,
+    createdBy: api.createdBy,
+    items: api.items.map((item) => ({
+      id: item.id,
+      dishId: item.dishId,
+      dishNameSnapshot: item.dishNameSnapshot,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+    })),
+  };
+}
+
 /* ── Table session ─────────────────────────────────────────────
    The session token is the diner's whole identity, so it is kept per
    restaurant+table: reopening the tab mid-meal resumes the same visit
@@ -504,6 +554,14 @@ export async function getSessionOrders(sessionToken: string): Promise<Order[]> {
     headers: { [SESSION_TOKEN_HEADER]: sessionToken },
   });
   return page.rows.map(toOrder);
+}
+
+/** Once staff settle the table, this is the receipt — `null` while nothing has been charged yet. */
+export async function getSessionPayment(sessionToken: string): Promise<Payment | null> {
+  const payment = await apiRequest<ApiPayment | null>('/public/sessions/payment', {
+    headers: { [SESSION_TOKEN_HEADER]: sessionToken },
+  });
+  return payment ? toPayment(payment) : null;
 }
 
 /**

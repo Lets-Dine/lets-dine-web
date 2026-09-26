@@ -76,17 +76,20 @@ export function Reviews() {
           label="Restaurant rating"
           value={feedback.restaurantRating ? `${feedback.restaurantRating.toFixed(2)} ★` : '—'}
           sub="weighted by review count"
+          variant="subtle"
         />
         <StatTile
           label="Average dish rating"
           value={feedback.averageDishRating ? `${feedback.averageDishRating.toFixed(2)} ★` : '—'}
           sub={`${feedback.ratedDishes} rated dishes`}
+          variant="subtle"
         />
-        <StatTile label="Reviews" value={feedback.reviewCount.toLocaleString()} sub="verified diners" />
+        <StatTile label="Reviews" value={feedback.reviewCount.toLocaleString()} sub="verified diners" variant="subtle" />
         <StatTile
           label="Would order again"
           value={feedback.recommendRate !== null ? `${Math.round(feedback.recommendRate * 100)}%` : '—'}
           sub="across rated dishes"
+          variant="subtle"
         />
       </div>
 

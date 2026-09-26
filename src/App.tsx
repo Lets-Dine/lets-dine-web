@@ -15,11 +15,13 @@ import { RestaurantLayout } from './routes/RestaurantLayout';
 import { ReviewFlow } from './routes/ReviewFlow';
 import { AdminLayout } from './routes/admin/AdminLayout';
 import { Analytics } from './routes/admin/Analytics';
+import { AuditLog } from './routes/admin/AuditLog';
 import { Categories } from './routes/admin/Categories';
 import { Dashboard } from './routes/admin/Dashboard';
 import { DishEditor } from './routes/admin/DishEditor';
 import { MenuBoard } from './routes/admin/MenuBoard';
 import { Orders } from './routes/admin/Orders';
+import { Payments } from './routes/admin/Payments';
 import { Reviews } from './routes/admin/Reviews';
 import { Settings } from './routes/admin/Settings';
 import { SignIn } from './routes/admin/SignIn';
@@ -107,9 +109,11 @@ export default function App() {
                 <Route path="menu/:dishId" element={<DishEditor />} />
                 <Route path="categories" element={<Categories />} />
                 <Route path="tables" element={<Tables />} />
+                <Route path="payments" element={<Payments />} />
                 <Route path="reviews" element={<Reviews />} />
                 <Route path="analytics" element={<Analytics />} />
                 <Route path="staff" element={<Staff />} />
+                <Route path="audit" element={<AuditLog />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
 

@@ -210,3 +210,18 @@ export const Users = ({ size = 16, className }: IconProps) => (
     <path d="M15.5 6.2a3 3 0 010 5.6M18.5 19a5 5 0 00-3.3-6.8" />
   </svg>
 );
+
+export const History = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M3.6 12a8.4 8.4 0 102.4-5.9" />
+    <path d="M3.2 4v4.4h4.4" />
+    <path d="M12 8v4.4l3 1.8" />
+  </svg>
+);
+
+export const Cash = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+    <circle cx="12" cy="12" r="2.4" />
+  </svg>
+);

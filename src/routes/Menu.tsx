@@ -1,27 +1,75 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { track } from '../domain/analytics';
 import { buildSections } from '../domain/metrics';
 import type { Dish } from '../domain/types';
 import { haptic } from '../platform/haptics';
+import { useCart } from '../state/CartContext';
 import { DishRow, DishTile } from '../components/DishCard';
 import { SessionCode } from '../components/Bits';
 import { RatingPill } from '../components/Rating';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, EYEBROW, GLASS, ICON_BTN, RAIL, SHELL, WIDE, cx } from '../components/ui';
-import { Clock, Search, X } from '../components/icons';
+import { Clock, Plate, Plus, Receipt, Search, X } from '../components/icons';
 import { useRestaurant } from './RestaurantLayout';
 import { EmptyState } from './Shell';
 
+/** Diner never sees this twice — dismissing it (or adding a first dish) retires it for good. */
+const GUIDE_DISMISSED_KEY = 'DINER_GUIDE_DISMISSED';
+
+function readGuideDismissed(): boolean {
+  try {
+    return localStorage.getItem(GUIDE_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** One step in the "how this works" strip — icon, order, and a one-line payoff. */
+function GuideStep({ icon, step, title, text }: { icon: ReactNode; step: string; title: string; text: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="relative grid size-9 shrink-0 place-items-center rounded-full bg-flame-dim text-flame-1 ring-1 ring-flame-2/25 ring-inset">
+        {icon}
+        <b className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-flame text-[9px] font-extrabold leading-none text-white ring-2 ring-bg">
+          {step}
+        </b>
+      </span>
+      <div className="min-w-0 pt-0.5">
+        <h3 className="text-[13.5px] font-semibold tracking-tight">{title}</h3>
+        <p className="text-[12px] leading-snug text-ink-3">{text}</p>
+      </div>
+    </div>
+  );
+}
+
 export function Menu() {
   const { menu, table, session, ctx, base } = useRestaurant();
+  const cart = useCart();
   const [query, setQuery] = useState('');
   const [scrolled, setScrolled] = useState(false);
   const [activeCategory, setActiveCategory] = useState(menu.categories[0]?.id ?? '');
+  const [guideDismissed, setGuideDismissed] = useState(readGuideDismissed);
   const sectionRefs = useRef(new Map<string, HTMLElement>());
   const chipRailRef = useRef<HTMLDivElement>(null);
 
   const href = (dish: Dish) => `${base}/d/${dish.id}`;
   const sections = useMemo(() => buildSections(menu.dishes, ctx), [menu.dishes, ctx]);
+
+  const dismissGuide = () => {
+    setGuideDismissed(true);
+    try {
+      localStorage.setItem(GUIDE_DISMISSED_KEY, '1');
+    } catch {
+      /* private browsing or storage disabled — the guide just reappears next visit */
+    }
+  };
+
+  // Once a diner has actually added something, they've learned the flow.
+  useEffect(() => {
+    if (cart.count > 0) dismissGuide();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart.count]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -92,6 +140,7 @@ export function Menu() {
               aria-hidden
             />
           )}
+          <span className="absolute inset-0 bg-grain" aria-hidden />
           <span
             className="absolute inset-0 bg-[linear-gradient(to_top,var(--color-bg)_2%,rgb(16_13_11/0.86)_26%,rgb(16_13_11/0.25)_62%,rgb(16_13_11/0.5)_100%)]"
             aria-hidden
@@ -128,6 +177,46 @@ export function Menu() {
         </div>
       </header>
 
+      {/* ── First-visit guide ──────────────────────────────────── */}
+      {!guideDismissed && (
+        <section className={cx(WIDE, 'pt-4')}>
+          <div className="relative animate-rise rounded-3xl bg-surface p-4 shadow-warm ring-1 ring-hairline ring-inset sm:p-5">
+            <button
+              type="button"
+              onClick={() => {
+                haptic.tick();
+                dismissGuide();
+              }}
+              aria-label="Dismiss this guide"
+              className="absolute right-3 top-3 grid size-7 place-items-center rounded-full bg-surface-2 text-ink-3 transition-move active:scale-90"
+            >
+              <X size={14} />
+            </button>
+            <p className={cx(EYEBROW, 'mb-3 pr-8 text-flame-1')}>New here? Three taps to a full table</p>
+            <div className="grid gap-4 sm:grid-cols-3 sm:gap-3">
+              <GuideStep
+                icon={<Plate size={16} />}
+                step="1"
+                title="Browse or search"
+                text="Scroll by category, or search for a dish or ingredient above."
+              />
+              <GuideStep
+                icon={<Plus size={16} />}
+                step="2"
+                title="Tap + to add"
+                text="Build your order at your own pace — change quantities anytime."
+              />
+              <GuideStep
+                icon={<Receipt size={16} />}
+                step="3"
+                title="Track it live"
+                text="Send it, then watch progress from the clock icon above."
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Sticky search + categories ──────────────────────────── */}
       <div
         className={cx(
@@ -147,7 +236,7 @@ export function Menu() {
             <RatingPill rating={menu.restaurant.avgRating} count={menu.restaurant.ratingCount} />
           </div>
 
-          <div className="relative flex h-11.5 items-center rounded-full bg-surface-2 ring-1 ring-hairline ring-inset focus-within:ring-[1.5px] focus-within:ring-flame-2/35 lg:max-w-md">
+          <div className="relative flex h-11.5 items-center rounded-full bg-surface-2 ring-1 ring-hairline ring-inset transition-shadow duration-200 focus-within:ring-[1.5px] focus-within:ring-flame-2/35 focus-within:shadow-[0_0_0_5px_rgb(255_138_61/0.1)] lg:max-w-md">
             <Search size={17} className="absolute left-4 text-ink-3" />
             <input
               type="search"
@@ -225,33 +314,43 @@ export function Menu() {
       {!results && (
         <>
           {/* ── Merchandising rails ─────────────────────────────── */}
-          {sections.map((section) => (
-            <section className={cx(WIDE, 'pt-7')} key={section.key}>
-              <div className="mb-3.5 flex flex-col gap-0.5">
-                <h2 className={cx(DISPLAY, 'text-[19px] font-bold lg:text-2xl')}>
-                  <span aria-hidden>{section.emoji}</span> {section.title}
-                </h2>
-                <p className="text-[12.5px] text-ink-4 lg:text-[13.5px]">{section.subtitle}</p>
-              </div>
-              <div
-                className={cx(
-                  RAIL,
-                  '-mx-4 px-4 pb-1 sm:-mx-6 sm:px-6',
-                  'lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:px-0',
-                )}
-              >
-                {section.dishes.map((d, i) => (
-                  <DishTile
-                    key={d.id}
-                    dish={d}
-                    href={href(d)}
-                    ctx={ctx}
-                    rank={section.key === 'loved' ? i + 1 : undefined}
+          {sections.map((section) => {
+            const isFlagship = section.key === 'loved';
+            return (
+              <section className={cx(WIDE, 'relative pt-7')} key={section.key}>
+                {isFlagship && (
+                  <div
+                    className="absolute inset-x-0 top-0 -z-10 h-full bg-[radial-gradient(1100px_280px_at_12%_0%,rgb(255_138_61/0.1),transparent_72%)]"
+                    aria-hidden
                   />
-                ))}
-              </div>
-            </section>
-          ))}
+                )}
+                <div className="mb-3.5 flex flex-col gap-0.5">
+                  {isFlagship && <p className={cx(EYEBROW, 'text-flame-1')}>Ranked by diners who ate here</p>}
+                  <h2
+                    className={cx(
+                      DISPLAY,
+                      'font-bold',
+                      isFlagship ? 'text-[22px] lg:text-[30px]' : 'text-[19px] lg:text-2xl',
+                    )}
+                  >
+                    <span aria-hidden>{section.emoji}</span> {section.title}
+                  </h2>
+                  <p className="text-[12.5px] text-ink-4 lg:text-[13.5px]">{section.subtitle}</p>
+                </div>
+                <div
+                  className={cx(
+                    RAIL,
+                    '-mx-4 px-4 pb-1 sm:-mx-6 sm:px-6',
+                    'lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:px-0',
+                  )}
+                >
+                  {section.dishes.map((d, i) => (
+                    <DishTile key={d.id} dish={d} href={href(d)} ctx={ctx} rank={isFlagship ? i + 1 : undefined} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
 
           {/* ── Full menu ───────────────────────────────────────── */}
           <div className={cx(WIDE, 'pt-8 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10')}>
@@ -265,13 +364,21 @@ export function Menu() {
                       key={c.id}
                       type="button"
                       onClick={() => jumpTo(c.id)}
+                      aria-current={activeCategory === c.id ? 'true' : undefined}
                       className={cx(
-                        'flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[14px] font-semibold transition-colors duration-150',
+                        'flex items-center gap-2.5 rounded-xl py-2.5 pl-2.5 pr-3 text-left text-[14px] font-semibold transition-colors duration-150',
                         activeCategory === c.id
                           ? 'bg-flame-2/14 text-flame-1 ring-1 ring-flame-2/30 ring-inset'
                           : 'text-ink-3 hover:bg-surface-2 hover:text-ink',
                       )}
                     >
+                      <span
+                        aria-hidden
+                        className={cx(
+                          'h-4.5 w-0.5 shrink-0 rounded-full transition-colors duration-150',
+                          activeCategory === c.id ? 'bg-flame-2' : 'bg-transparent',
+                        )}
+                      />
                       <span aria-hidden>{c.emoji}</span>
                       <span className="flex-1">{c.name}</span>
                       <span className="text-[12px] text-ink-4 tnum">{count}</span>

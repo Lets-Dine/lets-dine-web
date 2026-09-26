@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { allOrders } from '../../api/admin';
+import { fetchOrderComparison, fetchRevenueComparison } from '../../api/staff';
 import { funnel } from '../../domain/analytics';
 import {
   PERIOD_LABEL,
@@ -33,6 +34,8 @@ export function Analytics() {
   const [period, setPeriod] = useState<Period>('week');
 
   const feed = useAsync(() => allOrders(staff), [staff]);
+  const revenue = useAsync(() => fetchRevenueComparison(staff, period), [staff, period]);
+  const orderComparison = useAsync(() => fetchOrderComparison(staff, period), [staff, period]);
   const orders = feed.data;
   const currency = menu.restaurant.currency;
 
@@ -75,20 +78,23 @@ export function Analytics() {
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
           label={`Orders ${PERIOD_LABEL[period].toLowerCase()}`}
-          value={report.current.orders.toLocaleString()}
-          change={report.orderChange}
+          value={orderComparison.data ? orderComparison.data.current.toLocaleString() : '—'}
+          change={orderComparison.data ? orderComparison.data.differencePercentage / 100 : null}
           sub={`vs ${previousLabel(period)}`}
+          variant="primary"
         />
         <StatTile
           label="Revenue"
-          value={formatMoney(report.current.revenue, currency)}
-          change={report.revenueChange}
+          value={revenue.data ? formatMoney(revenue.data.current, currency) : '—'}
+          change={revenue.data ? revenue.data.differencePercentage / 100 : null}
           sub={`vs ${previousLabel(period)}`}
+          variant="primary"
         />
         <StatTile
           label="Average order"
           value={formatMoney(report.current.averageOrder, currency)}
           sub={`${report.current.covers.toLocaleString()} dishes served`}
+          variant="primary"
         />
         <StatTile
           label="Cancelled"
@@ -98,6 +104,7 @@ export function Analytics() {
               ? `${((report.current.cancelled / (report.current.orders + report.current.cancelled)) * 100).toFixed(1)}% of tickets`
               : undefined
           }
+          variant="subtle"
         />
       </div>
 
@@ -154,21 +161,25 @@ export function Analytics() {
           label="Average restaurant rating"
           value={feedback.restaurantRating ? `${feedback.restaurantRating.toFixed(2)} ★` : '—'}
           sub={`${feedback.reviewCount.toLocaleString()} reviews`}
+          variant="subtle"
         />
         <StatTile
           label="Average dish rating"
           value={feedback.averageDishRating ? `${feedback.averageDishRating.toFixed(2)} ★` : '—'}
           sub="unweighted, per dish"
+          variant="subtle"
         />
         <StatTile
           label="Recommendation rate"
           value={feedback.recommendRate !== null ? `${Math.round(feedback.recommendRate * 100)}%` : '—'}
           sub="would order again"
+          variant="subtle"
         />
         <StatTile
           label="Dish decision rate"
           value={dishDecisionRate !== null ? `${Math.round(dishDecisionRate * 100)}%` : '—'}
           sub="dish page → added to cart"
+          variant="subtle"
         />
       </div>
 

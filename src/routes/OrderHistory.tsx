@@ -1,9 +1,12 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { getSessionPayment } from '../api/diner';
 import { formatMoney } from '../domain/money';
 import { DINER_STATUS_LABEL, needsReview } from '../domain/orderStatus';
-import type { OrderStatus } from '../domain/types';
+import type { OrderStatus, Payment } from '../domain/types';
 import { Skeleton } from '../components/Bits';
-import { SHELL, cx } from '../components/ui';
+import { Check } from '../components/icons';
+import { EYEBROW, SHELL, cx } from '../components/ui';
 import { clockTime, relativeTime } from '../components/time';
 import { useSessionOrders } from '../state/SessionOrdersContext';
 import { PAGE } from './Cart';
@@ -26,14 +29,43 @@ const STATUS_TONE: Record<OrderStatus, string> = {
 };
 
 export function OrderHistory() {
-  const { table, base } = useRestaurant();
+  const { table, session, base } = useRestaurant();
   const { orders, ready } = useSessionOrders();
+  const [payment, setPayment] = useState<Payment | null>(null);
+
+  // Staff settle a table from the dashboard, off-screen for the diner — polling once on
+  // arrival is enough to pick that up, since this screen isn't watched live like order status is.
+  useEffect(() => {
+    void getSessionPayment(session).then(setPayment);
+  }, [session]);
 
   return (
     <main className={SHELL}>
       <TopBar title="Your orders" subtitle={`${table.name} · this visit`} fallbackTo={base} width={PAGE} />
 
       <div className={cx(PAGE, 'flex flex-col gap-3 pt-4')}>
+        {payment && (
+          <div className="flex flex-col gap-2.5 rounded-3xl bg-surface bg-mint/8 p-4.5 ring-1 ring-mint/30 ring-inset">
+            <div className="flex items-center gap-2.5">
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-mint text-white" aria-hidden>
+                <Check size={14} />
+              </span>
+              <div className="flex-1">
+                <b className="block text-[14.5px] font-bold tracking-tight">Table settled</b>
+                <span className={cx(EYEBROW, 'text-mint/90')}>
+                  Paid {payment.method === 'CASH' ? 'in cash' : 'by card'} · {clockTime(payment.createdAt)}
+                </span>
+              </div>
+              <span className="text-[17px] font-bold tnum">{formatMoney(payment.total, payment.currency)}</span>
+            </div>
+            {payment.discount > 0 && (
+              <p className="text-[12px] text-ink-3">
+                Includes a {formatMoney(payment.discount, payment.currency)} discount.
+              </p>
+            )}
+          </div>
+        )}
+
         {!ready ? (
           <>
             <Skeleton className="h-24 rounded-3xl" />

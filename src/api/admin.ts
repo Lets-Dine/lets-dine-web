@@ -2,6 +2,8 @@ import { HISTORY_REF_CEILING, orderHistory } from '../data/history';
 import { CATEGORIES, DISHES } from '../data/menu';
 import { SEED_REVIEWS } from '../data/reviews';
 import { DEMO_PIN } from '../data/staff';
+import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
+import { periodReport } from '../domain/adminMetrics';
 import { formatMoney, percentOf, recomputeTotals, sumLines } from '../domain/money';
 import {
   ITEM_STATUS_LABEL,
@@ -25,6 +27,8 @@ import type {
   Order,
   OrderItem,
   OrderStatus,
+  Payment,
+  PaymentMethod,
   Restaurant,
   Review,
   StaffMember,
@@ -149,9 +153,10 @@ function record(
   return { ...store, audit: [entry, ...store.audit].slice(0, AUDIT_LIMIT) };
 }
 
-export async function listAudit(actor: StaffMember, limit = 80): Promise<AuditEntry[]> {
+export async function listAudit(actor: StaffMember, limit = 80, offset = 0): Promise<{ rows: AuditEntry[]; count: number }> {
   authorize(actor, 'audit:view');
-  return readStore().audit.slice(0, limit);
+  const audit = readStore().audit;
+  return { rows: audit.slice(offset, offset + limit), count: audit.length };
 }
 
 /* ── The live queue ────────────────────────────────────────────────── */
@@ -279,6 +284,26 @@ export async function allOrders(actor: StaffMember): Promise<Order[]> {
   authorize(actor, 'orders:view');
   const store = seedQueue(readStore());
   return [...orderHistory(), ...store.orders];
+}
+
+/** §31 — the same revenue-vs-prior-period comparison `GET /restaurant/analytics/revenue` answers live. */
+export async function fetchRevenueComparison(actor: StaffMember, period: Period): Promise<RevenueComparison> {
+  authorize(actor, 'analytics:view');
+  const store = seedQueue(readStore());
+  const report = periodReport([...orderHistory(), ...store.orders], period);
+  const differencePercentage =
+    report.revenueChange === null ? (report.current.revenue > 0 ? 100 : 0) : Number((report.revenueChange * 100).toFixed(2));
+  return { current: report.current.revenue, previous: report.previous.revenue, differencePercentage };
+}
+
+/** §31 — the same order-count-vs-prior-period comparison `GET /restaurant/analytics/orders` answers live. */
+export async function fetchOrderComparison(actor: StaffMember, period: Period): Promise<OrderComparison> {
+  authorize(actor, 'analytics:view');
+  const store = seedQueue(readStore());
+  const report = periodReport([...orderHistory(), ...store.orders], period);
+  const differencePercentage =
+    report.orderChange === null ? (report.current.orders > 0 ? 100 : 0) : Number((report.orderChange * 100).toFixed(2));
+  return { current: report.current.orders, previous: report.previous.orders, differencePercentage };
 }
 
 /** The one remaining whole-order transition: accept. Everything after that follows the items. */
@@ -426,13 +451,6 @@ export async function settleTable(actor: StaffMember, tableId: string): Promise<
 }
 
 /**
- * The real till: snapshots what's still open into a completed charge and
- * closes those orders out, mirroring the shape of the live API's payment
- * record even though this mock has nowhere to persist the record itself.
- * Ending the session in the same motion also cancels anything left on it
- * that never made it into this charge, rather than orphaning it.
- */
-/**
  * The till. Identified by the session being paid off, not the table — all
  * that's checked up front is that the session still exists. Which dishes and
  * how many is the cashier's call (read off the bill after any corrections),
@@ -440,15 +458,20 @@ export async function settleTable(actor: StaffMember, tableId: string): Promise<
  * the underlying orders currently say; prices still always come from the
  * menu, never the client. Ending the visit in the same motion marks every
  * order still open on the session completed, whether or not it matched a
- * line on this particular charge.
+ * line on this particular charge. Mirrors the live API's payment record —
+ * same shape, same `payments:discount` gate — so the Payments screen works
+ * identically with or without a real backend behind it.
  */
 export async function completePayment(
   actor: StaffMember,
   sessionId: string,
   items: { dishId: string; quantity: number }[],
+  method: PaymentMethod,
+  discount: number,
   endSession: boolean,
-): Promise<void> {
+): Promise<Payment> {
   authorize(actor, 'orders:advance');
+  if (discount > 0) authorize(actor, 'payments:discount');
   await latency();
   const store = seedQueue(readStore());
   const session = Object.values(store.sessions).find((s) => s.id === sessionId);
@@ -457,22 +480,40 @@ export async function completePayment(
 
   const dishes = menuOf(store).dishes;
   const restaurant = restaurantOf(store);
-  const lines = items.map(({ dishId, quantity }) => {
+  const paymentItems = items.map(({ dishId, quantity }) => {
     const dish = dishes.find((d) => d.id === dishId);
     if (!dish) throw new ApiError(404, 'One of these dishes is no longer on the menu.');
-    return { unitPrice: dish.price, quantity };
+    return { dishId: dish.id, dishNameSnapshot: dish.name, unitPrice: dish.price, quantity };
   });
-  const subtotal = sumLines(lines);
+  const subtotal = sumLines(paymentItems);
   const serviceCharge = percentOf(subtotal, restaurant.serviceChargeRate);
   const tax = percentOf(subtotal + serviceCharge, restaurant.taxRate);
-  const total = subtotal + serviceCharge + tax;
+  const total = subtotal + serviceCharge + tax - discount;
+  if (total < 0) throw new ApiError(409, "The discount can't be more than the bill.");
+
+  const payment: Payment = {
+    id: uid('pay'),
+    restaurantId: actor.restaurantId,
+    sessionId: session.id,
+    tableId: session.tableId,
+    subtotal,
+    serviceCharge,
+    tax,
+    discount,
+    total,
+    method,
+    currency: restaurant.currency,
+    createdAt: new Date().toISOString(),
+    createdBy: actor.id,
+    items: paymentItems.map((item) => ({ id: uid('payi'), ...item })),
+  };
 
   let next = record(
-    store,
+    { ...store, payments: [payment, ...store.payments] },
     actor,
     'payment_completed',
     `Session ${sessionId}`,
-    `Charged ${formatMoney(total, restaurant.currency)}`,
+    `Charged ${formatMoney(total, restaurant.currency)} via ${method}${discount > 0 ? ` (${formatMoney(discount, restaurant.currency)} discount)` : ''}`,
   );
 
   if (endSession) {
@@ -487,6 +528,37 @@ export async function completePayment(
   }
 
   writeStore(next);
+  return payment;
+}
+
+/** Every payment this restaurant has taken, most recent first — what the Payments screen lists. */
+export async function listPayments(
+  actor: StaffMember,
+  offset: number = 0,
+  limit: number = 200,
+  query: { tableId?: string; from?: string; to?: string } = {},
+): Promise<{ rows: Payment[]; count: number }> {
+  authorize(actor, 'payments:view');
+  await latency();
+  const store = readStore();
+  const from = query.from ? Date.parse(query.from) : null;
+  const to = query.to ? Date.parse(query.to) : null;
+  const filtered = store.payments.filter((p) => {
+    if (query.tableId && p.tableId !== query.tableId) return false;
+    const at = Date.parse(p.createdAt);
+    if (from !== null && at < from) return false;
+    if (to !== null && at > to) return false;
+    return true;
+  });
+  return { rows: filtered.slice(offset, offset + limit), count: filtered.length };
+}
+
+export async function getPayment(actor: StaffMember, paymentId: string): Promise<Payment> {
+  authorize(actor, 'payments:view');
+  await latency();
+  const payment = readStore().payments.find((p) => p.id === paymentId);
+  if (!payment) throw new ApiError(404, 'This payment no longer exists.');
+  return payment;
 }
 
 /**

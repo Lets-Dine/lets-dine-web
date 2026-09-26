@@ -1,4 +1,5 @@
 import type { DishDraft, StaffDraft } from './admin';
+import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
 import type {
   AuditAction,
@@ -11,6 +12,8 @@ import type {
   MenuCategory,
   Order,
   OrderStatus,
+  Payment,
+  PaymentMethod,
   Restaurant,
   StaffMember,
   StaffRole,
@@ -22,13 +25,12 @@ import { getSocket, joinRoom } from './socket';
 
 /**
  * The manager-facing half of the real API, wired up so far: signing in, and
- * running the category list, the menu board, the order pass and the table
- * roster (`/auth/staff/*`, `/restaurant/categories`, `/restaurant/dishes`,
- * `/restaurant/orders`, `/restaurant/profile`, `/restaurant/tables`).
+ * running the category list, the menu board, the order pass, the table
+ * roster and billing (`/auth/staff/*`, `/restaurant/categories`,
+ * `/restaurant/dishes`, `/restaurant/orders`, `/restaurant/profile`,
+ * `/restaurant/tables`, `/restaurant/payments`).
  * Reviews, settings and the analytics history (`allOrders`) still come from
- * `admin.ts` — they have not been moved across yet. So does billing a
- * table (settle/add-item/remove-item): the backend has no endpoints for
- * that yet, only for the table record itself.
+ * `admin.ts` — they have not been moved across yet.
  *
  * The mutation endpoints (create/update/archive/restore/reorder) return the
  * bare dish, without the stats block only `fetchAll`/`fetchById` compute — but
@@ -195,6 +197,31 @@ interface ApiOrder {
   reviewedDishIds: string[];
 }
 
+interface ApiPaymentItem {
+  id: string;
+  dishId: string;
+  dishNameSnapshot: string;
+  unitPrice: number;
+  quantity: number;
+}
+
+interface ApiPayment {
+  id: string;
+  restaurantId: string;
+  sessionId: string;
+  tableId: string;
+  subtotal: number;
+  serviceCharge: number;
+  tax: number;
+  discount: number;
+  total: number;
+  method: PaymentMethod;
+  currency: string;
+  createdAt: string;
+  createdBy: string | null;
+  items: ApiPaymentItem[];
+}
+
 /* ── Mappers ───────────────────────────────────────────────────── */
 
 function toStaff(profile: ApiAuthProfile): StaffMember {
@@ -321,6 +348,31 @@ function toOrder(api: ApiOrder): Order {
     updatedAt: api.updatedAt,
     completedAt: api.completedAt,
     reviewedDishIds: api.reviewedDishIds,
+  };
+}
+
+function toPayment(api: ApiPayment): Payment {
+  return {
+    id: api.id,
+    restaurantId: api.restaurantId,
+    sessionId: api.sessionId,
+    tableId: api.tableId,
+    subtotal: api.subtotal,
+    serviceCharge: api.serviceCharge,
+    tax: api.tax,
+    discount: api.discount,
+    total: api.total,
+    method: api.method,
+    currency: api.currency,
+    createdAt: api.createdAt,
+    createdBy: api.createdBy,
+    items: api.items.map((item) => ({
+      id: item.id,
+      dishId: item.dishId,
+      dishNameSnapshot: item.dishNameSnapshot,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+    })),
   };
 }
 
@@ -614,13 +666,44 @@ export async function settleTable(tableId: string): Promise<Order[]> {
 export async function completePayment(
   sessionId: string,
   items: { dishId: string; quantity: number }[],
+  method: PaymentMethod,
+  discount: number,
   endSession: boolean,
-): Promise<void> {
-  await apiRequest<unknown>('/restaurant/payments', {
+): Promise<Payment> {
+  const payment = await apiRequest<ApiPayment>('/restaurant/payments', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ sessionId, items, endSession }),
+    body: JSON.stringify({ sessionId, items, method, discount, endSession }),
   });
+  return toPayment(payment);
+}
+
+/** One page of payments, most recent first — what the Payments screen lists, 20 at a time as it scrolls. */
+export async function listPayments(
+  offset = 0,
+  limit = 20,
+  query: { tableId?: string; from?: string; to?: string } = {},
+): Promise<{ rows: Payment[]; count: number }> {
+  const params = new URLSearchParams({
+    offset: String(offset),
+    limit: String(limit),
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  });
+  if (query.tableId) params.set('tableId', query.tableId);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  const page = await apiRequest<Paginated<ApiPayment>>(`/restaurant/payments?${params.toString()}`, {
+    headers: authHeaders(),
+  });
+  return { rows: page.rows.map(toPayment), count: page.count };
+}
+
+export async function getPayment(paymentId: string): Promise<Payment> {
+  const payment = await apiRequest<ApiPayment>(`/restaurant/payments/${encodeURIComponent(paymentId)}`, {
+    headers: authHeaders(),
+  });
+  return toPayment(payment);
 }
 
 /** The one remaining whole-order transition: accept. Everything after that follows the items. */
@@ -714,10 +797,32 @@ export function subscribeToTables(onUpdated: (table: DiningTable) => void, onRes
 
 /* ── Audit log ─────────────────────────────────────────────────── */
 
-/** §51 — every management action, most recent first. */
-export async function listAudit(limit = 80): Promise<AuditEntry[]> {
-  const page = await apiRequest<Paginated<ApiAuditLog>>(`/restaurant/audit-logs?limit=${limit}`, {
+/** §51 — every management action, most recent first, 80 at a time (or 20 as the audit log page scrolls). */
+export async function listAudit(limit = 80, offset = 0): Promise<{ rows: AuditEntry[]; count: number }> {
+  const params = new URLSearchParams({
+    offset: String(offset),
+    limit: String(limit),
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  });
+  const page = await apiRequest<Paginated<ApiAuditLog>>(`/restaurant/audit-logs?${params.toString()}`, {
     headers: authHeaders(),
   });
-  return page.rows.map(toAuditEntry);
+  return { rows: page.rows.map(toAuditEntry), count: page.count };
+}
+
+/* ── Analytics ─────────────────────────────────────────────────── */
+
+/** §31 — settled-payment revenue for the period against the whole of the one before it. */
+export async function fetchRevenueComparison(period: Period): Promise<RevenueComparison> {
+  return apiRequest<RevenueComparison>(`/restaurant/analytics/revenue?period=${period}`, {
+    headers: authHeaders(),
+  });
+}
+
+/** §31 — order count for the period against the whole of the one before it. */
+export async function fetchOrderComparison(period: Period): Promise<OrderComparison> {
+  return apiRequest<OrderComparison>(`/restaurant/analytics/orders?period=${period}`, {
+    headers: authHeaders(),
+  });
 }
