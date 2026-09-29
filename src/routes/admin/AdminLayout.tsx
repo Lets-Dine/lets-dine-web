@@ -11,7 +11,7 @@ import { AdminThemeToggle } from '../../state/AdminTheme';
 import { usePageTitle } from '../../state/usePageTitle';
 import { Loading } from '../../components/admin/kit';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Cash, Folder, Grid, History, Plate, Receipt, Sliders, Sparkle, Star, Table, TrendUp, Users } from '../../components/icons';
+import { Cash, Folder, Grid, History, Plate, Receipt, Sliders, Sparkle, Table, Users } from '../../components/icons';
 import { playNewOrderSound } from '../../platform/sound';
 
 /**
