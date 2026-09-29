@@ -1,15 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listAudit, updateSettings } from '../../api/staff';
-import { symbolFor } from '../../domain/money';
 import { ROLE_LABEL, ROLE_SCOPE } from '../../domain/permissions';
 import type { AuditEntry } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../../components/time';
-import { ADMIN_PRIMARY, Field, INPUT_BOX, MoneyInput, PageTitle, Panel, PercentInput, TextArea, TextInput, useCommand } from '../../components/admin/kit';
+import { ADMIN_PRIMARY, Field, MoneyInput, PageTitle, Panel, PercentInput, TextArea, TextInput, useCommand } from '../../components/admin/kit';
 import { History } from '../../components/icons';
-import { cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
 /**
