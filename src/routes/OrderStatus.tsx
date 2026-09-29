@@ -22,7 +22,7 @@ import { useSessionOrders } from '../state/SessionOrdersContext';
 import { usePageTitle } from '../state/usePageTitle';
 import { useToast } from '../state/ToastContext';
 import { PAGE, SPLIT } from './Cart';
-import { useRestaurant } from './RestaurantLayout';
+import { useRestaurant, visitLabel } from './RestaurantLayout';
 import { ErrorScreen, TopBar } from './Shell';
 
 const ITEM_PILL_STYLE: Record<OrderItem['status'], string> = {
@@ -63,7 +63,7 @@ export function OrderStatus() {
   if (!order) {
     return (
       <main className={SHELL}>
-        <TopBar title="Your order" subtitle={table.name} fallbackTo={base} width={PAGE} />
+        <TopBar title="Your order" subtitle={visitLabel(table)} fallbackTo={base} width={PAGE} />
         <div className={cx(PAGE, 'flex flex-col gap-3.5 pt-4')}>
           <Skeleton className="h-52 rounded-3xl" />
           <Skeleton className="h-36 rounded-3xl" />
@@ -94,7 +94,7 @@ export function OrderStatus() {
     <main className={SHELL}>
       <TopBar
         title={`Order ${order.reference}`}
-        subtitle={`${table.name} · ${clockTime(order.createdAt)}`}
+        subtitle={`${visitLabel(table)} · ${clockTime(order.createdAt)}`}
         fallbackTo={base}
         width={PAGE}
       />
@@ -136,12 +136,21 @@ export function OrderStatus() {
                   hint={order.acceptedAt ? DINER_STATUS_HINT.ACCEPTED : DINER_STATUS_HINT.PENDING}
                   hasNext
                 />
-                {order.acceptedAt && order.status !== 'COMPLETED' && (
+                {order.acceptedAt && order.status !== 'COMPLETED' && order.status !== 'OUT_FOR_DELIVERY' && (
                   <Headline
                     done={false}
                     active
                     label={summary.total > 0 ? `${summary.ready} of ${summary.total} items ready` : 'Preparing'}
                     hint="Check the list below for what's on its way"
+                    hasNext
+                  />
+                )}
+                {order.orderType === 'DELIVERY' && order.acceptedAt && (
+                  <Headline
+                    done={order.status === 'OUT_FOR_DELIVERY' || order.status === 'COMPLETED'}
+                    active={order.status === 'OUT_FOR_DELIVERY'}
+                    label="Out for delivery"
+                    hint={DINER_STATUS_HINT.OUT_FOR_DELIVERY}
                     hasNext
                   />
                 )}
@@ -159,7 +168,13 @@ export function OrderStatus() {
           {!cancelled && order.status !== 'COMPLETED' && (
             <p className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-3">
               <Clock size={14} />
-              {order.status === 'READY' ? 'A server is bringing it over' : 'Typically 15–25 minutes at this time of day'}
+              {order.status === 'OUT_FOR_DELIVERY'
+                ? 'On its way to you'
+                : order.status === 'READY'
+                  ? order.orderType === 'DELIVERY'
+                    ? 'Packed and waiting to go out'
+                    : 'A server is bringing it over'
+                  : 'Typically 15–25 minutes at this time of day'}
             </p>
           )}
 

@@ -54,7 +54,7 @@ export function AddOns() {
     <>
       <PageTitle title="Add-ons" subtitle="Priced extras diners can attach to a dish — link them from each dish's editor." />
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+      <div className="grid gap-4 lg:grid-cols-[1.9fr_1fr] lg:items-start">
         <div className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
           <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
             <h2 className="font-display text-[18px] font-black tracking-tight">On the menu</h2>

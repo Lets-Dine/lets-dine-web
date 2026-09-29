@@ -4,7 +4,7 @@ import { createOrder } from '../api/diner';
 import { track } from '../domain/analytics';
 import { formatMoney } from '../domain/money';
 import { haptic } from '../platform/haptics';
-import { BTN, BTN_FLAME, BTN_SIZE, DISPLAY, EYEBROW, GLASS, SHELL, cx } from '../components/ui';
+import { BTN, BTN_FLAME, BTN_SIZE, DISPLAY, EYEBROW, GLASS, INPUT, SHELL, cx } from '../components/ui';
 import { Check } from '../components/icons';
 import { requestNotifyPermission } from '../platform/notify';
 import { useCart } from '../state/CartContext';
@@ -12,16 +12,22 @@ import { usePageTitle } from '../state/usePageTitle';
 import { useSessionOrders } from '../state/SessionOrdersContext';
 import { useToast } from '../state/ToastContext';
 import { BillLines, PAGE, SPLIT, addOnLabels, lineUnitPrice, useBill, variantLabel } from './Cart';
-import { useRestaurant } from './RestaurantLayout';
+import { useRestaurant, visitLabel } from './RestaurantLayout';
 import { TopBar } from './Shell';
 
-const PAYMENT_METHODS = [
+const PAYMENT_METHODS_DINE_IN = [
   { id: 'cash', label: 'Cash at the table', hint: 'Pay the server when you are done' },
   { id: 'card', label: 'Card at the counter', hint: 'The restaurant brings the machine over' },
 ] as const;
 
+const PAYMENT_METHODS_DELIVERY = [
+  { id: 'cash', label: 'Cash on delivery', hint: 'Pay the rider when your order arrives' },
+  { id: 'card', label: 'Card on delivery', hint: 'The rider brings a card machine' },
+] as const;
+
 export function Checkout() {
-  const { menu, table, session, base } = useRestaurant();
+  const { menu, table, customer, session, base } = useRestaurant();
+  const isDelivery = table === null;
   usePageTitle(`Checkout · ${menu.restaurant.name}`);
   const cart = useCart();
   const { rememberOrder } = useSessionOrders();
@@ -29,21 +35,26 @@ export function Checkout() {
   const toast = useToast();
 
   const [method, setMethod] = useState<string>('cash');
+  const [address, setAddress] = useState(customer?.defaultAddress ?? '');
+  const [note, setNote] = useState(customer?.defaultNote ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionEnded = Boolean(session.endedAt);
+  const paymentMethods = isDelivery ? PAYMENT_METHODS_DELIVERY : PAYMENT_METHODS_DINE_IN;
 
   const byId = new Map(menu.dishes.map((d) => [d.id, d]));
-  const bill = useBill(cart.lines, menu.dishes);
+  const deliveryFee = isDelivery ? (menu.restaurant.deliveryFeeAmount ?? 0) : 0;
+  const bill = useBill(cart.lines, menu.dishes, deliveryFee);
   const currency = menu.restaurant.currency;
+  const canSubmit = !submitting && !sessionEnded && (!isDelivery || address.trim().length > 0);
 
   // Emptying the cart on success must not trip this guard and bounce the diner
   // back to an empty cart instead of their new order.
   if (cart.lines.length === 0 && !placed) return <Navigate to={`${base}/cart`} replace />;
 
   const placeOrder = async () => {
-    if (submitting || sessionEnded) return;
+    if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -53,6 +64,8 @@ export function Checkout() {
         // Stable across retries of this same cart, so a double tap or a flaky
         // connection can never produce two orders.
         idempotencyKey: cart.idempotencyKey,
+        deliveryAddress: isDelivery ? address.trim() : undefined,
+        deliveryNote: isDelivery ? note.trim() || undefined : undefined,
       });
       track('order_placed', { orderId: order.id, total: order.total, items: cart.count });
       setPlaced(true);
@@ -72,17 +85,51 @@ export function Checkout() {
 
   return (
     <main className={SHELL}>
-      <TopBar title="Confirm your order" subtitle={table.name} fallbackTo={`${base}/cart`} width={PAGE} />
+      <TopBar title="Confirm your order" subtitle={visitLabel(table)} fallbackTo={`${base}/cart`} width={PAGE} />
 
       <div className={cx(PAGE, SPLIT, 'pt-5')}>
         <div className="flex flex-col gap-7">
-          <section className="animate-rise">
-            <div className="flex flex-col gap-1 rounded-3xl bg-surface bg-flame-dim p-4.5 ring-1 ring-flame-2/35 ring-inset">
-              <span className={cx(EYEBROW, 'text-flame-1/80')}>Serving to</span>
-              <b className={cx(DISPLAY, 'text-[27px]')}>{table.name}</b>
-              <span className="text-[13px] text-ink-3">{menu.restaurant.name} · dine in</span>
-            </div>
-          </section>
+          {isDelivery ? (
+            <section className="animate-rise">
+              <div className="flex flex-col gap-3 rounded-3xl bg-surface bg-flame-dim p-4.5 ring-1 ring-flame-2/35 ring-inset">
+                <div className="flex flex-col gap-1">
+                  <span className={cx(EYEBROW, 'text-flame-1/80')}>Delivering to</span>
+                  <b className={cx(DISPLAY, 'text-[21px]')}>{customer?.name || 'Guest'}</b>
+                  <span className="text-[13px] text-ink-3">
+                    {menu.restaurant.name} · {customer?.phone} · delivery
+                  </span>
+                </div>
+                <label className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
+                  Delivery address
+                  <input
+                    className={cx(INPUT, 'h-12')}
+                    value={address}
+                    onChange={(event) => setAddress(event.target.value)}
+                    placeholder="Street, area, landmark"
+                    autoComplete="street-address"
+                    required
+                  />
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
+                  Note for the rider <span className="font-normal text-ink-4">(optional)</span>
+                  <input
+                    className={cx(INPUT, 'h-12')}
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    placeholder="Gate code, floor, landmark…"
+                  />
+                </label>
+              </div>
+            </section>
+          ) : (
+            <section className="animate-rise">
+              <div className="flex flex-col gap-1 rounded-3xl bg-surface bg-flame-dim p-4.5 ring-1 ring-flame-2/35 ring-inset">
+                <span className={cx(EYEBROW, 'text-flame-1/80')}>Serving to</span>
+                <b className={cx(DISPLAY, 'text-[27px]')}>{table.name}</b>
+                <span className="text-[13px] text-ink-3">{menu.restaurant.name} · dine in</span>
+              </div>
+            </section>
+          )}
 
           <section className="flex flex-col gap-3">
             <h2 className={EYEBROW}>
@@ -122,7 +169,7 @@ export function Checkout() {
           <section className="flex flex-col gap-3">
             <h2 className={EYEBROW}>How you'll pay</h2>
             <div className="flex flex-col gap-2.5">
-              {PAYMENT_METHODS.map((m) => (
+              {paymentMethods.map((m) => (
                 <button
                   key={m.id}
                   type="button"
@@ -158,7 +205,9 @@ export function Checkout() {
 
           {sessionEnded && (
             <p className="rounded-2xl bg-mint/10 px-3.5 py-3 text-[13.5px] font-semibold text-mint" role="alert">
-              This table has been closed out — new orders can't be placed. Ask a server if you'd like to order more.
+              {isDelivery
+                ? "This order has been closed out — new items can't be placed on it."
+                : "This table has been closed out — new orders can't be placed. Ask a server if you'd like to order more."}
             </p>
           )}
 
@@ -182,9 +231,9 @@ export function Checkout() {
               type="button"
               className={cx(BTN_FLAME, 'mt-1 hidden! w-full lg:inline-flex!')}
               onClick={placeOrder}
-              disabled={submitting || sessionEnded}
+              disabled={!canSubmit}
             >
-              {sessionEnded ? 'Table closed' : submitting ? 'Sending…' : 'Place order'}
+              {sessionEnded ? (isDelivery ? 'Order closed' : 'Table closed') : submitting ? 'Sending…' : 'Place order'}
             </button>
           </div>
         </aside>
@@ -201,16 +250,16 @@ export function Checkout() {
       >
         <div className="mx-auto flex w-full max-w-[620px] items-center gap-2.5">
           <div className="flex flex-col pl-1 leading-tight">
-            <span className="text-[11px] font-semibold text-ink-3">Pay at restaurant</span>
+            <span className="text-[11px] font-semibold text-ink-3">{isDelivery ? 'Pay on delivery' : 'Pay at restaurant'}</span>
             <b className="text-[17px] font-bold tracking-tight tnum">{formatMoney(bill.total, currency)}</b>
           </div>
           <button
             type="button"
             className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')}
             onClick={placeOrder}
-            disabled={submitting || sessionEnded}
+            disabled={!canSubmit}
           >
-            {sessionEnded ? 'Table closed' : submitting ? 'Sending…' : 'Place order'}
+            {sessionEnded ? (isDelivery ? 'Order closed' : 'Table closed') : submitting ? 'Sending…' : 'Place order'}
           </button>
         </div>
       </div>

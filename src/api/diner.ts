@@ -1,8 +1,10 @@
-import type { CreateOrderInput, ReviewDraft } from './client';
+import type { CreateOrderInput, DeliverySessionResult, ReviewDraft, StartDeliverySessionInput } from './client';
 import type { DiningSession, Dish, Menu, Order, Payment, Restaurant, Review } from '../domain/types';
 import * as mock from './client';
 import { IS_LIVE_API } from './http';
 import * as live from './live';
+
+export type { DeliverySessionResult, StartDeliverySessionInput } from './client';
 
 /**
  * The public diner reads and ordering, from whichever source is configured:
@@ -41,6 +43,16 @@ export function joinTableSession(restaurantSlug: string, tableToken: string, joi
   return IS_LIVE_API
     ? live.joinTableSession(restaurantSlug, tableToken, joinToken)
     : mock.resolveQr(restaurantSlug, tableToken, joinToken);
+}
+
+/** The delivery equivalent of `resolveQr` — phone number in, session (with `table: null`) and customer out. */
+export function startDeliverySession(input: StartDeliverySessionInput): Promise<DeliverySessionResult> {
+  return IS_LIVE_API ? live.startDeliverySession(input) : mock.startDeliverySession(input);
+}
+
+/** A page reload has no phone number to re-key on — resumes a session already stored in this browser, or `null`. */
+export function resumeDeliverySession(restaurantSlug: string): Promise<DeliverySessionResult | null> {
+  return IS_LIVE_API ? live.resumeDeliverySession(restaurantSlug) : mock.resumeDeliverySession(restaurantSlug);
 }
 
 export function getMenu(restaurantSlug: string): Promise<Menu> {

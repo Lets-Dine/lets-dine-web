@@ -33,7 +33,7 @@ export function Payments() {
   const { menu } = useDashboard();
   const tables = useAsync(() => listTables(staff), [staff]);
   const tablesById = useMemo(() => new Map((tables.data ?? []).map((t) => [t.id, t])), [tables.data]);
-  const tableName = (tableId: string) => tablesById.get(tableId)?.name ?? 'Deleted table';
+  const tableName = (tableId: string | null) => (tableId ? (tablesById.get(tableId)?.name ?? 'Deleted table') : 'Delivery');
 
   const [tableId, setTableId] = useState('all');
   const [method, setMethod] = useState<MethodFilter>('all');
@@ -115,12 +115,25 @@ export function Payments() {
   const rows = allPayments;
   const tableOptions = useMemo(() => {
     const byId = new Map<string, string>();
-    for (const p of rows) byId.set(p.tableId, tablesById.get(p.tableId)?.name ?? 'Deleted table');
-    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    let hasDelivery = false;
+    for (const p of rows) {
+      if (p.tableId === null) {
+        hasDelivery = true;
+        continue;
+      }
+      byId.set(p.tableId, tablesById.get(p.tableId)?.name ?? 'Deleted table');
+    }
+    const sorted = [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    return hasDelivery ? [['delivery', 'Delivery'] as [string, string], ...sorted] : sorted;
   }, [rows, tablesById]);
 
   const byTable = useMemo(
-    () => rows.filter((p) => tableId === 'all' || p.tableId === tableId),
+    () =>
+      rows.filter((p) => {
+        if (tableId === 'all') return true;
+        if (tableId === 'delivery') return p.tableId === null;
+        return p.tableId === tableId;
+      }),
     [rows, tableId],
   );
 
@@ -144,7 +157,7 @@ export function Payments() {
   const filtering = tableId !== 'all' || method !== 'all';
 
   const printPayment = (payment: Payment) => {
-    const table = tablesById.get(payment.tableId);
+    const table = payment.tableId ? tablesById.get(payment.tableId) : undefined;
     printReceipt(
       { name: table?.name ?? tableName(payment.tableId), capacity: table?.capacity },
       payment.items.map((i) => ({ dishNameSnapshot: i.dishNameSnapshot, quantity: i.quantity, total: i.unitPrice * i.quantity })),

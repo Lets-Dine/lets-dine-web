@@ -1,5 +1,4 @@
 import { HISTORY_REF_CEILING, orderHistory } from '../data/history';
-import { CATEGORIES, DISHES } from '../data/menu';
 import { SEED_REVIEWS } from '../data/reviews';
 import { DEMO_PIN } from '../data/staff';
 import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
@@ -11,6 +10,7 @@ import {
   billableItems,
   canCancelOrder,
   deriveOrderStatus,
+  deriveOrderStatusForType,
   nextItemStatus,
 } from '../domain/orderStatus';
 import { ROLE_LABEL, can } from '../domain/permissions';
@@ -248,11 +248,14 @@ function seedQueue(store: Store): Store {
       id: `ord_seed${i}`,
       reference: `#${++ref}`,
       restaurantId: restaurant.id,
+      // The demo shift is dine-in only — a real restaurant's seeded floor has no delivery tickets.
+      orderType: 'DINE_IN',
       tableId: table.id,
       tableName: table.name,
       // Not one of this browser's dining sessions, so the demo kitchen leaves
       // these alone — they move when staff move them.
       sessionId: `ses_floor${i}`,
+      customerId: null,
       status: derived,
       acceptedAt,
       cancelledAt,
@@ -260,6 +263,7 @@ function seedQueue(store: Store): Store {
       subtotal,
       serviceCharge,
       tax,
+      deliveryFee: 0,
       discount: 0,
       total: subtotal + serviceCharge + tax,
       currency: restaurant.currency,
@@ -267,6 +271,10 @@ function seedQueue(store: Store): Store {
       updatedAt: placed.toISOString(),
       completedAt: derived === 'COMPLETED' ? new Date(placed.getTime() + 22 * 60_000).toISOString() : null,
       reviewedDishIds: [],
+      deliveryAddress: null,
+      deliveryPhone: null,
+      deliveryCustomerName: null,
+      deliveryNote: null,
     };
   });
 
@@ -332,7 +340,7 @@ export async function acceptOrder(actor: StaffMember, orderId: string, expected:
   const acceptedAt = now;
   const updated: Order = {
     ...order,
-    status: deriveOrderStatus({ acceptedAt, cancelledAt: order.cancelledAt, items: order.items }),
+    status: deriveOrderStatusForType({ acceptedAt, cancelledAt: order.cancelledAt, items: order.items }, order.orderType),
     acceptedAt,
     updatedAt: now,
   };
@@ -368,20 +376,18 @@ export async function advanceOrderItem(
   if (item.status !== expected)
     throw new ApiError(409, `${item.dishNameSnapshot} already moved to ${ITEM_STATUS_LABEL[item.status].toLowerCase()}.`);
 
-  const to = nextItemStatus(item.status);
+  const to = nextItemStatus(item.status, order.orderType);
   if (!to) throw new ApiError(409, `${item.dishNameSnapshot} is already finished.`);
 
   const now = new Date().toISOString();
   const items = order.items.map((i) => (i.id === itemId ? { ...i, status: to, statusUpdatedAt: now } : i));
+  const derivedStatus = deriveOrderStatusForType({ acceptedAt: order.acceptedAt, cancelledAt: order.cancelledAt, items }, order.orderType);
   const updated: Order = {
     ...order,
     items,
-    status: deriveOrderStatus({ acceptedAt: order.acceptedAt, cancelledAt: order.cancelledAt, items }),
+    status: derivedStatus,
     updatedAt: now,
-    completedAt:
-      deriveOrderStatus({ acceptedAt: order.acceptedAt, cancelledAt: order.cancelledAt, items }) === 'COMPLETED'
-        ? now
-        : order.completedAt,
+    completedAt: derivedStatus === 'COMPLETED' ? now : order.completedAt,
   };
 
   writeStore(
@@ -391,6 +397,83 @@ export async function advanceOrderItem(
       'order_status_changed',
       `Order ${order.reference}`,
       `${item.dishNameSnapshot} — ${ITEM_STATUS_LABEL[item.status]} → ${ITEM_STATUS_LABEL[to]}`,
+    ),
+  );
+  return updated;
+}
+
+/** Delivery-only: hands the ticket from the kitchen to whoever is taking it out — the one manual step between the pass and the door. */
+export async function advanceDeliveryOrder(actor: StaffMember, orderId: string, expected: 'READY'): Promise<Order> {
+  authorize(actor, 'orders:advance');
+  await latency();
+  const store = seedQueue(readStore());
+  const order = store.orders.find((o) => o.id === orderId);
+  if (!order) throw new ApiError(404, 'That order is no longer on the queue.');
+  if (order.orderType !== 'DELIVERY') throw new ApiError(409, 'Only a delivery order can go out for delivery.');
+  if (order.status !== expected)
+    throw new ApiError(409, `${order.reference} already moved to ${STATUS_LABEL[order.status].toLowerCase()}.`);
+
+  const now = new Date().toISOString();
+  const updated: Order = { ...order, status: 'OUT_FOR_DELIVERY', updatedAt: now };
+  writeStore(
+    record(
+      { ...store, orders: store.orders.map((o) => (o.id === orderId ? updated : o)) },
+      actor,
+      'order_status_changed',
+      `Order ${order.reference}`,
+      `${STATUS_LABEL[order.status]} → ${STATUS_LABEL[updated.status]}`,
+    ),
+  );
+  return updated;
+}
+
+/**
+ * Delivery's equivalent of settling a table — there's no tab to batch, just
+ * this one order's own bill, charged the moment it's handed over. Same
+ * "status is the payment state" rule as dine-in, just per-order instead of
+ * per-table (§ `settleTable`).
+ */
+export async function settleDeliveryOrder(actor: StaffMember, orderId: string, method: PaymentMethod = 'CASH'): Promise<Order> {
+  authorize(actor, 'orders:advance');
+  await latency();
+  const store = seedQueue(readStore());
+  const order = store.orders.find((o) => o.id === orderId);
+  if (!order) throw new ApiError(404, 'That order is no longer on the queue.');
+  if (order.orderType !== 'DELIVERY') throw new ApiError(409, 'Only a delivery order can be settled this way.');
+  if (order.status !== 'OUT_FOR_DELIVERY')
+    throw new ApiError(409, `${order.reference} must be out for delivery before it can be marked delivered.`);
+
+  const now = new Date().toISOString();
+  // The driver takes every plated line at once — no item goes SERVED on its own
+  // for a delivery order (see `nextItemStatus`), so this is where they catch up.
+  const items = order.items.map((i) => (i.status === 'READY' ? { ...i, status: 'SERVED' as ItemStatus, statusUpdatedAt: now } : i));
+  const updated: Order = { ...order, items, status: 'COMPLETED', updatedAt: now, completedAt: now };
+  const restaurant = restaurantOf(store);
+  const payment: Payment = {
+    id: uid('pay'),
+    restaurantId: order.restaurantId,
+    sessionId: order.sessionId,
+    tableId: null,
+    subtotal: order.subtotal,
+    serviceCharge: order.serviceCharge,
+    tax: order.tax,
+    discount: order.discount,
+    total: order.total,
+    method,
+    currency: order.currency,
+    createdAt: now,
+    createdBy: actor.id,
+    createdByName: actor.name,
+    items: order.items.map((i) => ({ id: uid('payi'), dishId: i.dishId, dishNameSnapshot: i.dishNameSnapshot, unitPrice: i.unitPrice, quantity: i.quantity })),
+  };
+
+  writeStore(
+    record(
+      { ...store, orders: store.orders.map((o) => (o.id === orderId ? updated : o)), payments: [payment, ...store.payments] },
+      actor,
+      'payment_completed',
+      `Order ${order.reference}`,
+      `Delivered — charged ${formatMoney(payment.total, restaurant.currency)} via ${method.toLowerCase()}`,
     ),
   );
   return updated;
@@ -641,9 +724,12 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
       id: uid('ord'),
       reference,
       restaurantId: table.restaurantId,
+      // Staff can only land a payment-sheet addition on a table's own order — never a delivery one.
+      orderType: 'DINE_IN',
       tableId: table.id,
       tableName: table.name,
       sessionId: session.id,
+      customerId: null,
       status: 'PENDING',
       acceptedAt: null,
       cancelledAt: null,
@@ -651,6 +737,7 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
       subtotal: 0,
       serviceCharge: 0,
       tax: 0,
+      deliveryFee: 0,
       discount: 0,
       total: 0,
       currency: restaurantOf(base).currency,
@@ -658,6 +745,10 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
       updatedAt: startedAt,
       completedAt: null,
       reviewedDishIds: [],
+      deliveryAddress: null,
+      deliveryPhone: null,
+      deliveryCustomerName: null,
+      deliveryNote: null,
     };
     base = { ...numbered, orders: [...numbered.orders, order] };
   }
@@ -1498,6 +1589,7 @@ export async function startTableSession(actor: StaffMember, tableId: string): Pr
     id: uid('ses'),
     restaurantId: table.restaurantId,
     tableId: table.id,
+    customerId: null,
     anonymousSessionToken: newSessionToken(),
     startedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
@@ -1595,14 +1687,12 @@ export interface SettingsPatch {
   name?: string;
   tagline?: string;
   description?: string;
+  /** `null`/`''` clears it back to the plain gradient fallback. */
+  coverImageUrl?: string | null;
   serviceChargeRate?: number;
   taxRate?: number;
-}
-
-export async function getSettings(actor: StaffMember): Promise<{ restaurant: Restaurant; autoKitchen: boolean }> {
-  authorize(actor, 'settings:view');
-  const store = readStore();
-  return { restaurant: restaurantOf(store), autoKitchen: store.autoKitchen };
+  /** Flat, minor-unit delivery fee. `null`/`0` means no fee. */
+  deliveryFeeAmount?: number | null;
 }
 
 export async function updateSettings(actor: StaffMember, patch: SettingsPatch): Promise<Restaurant> {
@@ -1617,22 +1707,31 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
     return Math.round(value * 10_000) / 10_000;
   };
 
+  const deliveryFee = patch.deliveryFeeAmount;
+  if (deliveryFee !== undefined && deliveryFee !== null && (!Number.isInteger(deliveryFee) || deliveryFee < 0))
+    throw new ApiError(400, 'Delivery fee must be a whole, non-negative amount.');
+
   const after: Restaurant = {
     ...before,
     name: patch.name?.trim() || before.name,
     tagline: patch.tagline?.trim() ?? before.tagline,
     description: patch.description?.trim() ?? before.description,
+    coverImageUrl: patch.coverImageUrl !== undefined ? patch.coverImageUrl?.trim() || '' : before.coverImageUrl,
     serviceChargeRate: rate(patch.serviceChargeRate, 'Service charge') ?? before.serviceChargeRate,
     taxRate: rate(patch.taxRate, 'Tax') ?? before.taxRate,
+    deliveryFeeAmount: deliveryFee !== undefined ? deliveryFee : before.deliveryFeeAmount,
   };
 
   const changes: string[] = [];
   if (after.name !== before.name) changes.push(`Name → ${after.name}`);
   if (after.tagline !== before.tagline) changes.push('Tagline edited');
   if (after.description !== before.description) changes.push('Description edited');
+  if (after.coverImageUrl !== before.coverImageUrl) changes.push('Cover image changed');
   if (after.serviceChargeRate !== before.serviceChargeRate)
     changes.push(`Service charge ${percent(before.serviceChargeRate)} → ${percent(after.serviceChargeRate)}`);
   if (after.taxRate !== before.taxRate) changes.push(`Tax ${percent(before.taxRate)} → ${percent(after.taxRate)}`);
+  if (after.deliveryFeeAmount !== before.deliveryFeeAmount)
+    changes.push(`Delivery fee ${formatMoney(before.deliveryFeeAmount ?? 0, before.currency)} → ${formatMoney(after.deliveryFeeAmount ?? 0, after.currency)}`);
 
   // Only the editable fields are stored, so the seed data keeps owning
   // identity (slug, currency, timezone) and the review aggregates.
@@ -1642,8 +1741,10 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
       name: after.name,
       tagline: after.tagline,
       description: after.description,
+      coverImageUrl: after.coverImageUrl,
       serviceChargeRate: after.serviceChargeRate,
       taxRate: after.taxRate,
+      deliveryFeeAmount: after.deliveryFeeAmount,
     },
   };
   if (changes.length > 0) next = record(next, actor, 'settings_updated', before.name, changes.join(' · '));
@@ -1653,28 +1754,4 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
 
 function percent(rate: number): string {
   return `${(rate * 100).toFixed((rate * 100) % 1 === 0 ? 0 : 1)}%`;
-}
-
-/** The demo kitchen is a demo affordance, not a product feature — hence here. */
-export async function setAutoKitchen(actor: StaffMember, on: boolean): Promise<boolean> {
-  authorize(actor, 'settings:view');
-  const store = readStore();
-  writeStore({ ...store, autoKitchen: on });
-  return on;
-}
-
-/** Puts the menu, tables and settings back to the seed data. Orders survive. */
-export async function restoreSeedMenu(actor: StaffMember): Promise<void> {
-  authorize(actor, 'settings:edit');
-  await latency();
-  const store = readStore();
-  writeStore(
-    record(
-      { ...store, menu: null, tables: null, restaurantPatch: null },
-      actor,
-      'settings_updated',
-      restaurantOf(store).name,
-      `Menu, tables and settings reset to the ${CATEGORIES.length}-category, ${DISHES.length}-dish original`,
-    ),
-  );
 }

@@ -6,8 +6,12 @@ export type OrderStatus =
   | 'ACCEPTED'
   | 'PREPARING'
   | 'READY'
+  | 'OUT_FOR_DELIVERY'
   | 'COMPLETED'
   | 'CANCELLED';
+
+/** Dine-in is table-scoped and QR-triggered; delivery has no table and is dispatched by staff. */
+export type OrderType = 'DINE_IN' | 'DELIVERY';
 
 /** An item's own progress through the kitchen — independent of its siblings. */
 export type ItemStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
@@ -28,6 +32,8 @@ export interface Restaurant {
   /** Restaurant-level fee configuration — never hardcoded in the UI. */
   serviceChargeRate: number;
   taxRate: number;
+  /** Flat, owner-configurable delivery fee in minor units. `null`/`0` = no fee. */
+  deliveryFeeAmount: number | null;
 }
 
 export interface DiningTable {
@@ -50,12 +56,25 @@ export interface DiningTable {
 export interface DiningSession {
   id: string;
   restaurantId: string;
-  tableId: string;
+  /** Null for a delivery session — there is no table. */
+  tableId: string | null;
   anonymousSessionToken: string;
   startedAt: string;
   expiresAt: string;
   /** Set once staff clears the table (or a payment settles it) — null while the visit is still open. */
   endedAt: string | null;
+  /** Set for a delivery session, upserted server-side by phone. */
+  customerId: string | null;
+}
+
+/** A lightweight, per-restaurant repeat-customer record, keyed by phone — delivery only. */
+export interface Customer {
+  id: string;
+  restaurantId: string;
+  phone: string;
+  name: string;
+  defaultAddress: string | null;
+  defaultNote: string | null;
 }
 
 export interface MenuCategory {
@@ -209,7 +228,8 @@ export interface Payment {
   id: string;
   restaurantId: string;
   sessionId: string;
-  tableId: string;
+  /** Null for a settled delivery order — nothing to batch by table. */
+  tableId: string | null;
   subtotal: Minor;
   serviceCharge: Minor;
   tax: Minor;
@@ -227,9 +247,15 @@ export interface Order {
   id: string;
   reference: string;
   restaurantId: string;
-  tableId: string;
-  tableName: string;
+  /** DINE_IN vs. DELIVERY — everything table/address-shaped branches on this. */
+  orderType: OrderType;
+  /** Null for a delivery order. */
+  tableId: string | null;
+  /** Null for a delivery order. */
+  tableName: string | null;
   sessionId: string;
+  /** Set for a delivery order — the repeat-customer record it was placed under, if any. */
+  customerId: string | null;
   /** Computed from `items` (plus `acceptedAt`/`cancelledAt`) — never assigned directly. See `domain/orderStatus.ts`. */
   status: OrderStatus;
   /** Set once, the one remaining whole-order transition. Items stay PENDING until each is started individually. */
@@ -240,6 +266,8 @@ export interface Order {
   subtotal: Minor;
   serviceCharge: Minor;
   tax: Minor;
+  /** Part of `total` — always 0 for a dine-in order. */
+  deliveryFee: Minor;
   discount: Minor;
   total: Minor;
   currency: string;
@@ -247,6 +275,11 @@ export interface Order {
   updatedAt: string;
   completedAt: string | null;
   reviewedDishIds: string[];
+  /** Snapshotted at order time — only meaningful for a delivery order. */
+  deliveryAddress: string | null;
+  deliveryPhone: string | null;
+  deliveryCustomerName: string | null;
+  deliveryNote: string | null;
 }
 
 export interface Menu {

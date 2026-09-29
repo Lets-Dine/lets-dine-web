@@ -11,7 +11,7 @@ import { Plus } from '../components/icons';
 import { useCart } from '../state/CartContext';
 import { usePageTitle } from '../state/usePageTitle';
 import { useToast } from '../state/ToastContext';
-import { useRestaurant } from './RestaurantLayout';
+import { useRestaurant, visitLabel } from './RestaurantLayout';
 import { EmptyState, TopBar } from './Shell';
 
 /** One column on phones; items beside a sticky bill once there is room. */
@@ -45,9 +45,11 @@ export function addOnLabels(addOnIds: string[], addOns: AddOn[]): string[] {
 }
 
 /** Client-side totals mirror the server formula, but the server's number wins. */
+/** `deliveryFee` is already 0 for a dine-in cart — callers only need to pass it for a delivery one. */
 export function useBill(
   lines: { dishId: string; quantity: number; variantId?: string | null; addOnIds?: string[] }[],
   dishes: Dish[],
+  deliveryFee = 0,
 ) {
   const { menu } = useRestaurant();
   const byId = new Map(dishes.map((d) => [d.id, d]));
@@ -58,7 +60,7 @@ export function useBill(
   }, 0);
   const serviceCharge = percentOf(subtotal, menu.restaurant.serviceChargeRate);
   const tax = percentOf(subtotal + serviceCharge, menu.restaurant.taxRate);
-  return { subtotal, serviceCharge, tax, total: subtotal + serviceCharge + tax };
+  return { subtotal, serviceCharge, tax, deliveryFee, total: subtotal + serviceCharge + tax + deliveryFee };
 }
 
 export function BillLines({
@@ -67,7 +69,7 @@ export function BillLines({
   serviceRate,
   taxRate,
 }: {
-  bill: { subtotal: number; serviceCharge: number; tax: number; total: number };
+  bill: { subtotal: number; serviceCharge: number; tax: number; deliveryFee?: number; total: number };
   currency: string;
   serviceRate: number;
   taxRate: number;
@@ -87,6 +89,12 @@ export function BillLines({
         <span>VAT · {Math.round(taxRate * 100)}%</span>
         <span className="tnum">{formatMoney(bill.tax, currency)}</span>
       </div>
+      {(bill.deliveryFee ?? 0) > 0 && (
+        <div className={row}>
+          <span>Delivery fee</span>
+          <span className="tnum">{formatMoney(bill.deliveryFee ?? 0, currency)}</span>
+        </div>
+      )}
       <hr className="my-1 border-hairline" />
       <div className="flex items-center justify-between text-[17px] font-bold tracking-tight text-ink">
         <span>Total</span>
@@ -112,13 +120,14 @@ export function Cart() {
   };
 
   const byId = new Map(menu.dishes.map((d) => [d.id, d]));
-  const bill = useBill(cart.lines, menu.dishes);
+  const deliveryFee = table ? 0 : (menu.restaurant.deliveryFeeAmount ?? 0);
+  const bill = useBill(cart.lines, menu.dishes, deliveryFee);
   const currency = menu.restaurant.currency;
 
   if (cart.lines.length === 0) {
     return (
       <main className={SHELL}>
-        <TopBar title="Your order" subtitle={table.name} fallbackTo={base} width={PAGE} />
+        <TopBar title="Your order" subtitle={visitLabel(table)} fallbackTo={base} width={PAGE} />
         <div className={cx(PAGE, 'pt-6 lg:max-w-2xl')}>
           <EmptyState
             emoji="🍽️"
@@ -147,7 +156,7 @@ export function Cart() {
     <main className={SHELL}>
       <TopBar
         title="Your order"
-        subtitle={`${table.name} · ${cart.count} ${cart.count === 1 ? 'item' : 'items'}`}
+        subtitle={`${visitLabel(table)} · ${cart.count} ${cart.count === 1 ? 'item' : 'items'}`}
         fallbackTo={base}
         width={PAGE}
       />

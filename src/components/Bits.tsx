@@ -9,6 +9,16 @@ export function Price({ value, currency, className }: { value: Minor; currency: 
   return <span className={cx('font-bold tracking-tight tnum', className)}>{formatMoney(value, currency)}</span>;
 }
 
+/** A varianted dish's price, lowest to highest (e.g. "Rs. 120–220") — one price if every variant happens to cost the same. */
+export function PriceRange({ min, max, currency, className }: { min: Minor; max: Minor; currency: string; className?: string }) {
+  if (min === max) return <Price value={min} currency={currency} className={className} />;
+  return (
+    <span className={cx('font-bold tracking-tight tnum', className)}>
+      {formatMoney(min, currency)}–{formatMoney(max, currency, { symbol: false })}
+    </span>
+  );
+}
+
 const BADGE_META: Record<BadgeKind, { label: string; cls: string; emoji: string }> = {
   popular: { label: 'Popular', cls: 'bg-flame-3/16 text-[#ff9270]', emoji: '🔥' },
   loved: { label: 'Most loved', cls: 'bg-flame-3/16 text-[#ff9270]', emoji: '❤️' },

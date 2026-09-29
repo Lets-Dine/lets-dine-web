@@ -112,6 +112,16 @@ export function Entry() {
               </div>
             )}
             <div className="flex flex-wrap items-center justify-center gap-1 lg:justify-start">
+              {entry && (
+                <>
+                  <Link to={`/r/${entry.slug}/delivery`} className={BTN_QUIET}>
+                    Order for delivery
+                  </Link>
+                  <span className="text-ink-4" aria-hidden>
+                    ·
+                  </span>
+                </>
+              )}
               <Link to="/admin" className={BTN_QUIET}>
                 Restaurant dashboard
               </Link>

@@ -11,7 +11,7 @@ import { clockTime, relativeTime } from '../components/time';
 import { useSessionOrders } from '../state/SessionOrdersContext';
 import { usePageTitle } from '../state/usePageTitle';
 import { PAGE } from './Cart';
-import { useRestaurant } from './RestaurantLayout';
+import { useRestaurant, visitLabel } from './RestaurantLayout';
 import { EmptyState, TopBar } from './Shell';
 
 /**
@@ -25,6 +25,7 @@ const STATUS_TONE: Record<OrderStatus, string> = {
   ACCEPTED: 'bg-flame-2/14 text-flame-1',
   PREPARING: 'bg-flame-2/14 text-flame-1',
   READY: 'bg-gold/16 text-gold',
+  OUT_FOR_DELIVERY: 'bg-gold/16 text-gold',
   COMPLETED: 'bg-mint/14 text-mint',
   CANCELLED: 'bg-berry/13 text-[#ff90a4]',
 };
@@ -43,7 +44,7 @@ export function OrderHistory() {
 
   return (
     <main className={SHELL}>
-      <TopBar title="Your orders" subtitle={`${table.name} · this visit`} fallbackTo={base} width={PAGE} />
+      <TopBar title="Your orders" subtitle={`${visitLabel(table)} · this visit`} fallbackTo={base} width={PAGE} />
 
       <div className={cx(PAGE, 'flex flex-col gap-3 pt-4')}>
         {payment && (

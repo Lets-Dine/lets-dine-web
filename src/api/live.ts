@@ -1,9 +1,10 @@
-import type { CreateOrderInput } from './client';
+import type { CreateOrderInput, DeliverySessionResult, StartDeliverySessionInput } from './client';
 import type { ReviewDraft } from './client';
-import type { AddOn, CartLine, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Menu, MenuCategory, Order, Payment, PaymentMethod, Restaurant, Review } from '../domain/types';
+import type { AddOn, CartLine, Customer, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Menu, MenuCategory, Order, Payment, PaymentMethod, Restaurant, Review } from '../domain/types';
 import { apiRequest } from './http';
 import type { Paginated } from './http';
 import { getSocket, joinRoom } from './socket';
+import { ApiError } from './store';
 
 /**
  * The diner-facing half of the real API (`/api/v1/public/*` plus `/orders`),
@@ -34,6 +35,7 @@ interface ApiRestaurant {
   timezone: string;
   serviceChargeRate: number;
   taxRate: number;
+  deliveryFeeAmount?: number | null;
   avgRating?: number | null;
   ratingCount?: number;
 }
@@ -53,19 +55,43 @@ interface ApiTable {
 interface ApiSession {
   id: string;
   restaurantId: string;
-  tableId: string;
+  tableId: string | null;
   anonymousSessionToken: string;
   startedAt: string;
   expiresAt: string;
   endedAt: string | null;
+  customerId?: string | null;
+}
+
+interface ApiCustomer {
+  id: string;
+  restaurantId: string;
+  phone: string;
+  name: string;
+  defaultAddress?: string | null;
+  defaultNote?: string | null;
+}
+
+function toCustomer(api: ApiCustomer): Customer {
+  return {
+    id: api.id,
+    restaurantId: api.restaurantId,
+    phone: api.phone,
+    name: api.name,
+    defaultAddress: api.defaultAddress ?? null,
+    defaultNote: api.defaultNote ?? null,
+  };
 }
 
 interface ApiResolvedSession {
   session: ApiSession;
-  table: ApiTable;
+  table: ApiTable | null;
+  customer?: ApiCustomer | null;
 }
 
+/** Only ever called for a dine-in resolution (`resolveQr`/`joinTableSession`) — `table` is never null there. */
 function toResolvedSession(api: ApiResolvedSession): ResolvedSession {
+  if (!api.table) throw new ApiError(500, 'This table could not be resolved.');
   return {
     table: toTable(api.table),
     session: toSession(api.session),
@@ -168,9 +194,11 @@ interface ApiOrder {
   id: string;
   reference: string;
   restaurantId: string;
-  tableId: string;
-  tableName: string;
+  orderType: Order['orderType'];
+  tableId: string | null;
+  tableName: string | null;
   sessionId: string;
+  customerId?: string | null;
   status: Order['status'];
   acceptedAt: string | null;
   cancelledAt: string | null;
@@ -178,6 +206,7 @@ interface ApiOrder {
   subtotal: number;
   serviceCharge: number;
   tax: number;
+  deliveryFee?: number | null;
   discount: number;
   total: number;
   currency: string;
@@ -185,6 +214,10 @@ interface ApiOrder {
   updatedAt: string;
   completedAt: string | null;
   reviewedDishIds: string[];
+  deliveryAddress?: string | null;
+  deliveryPhone?: string | null;
+  deliveryCustomerName?: string | null;
+  deliveryNote?: string | null;
 }
 
 /* ── Mappers ───────────────────────────────────────────────────── */
@@ -204,6 +237,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     ratingCount: api.ratingCount ?? 0,
     serviceChargeRate: api.serviceChargeRate,
     taxRate: api.taxRate,
+    deliveryFeeAmount: api.deliveryFeeAmount ?? null,
   };
 }
 
@@ -226,11 +260,12 @@ function toSession(api: ApiSession): DiningSession {
   return {
     id: api.id,
     restaurantId: api.restaurantId,
-    tableId: api.tableId,
+    tableId: api.tableId ?? null,
     anonymousSessionToken: api.anonymousSessionToken,
     startedAt: api.startedAt,
     expiresAt: api.expiresAt,
     endedAt: api.endedAt,
+    customerId: api.customerId ?? null,
   };
 }
 
@@ -316,9 +351,11 @@ function toOrder(api: ApiOrder): Order {
     id: api.id,
     reference: api.reference,
     restaurantId: api.restaurantId,
+    orderType: api.orderType,
     tableId: api.tableId,
     tableName: api.tableName,
     sessionId: api.sessionId,
+    customerId: api.customerId ?? null,
     status: api.status,
     acceptedAt: api.acceptedAt,
     cancelledAt: api.cancelledAt,
@@ -340,6 +377,7 @@ function toOrder(api: ApiOrder): Order {
     subtotal: api.subtotal,
     serviceCharge: api.serviceCharge,
     tax: api.tax,
+    deliveryFee: api.deliveryFee ?? 0,
     discount: api.discount,
     total: api.total,
     currency: api.currency,
@@ -347,6 +385,10 @@ function toOrder(api: ApiOrder): Order {
     updatedAt: api.updatedAt,
     completedAt: api.completedAt,
     reviewedDishIds: api.reviewedDishIds,
+    deliveryAddress: api.deliveryAddress ?? null,
+    deliveryPhone: api.deliveryPhone ?? null,
+    deliveryCustomerName: api.deliveryCustomerName ?? null,
+    deliveryNote: api.deliveryNote ?? null,
   };
 }
 
@@ -362,7 +404,7 @@ interface ApiPayment {
   id: string;
   restaurantId: string;
   sessionId: string;
-  tableId: string;
+  tableId: string | null;
   subtotal: number;
   serviceCharge: number;
   tax: number;
@@ -514,6 +556,67 @@ export async function joinTableSession(
   return toResolvedSession(joined);
 }
 
+/* ── Delivery session ──────────────────────────────────────────────
+   No table token in the URL, so the resume key is the slug alone —
+   one open delivery session per restaurant per browser at a time. */
+
+const deliverySessionKey = (slug: string) => `myfood.session.delivery.${slug}`;
+
+function readStoredDeliveryToken(slug: string): string | null {
+  try {
+    const raw = localStorage.getItem(deliverySessionKey(slug));
+    if (!raw) return null;
+    const stored = JSON.parse(raw) as StoredSession;
+    return new Date(stored.expiresAt).getTime() > Date.now() ? stored.token : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeDeliveryToken(slug: string, session: ApiSession): void {
+  try {
+    const stored: StoredSession = { token: session.anonymousSessionToken, expiresAt: session.expiresAt };
+    localStorage.setItem(deliverySessionKey(slug), JSON.stringify(stored));
+  } catch {
+    /* storage full or blocked — the session then lasts only this page load */
+  }
+}
+
+export async function startDeliverySession(input: StartDeliverySessionInput): Promise<DeliverySessionResult> {
+  const opened = await apiRequest<ApiResolvedSession>('/public/sessions/delivery', {
+    method: 'POST',
+    body: JSON.stringify({
+      restaurantSlug: input.restaurantSlug,
+      phone: input.phone,
+      name: input.name || undefined,
+      address: input.address || undefined,
+      note: input.note || undefined,
+    }),
+  });
+  storeDeliveryToken(input.restaurantSlug, opened.session);
+  if (!opened.customer) throw new ApiError(500, 'The restaurant did not return customer details.');
+  return { table: null, session: toSession(opened.session), customer: toCustomer(opened.customer) };
+}
+
+/**
+ * A page reload has no phone number to re-key on, only whatever token this
+ * browser already stored — resumes silently, or returns `null` so the
+ * landing screen falls back to asking for the phone number again.
+ */
+export async function resumeDeliverySession(restaurantSlug: string): Promise<DeliverySessionResult | null> {
+  const existing = readStoredDeliveryToken(restaurantSlug);
+  if (!existing) return null;
+  try {
+    const resumed = await apiRequest<ApiResolvedSession>('/public/sessions/current', {
+      headers: { [SESSION_TOKEN_HEADER]: existing },
+    });
+    if (!resumed.customer) return null;
+    return { table: null, session: toSession(resumed.session), customer: toCustomer(resumed.customer) };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The QR entry screen's target. There is deliberately no public endpoint that
  * hands out table tokens — the token is what makes a printed code a credential
@@ -584,7 +687,13 @@ export async function submitReviews(orderId: string, sessionToken: string, draft
 
 /* ── Orders ────────────────────────────────────────────────────── */
 
-export async function createOrder({ session, lines, idempotencyKey }: CreateOrderInput): Promise<Order> {
+export async function createOrder({
+  session,
+  lines,
+  idempotencyKey,
+  deliveryAddress,
+  deliveryNote,
+}: CreateOrderInput): Promise<Order> {
   const order = await apiRequest<ApiOrder>('/orders', {
     method: 'POST',
     headers: {
@@ -599,6 +708,8 @@ export async function createOrder({ session, lines, idempotencyKey }: CreateOrde
         variantId: line.variantId ?? undefined,
         addOnIds: line.addOnIds,
       })),
+      deliveryAddress: deliveryAddress || undefined,
+      deliveryNote: deliveryNote || undefined,
     }),
   });
   return toOrder(order);

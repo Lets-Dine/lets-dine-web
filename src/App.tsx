@@ -74,7 +74,7 @@ function Navigation() {
     }
     const main = document.querySelector('main');
     if (main) {
-      main.setAttribute('tabindex', '-1');
+      // main.setAttribute('tabindex', '-1');
       main.focus({ preventScroll: true });
     }
   }, [location.key, navigationType]);
@@ -93,6 +93,17 @@ export default function App() {
               <Route path="/" element={<Entry />} />
               {/* The QR encodes only the restaurant slug and an opaque table token. */}
               <Route path="/r/:slug/t/:token" element={<RestaurantLayout />}>
+                <Route index element={<Menu />} />
+                <Route path="d/:dishId" element={<DishDetail />} />
+                <Route path="cart" element={<Cart />} />
+                <Route path="checkout" element={<Checkout />} />
+                <Route path="orders" element={<OrderHistory />} />
+                <Route path="order/:orderId" element={<OrderStatus />} />
+                <Route path="order/:orderId/review" element={<ReviewFlow />} />
+              </Route>
+
+              {/* Delivery: no QR, no table — same layout, session starts from a phone number instead. */}
+              <Route path="/r/:slug/delivery" element={<RestaurantLayout />}>
                 <Route index element={<Menu />} />
                 <Route path="d/:dishId" element={<DishDetail />} />
                 <Route path="cart" element={<Cart />} />

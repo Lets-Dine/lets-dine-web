@@ -94,7 +94,7 @@ export function Tables() {
   const openByTable = useMemo(() => {
     const map = new Map<string, Order[]>();
     for (const order of orders) {
-      if (!isTableOpen(order.status)) continue;
+      if (!order.tableId || !isTableOpen(order.status)) continue;
       const list = map.get(order.tableId) ?? [];
       list.push(order);
       map.set(order.tableId, list);

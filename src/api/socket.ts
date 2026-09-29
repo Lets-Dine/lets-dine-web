@@ -27,31 +27,66 @@ export function getSocket(): Socket {
     // left manual so a server-side kick (e.g. revoking a session) sticks. That
     // is never what we want here, so force the reconnect ourselves.
     socket.on('disconnect', (reason) => {
+      console.log('socket disconnect', reason);
       if (reason === 'io server disconnect') socket?.connect();
     });
   }
   return socket;
 }
 
+/** How long to wait before retrying a subscribe the server rejected (a session mid-resolve, a DB hiccup right after a reconnect storm). */
+const SUBSCRIBE_RETRY_MS = 2000;
+
 /**
  * Joins a room and keeps rejoining it across reconnects (a dropped wifi
  * connection must not silently stop delivering order updates). `onResync`
  * fires after every successful (re)subscribe, including the first, so the
  * caller can refetch once via HTTP and catch anything missed while offline.
+ *
+ * `event` doubles as this room's scope (`subscribe:order` -> `order`, matching
+ * the `scope` every gateway ack carries) so this join's own ok/error is what
+ * drives it, not another room's ack landing on the same shared socket.
  */
 export function joinRoom(event: string, payload: unknown, onResync: () => void): () => void {
   const client = getSocket();
-  const join = () => client.emit(event, payload);
+  const scope = event.replace(/^subscribe:/, '');
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearRetry = () => {
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  };
+
+  const join = () => {
+    clearRetry();
+    client.emit(event, payload);
+  };
 
   client.on('connect', join);
   if (client.connected) join();
 
-  const handleOk = () => onResync();
-  const handleError = (error: unknown) => console.warn(`[socket] ${event} failed`, error);
+  // ponytail: matched by scope only, not a per-instance id — two simultaneous
+  // rooms of the same scope (e.g. two open orders) can redundantly resync
+  // each other. Harmless (onResync is just an idempotent HTTP refetch); add
+  // an id round-trip through the gateway acks if that starts to matter.
+  const handleOk = (ack: { scope?: string }) => {
+    if (ack?.scope !== scope) return;
+    clearRetry();
+    onResync();
+  };
+  const handleError = (error: { scope?: string; message?: string }) => {
+    if (error?.scope !== scope) return;
+    console.warn(`[socket] ${event} failed`, error);
+    clearRetry();
+    retryTimer = setTimeout(join, SUBSCRIBE_RETRY_MS);
+  };
   client.on('subscribe:ok', handleOk);
   client.on('subscribe:error', handleError);
 
   return () => {
+    clearRetry();
     client.off('connect', join);
     client.off('subscribe:ok', handleOk);
     client.off('subscribe:error', handleError);

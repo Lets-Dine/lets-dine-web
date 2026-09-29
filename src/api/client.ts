@@ -2,9 +2,10 @@ import { TABLE } from '../data/menu';
 import { SEED_REVIEWS } from '../data/reviews';
 import { ACCEPT_DELAY_SECONDS, ITEM_TIMELINE_SECONDS } from '../domain/config';
 import { percentOf, recomputeTotals, sumLines } from '../domain/money';
-import { canCancelItem, deriveOrderStatus, reviewEligibility, statusIndex } from '../domain/orderStatus';
+import { canCancelItem, deriveOrderStatusForType, reviewEligibility, statusIndex } from '../domain/orderStatus';
 import type {
   CartLine,
+  Customer,
   DiningSession,
   DiningTable,
   Dish,
@@ -132,7 +133,7 @@ function projectItemStatuses(order: Order): Order {
   });
 
   if (!changed) return order;
-  const status = deriveOrderStatus({ acceptedAt, cancelledAt: order.cancelledAt, items });
+  const status = deriveOrderStatusForType({ acceptedAt, cancelledAt: order.cancelledAt, items }, order.orderType);
   return {
     ...order,
     acceptedAt,
@@ -207,6 +208,7 @@ export async function resolveQr(
     id: uid('ses'),
     restaurantId: restaurant.id,
     tableId: table.id,
+    customerId: null,
     anonymousSessionToken: newSessionToken(),
     startedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
@@ -216,6 +218,98 @@ export async function resolveQr(
   writeStore({ ...store, sessions: { ...store.sessions, [key]: session } });
   localStorage.setItem(localKey, session.anonymousSessionToken);
   return { restaurant, table, session };
+}
+
+export interface StartDeliverySessionInput {
+  restaurantSlug: string;
+  phone: string;
+  name?: string;
+  address?: string;
+  note?: string;
+}
+
+export interface DeliverySessionResult {
+  table: null;
+  session: DiningSession;
+  customer: Customer;
+}
+
+/**
+ * The delivery equivalent of `resolveQr` — no table, no QR, just a phone
+ * number. `Customer` is upserted by `(restaurantId, phone)` exactly like the
+ * real backend, so a repeat number comes back with its saved name/address.
+ */
+export async function startDeliverySession({
+  restaurantSlug,
+  phone,
+  name,
+  address,
+  note,
+}: StartDeliverySessionInput): Promise<DeliverySessionResult> {
+  await latency();
+  const store = readStore();
+  const restaurant = restaurantOf(store);
+  if (restaurantSlug !== restaurant.slug) throw new ApiError(404, 'That restaurant does not exist.');
+
+  const cleanPhone = phone.trim();
+  if (!cleanPhone) throw new ApiError(400, 'Enter a phone number.');
+
+  const existing = store.customers.find((c) => c.restaurantId === restaurant.id && c.phone === cleanPhone);
+  const customer: Customer = existing
+    ? {
+        ...existing,
+        name: name?.trim() || existing.name,
+        defaultAddress: address?.trim() || existing.defaultAddress,
+        defaultNote: note?.trim() || existing.defaultNote,
+      }
+    : {
+        id: uid('cus'),
+        restaurantId: restaurant.id,
+        phone: cleanPhone,
+        name: name?.trim() || 'Guest',
+        defaultAddress: address?.trim() || null,
+        defaultNote: note?.trim() || null,
+      };
+  const customers = existing ? store.customers.map((c) => (c === existing ? customer : c)) : [...store.customers, customer];
+
+  const session: DiningSession = {
+    id: uid('ses'),
+    restaurantId: restaurant.id,
+    tableId: null,
+    customerId: customer.id,
+    anonymousSessionToken: newSessionToken(),
+    startedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
+    endedAt: null,
+  };
+
+  writeStore({
+    ...store,
+    customers,
+    sessions: { ...store.sessions, [`${restaurant.id}:delivery:${cleanPhone}`]: session },
+  });
+  localStorage.setItem(deliverySessionLocalKey(restaurantSlug), session.id);
+  return { table: null, session, customer };
+}
+
+const deliverySessionLocalKey = (slug: string) => `myfood.mock-session.delivery.${slug}`;
+
+/**
+ * A page reload has no phone number to re-key on, only whatever session id
+ * this browser already stored — mirrors `live.resumeDeliverySession`'s
+ * localStorage-token resume, so the two transports behave the same way.
+ */
+export async function resumeDeliverySession(restaurantSlug: string): Promise<DeliverySessionResult | null> {
+  const store = readStore();
+  const restaurant = restaurantOf(store);
+  if (restaurantSlug !== restaurant.slug) return null;
+  const sessionId = localStorage.getItem(deliverySessionLocalKey(restaurantSlug));
+  if (!sessionId) return null;
+  const session = Object.values(store.sessions).find((s) => s.id === sessionId);
+  if (!session || Date.parse(session.expiresAt) <= Date.now()) return null;
+  const customer = store.customers.find((c) => c.id === session.customerId);
+  if (!customer) return null;
+  return { table: null, session, customer };
 }
 
 /** No latency() here: the entry screen reads this before it can show anything. */
@@ -267,17 +361,22 @@ export async function getDishReviews(dishId: string): Promise<Review[]> {
  */
 export async function isSessionOpen(session: DiningSession): Promise<boolean> {
   const store = readStore();
-  const current = store.sessions[`${session.restaurantId}:${session.tableId}`];
-  return Boolean(current && current.id === session.id && Date.parse(current.expiresAt) > Date.now());
+  // Looked up by id rather than a reconstructed key: a dine-in session lives under
+  // `${restaurantId}:${tableId}`, a delivery one under `${restaurantId}:delivery:${phone}`.
+  const current = Object.values(store.sessions).find((s) => s.id === session.id);
+  return Boolean(current && Date.parse(current.expiresAt) > Date.now());
 }
 
 export interface CreateOrderInput {
   session: DiningSession;
   lines: CartLine[];
   idempotencyKey: string;
+  /** Delivery only — editable per order, prefilled from the customer's saved defaults. */
+  deliveryAddress?: string;
+  deliveryNote?: string;
 }
 
-export async function createOrder({ session, lines, idempotencyKey }: CreateOrderInput): Promise<Order> {
+export async function createOrder({ session, lines, idempotencyKey, deliveryAddress, deliveryNote }: CreateOrderInput): Promise<Order> {
   await latency();
   const store = readStore();
 
@@ -298,7 +397,9 @@ export async function createOrder({ session, lines, idempotencyKey }: CreateOrde
 
   // Prices and availability are read from the server's own menu, never the client's.
   const restaurant = restaurantOf(store);
-  const table = tablesOf(store).find((t) => t.id === session.tableId);
+  const isDelivery = session.tableId === null;
+  const table = session.tableId ? tablesOf(store).find((t) => t.id === session.tableId) : null;
+  const customer = isDelivery ? store.customers.find((c) => c.id === session.customerId) : undefined;
   const menu = menuOf(store);
 
   const addOnById = new Map(menu.addOns.map((a) => [a.id, a]));
@@ -351,15 +452,18 @@ export async function createOrder({ session, lines, idempotencyKey }: CreateOrde
   const subtotal = sumLines(items);
   const serviceCharge = percentOf(subtotal, restaurant.serviceChargeRate);
   const tax = percentOf(subtotal + serviceCharge, restaurant.taxRate);
+  const deliveryFee = isDelivery ? (restaurant.deliveryFeeAmount ?? 0) : 0;
   const { store: numbered, reference } = takeReference(store);
 
   const order: Order = {
     id: uid('ord'),
     reference,
     restaurantId: session.restaurantId,
+    orderType: isDelivery ? 'DELIVERY' : 'DINE_IN',
     tableId: session.tableId,
-    tableName: table?.name ?? 'Table',
+    tableName: table?.name ?? null,
     sessionId: session.id,
+    customerId: isDelivery ? session.customerId : null,
     status: 'PENDING',
     acceptedAt: null,
     cancelledAt: null,
@@ -367,13 +471,18 @@ export async function createOrder({ session, lines, idempotencyKey }: CreateOrde
     subtotal,
     serviceCharge,
     tax,
+    deliveryFee,
     discount: 0,
-    total: subtotal + serviceCharge + tax,
+    total: subtotal + serviceCharge + tax + deliveryFee,
     currency: restaurant.currency,
     createdAt: now,
     updatedAt: now,
     completedAt: null,
     reviewedDishIds: [],
+    deliveryAddress: isDelivery ? deliveryAddress?.trim() || customer?.defaultAddress || null : null,
+    deliveryPhone: isDelivery ? (customer?.phone ?? null) : null,
+    deliveryCustomerName: isDelivery ? (customer?.name ?? null) : null,
+    deliveryNote: isDelivery ? deliveryNote?.trim() || null : null,
   };
 
   writeStore({
@@ -435,7 +544,7 @@ export async function cancelOrderItem(orderId: string, itemId: string): Promise<
   const now = new Date().toISOString();
   const items = order.items.map((i) => (i.id === itemId ? { ...i, status: 'CANCELLED' as const, statusUpdatedAt: now } : i));
   const next = { ...order, items, updatedAt: now };
-  next.status = deriveOrderStatus(next);
+  next.status = deriveOrderStatusForType(next, order.orderType);
   const cancelled = recomputeTotals(next, restaurantOf(store));
   writeStore({ ...store, orders: store.orders.map((o) => (o.id === orderId ? cancelled : o)) });
   return cancelled;

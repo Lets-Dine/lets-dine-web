@@ -16,6 +16,7 @@ export const RESTAURANT: Restaurant = {
   ratingCount: 1248,
   serviceChargeRate: 0.1,
   taxRate: 0.13,
+  deliveryFeeAmount: rs(50),
 };
 
 /** The floor plan. Tokens are opaque and stable — they get printed on tables. */

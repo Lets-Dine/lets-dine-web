@@ -280,6 +280,7 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
   ACCEPTED: 'bg-gold/15 text-gold-ink',
   PREPARING: 'bg-pass/16 text-pass',
   READY: 'bg-mint/16 text-mint-ink',
+  OUT_FOR_DELIVERY: 'bg-mint/16 text-mint-ink',
   COMPLETED: 'bg-ink/8 text-ink-3',
   CANCELLED: 'bg-berry/14 text-berry-ink',
 };

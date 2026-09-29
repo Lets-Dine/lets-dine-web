@@ -1,7 +1,7 @@
 import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
-import type { AuditEntry, DiningTable, ItemStatus, Menu, MenuCategory, Order, Payment, PaymentMethod, StaffMember } from '../domain/types';
+import type { AuditEntry, DiningTable, ItemStatus, Menu, MenuCategory, Order, Payment, PaymentMethod, Restaurant, StaffMember } from '../domain/types';
 import * as mock from './admin';
-import type { AddOnDraft, DishDraft, DishVariantDraft, StaffDraft } from './admin';
+import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft } from './admin';
 import { IS_LIVE_API } from './http';
 import * as live from './live-admin';
 
@@ -30,6 +30,11 @@ export function signOut(): void {
 
 export function adminMenu(actor: StaffMember): Promise<Menu> {
   return IS_LIVE_API ? live.adminMenu() : mock.adminMenu(actor);
+}
+
+/** §41 — the restaurant's own fee configuration and profile copy, never hardcoded in the app. */
+export function updateSettings(actor: StaffMember, patch: SettingsPatch): Promise<Restaurant> {
+  return IS_LIVE_API ? live.updateSettings(patch) : mock.updateSettings(actor, patch);
 }
 
 export function createCategory(actor: StaffMember, name: string, emoji: string): Promise<MenuCategory> {
@@ -183,6 +188,16 @@ export function advanceOrderItem(actor: StaffMember, orderId: string, itemId: st
 
 export function rejectOrder(actor: StaffMember, orderId: string, reason: string): Promise<Order> {
   return IS_LIVE_API ? live.rejectOrder(orderId, reason) : mock.rejectOrder(actor, orderId, reason);
+}
+
+/** Delivery-only: `READY -> OUT_FOR_DELIVERY`, the one manual hand-off between the kitchen and the door. */
+export function advanceDeliveryOrder(actor: StaffMember, orderId: string, expected: 'READY'): Promise<Order> {
+  return IS_LIVE_API ? live.advanceDeliveryOrder(orderId, expected) : mock.advanceDeliveryOrder(actor, orderId, expected);
+}
+
+/** Delivery's equivalent of settling a table — charges and completes this one order. */
+export function settleDeliveryOrder(actor: StaffMember, orderId: string): Promise<Order> {
+  return IS_LIVE_API ? live.settleDeliveryOrder(orderId) : mock.settleDeliveryOrder(actor, orderId);
 }
 
 /** No-op in mock mode — `AdminLayout.tsx` falls back to its own polling interval when this does nothing. */

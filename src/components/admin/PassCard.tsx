@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { acceptOrder, advanceOrderItem, rejectOrder } from '../../api/staff';
+import { acceptOrder, advanceDeliveryOrder, advanceOrderItem, rejectOrder, settleDeliveryOrder } from '../../api/staff';
 import {
   ADVANCE_LABEL,
+  DELIVERY_ADVANCE_LABEL,
   ITEM_ADVANCE_LABEL,
   STATUS_LABEL,
   billableItems,
@@ -27,6 +28,7 @@ const ACCENT_BORDER: Record<OrderStatus, string> = {
   ACCEPTED: 'border-gold',
   PREPARING: 'border-pass',
   READY: 'border-mint',
+  OUT_FOR_DELIVERY: 'border-mint',
   COMPLETED: 'border-ink-4',
   CANCELLED: 'border-berry',
 };
@@ -36,6 +38,7 @@ const ACCENT_BUTTON: Record<OrderStatus, string> = {
   ACCEPTED: 'bg-gold',
   PREPARING: 'bg-pass',
   READY: 'bg-mint',
+  OUT_FOR_DELIVERY: 'bg-mint',
   COMPLETED: 'bg-ink-4',
   CANCELLED: 'bg-berry',
 };
@@ -82,6 +85,11 @@ export function PassCard({
   const canCancelHere = canCancelOrder(order) && allows('orders:cancel');
   const progress = itemStatusSummary(order);
   const bulk = nextBulkStage(order);
+  const isDelivery = order.orderType === 'DELIVERY';
+  // The two manual delivery steps only ever apply once the kitchen side is done — a delivery
+  // ticket with items still cooking uses the same accept/advance-item controls as dine-in.
+  const canDispatch = isDelivery && order.status === 'READY' && allows('orders:advance');
+  const canSettleDelivery = isDelivery && order.status === 'OUT_FOR_DELIVERY' && allows('orders:advance');
 
   const apply = (key: string, action: () => Promise<Order>, success?: string) =>
     void run(key, async () => onApply(await action()), success).then((ok) => {
@@ -117,8 +125,20 @@ export function PassCard({
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
               <span className="text-[14px] font-bold tnum">{order.reference}</span>
-              <span className="truncate text-[13px] font-semibold text-ink-2">{order.tableName}</span>
+              {isDelivery && (
+                <span className="shrink-0 rounded-full bg-mint/14 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-mint-ink">
+                  Delivery
+                </span>
+              )}
+              <span className="truncate text-[13px] font-semibold text-ink-2">
+                {isDelivery ? order.deliveryCustomerName || 'Guest' : order.tableName}
+              </span>
             </div>
+            {isDelivery ? (
+              <div className="mt-0.5 truncate text-[11.5px] text-ink-3">
+                {[order.deliveryPhone, order.deliveryAddress].filter(Boolean).join(' · ') || 'No address on file'}
+              </div>
+            ) : null}
             <div className={cx('mt-0.5 text-[11.5px] tnum', focus ? 'font-semibold text-berry-ink' : 'text-ink-4')}>
               {relativeTime(order.createdAt)}
             </div>
@@ -189,6 +209,24 @@ export function PassCard({
             onClick={() => advanceAll(bulk.stage, bulk.items)}
           >
             {pending === `bulk:${order.id}` ? 'Working…' : `${ITEM_ADVANCE_LABEL[bulk.stage]} all ${bulk.items.length}`}
+          </button>
+        ) : canDispatch ? (
+          <button
+            type="button"
+            disabled={pending !== null}
+            className={cx(ADMIN_TINY, 'flex-1 justify-center text-white', ACCENT_BUTTON[order.status])}
+            onClick={() => apply(order.id, () => advanceDeliveryOrder(staff, order.id, 'READY'), `${order.reference} out for delivery`)}
+          >
+            {pending === order.id ? 'Working…' : DELIVERY_ADVANCE_LABEL.READY}
+          </button>
+        ) : canSettleDelivery ? (
+          <button
+            type="button"
+            disabled={pending !== null}
+            className={cx(ADMIN_TINY, 'flex-1 justify-center text-white', ACCENT_BUTTON[order.status])}
+            onClick={() => apply(order.id, () => settleDeliveryOrder(staff, order.id), `${order.reference} delivered`)}
+          >
+            {pending === order.id ? 'Working…' : DELIVERY_ADVANCE_LABEL.OUT_FOR_DELIVERY}
           </button>
         ) : (
           <span className="flex-1 text-[12px] text-ink-4">{open ? 'Move each dish above' : 'Nothing to press'}</span>

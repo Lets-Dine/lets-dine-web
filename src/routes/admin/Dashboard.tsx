@@ -34,7 +34,8 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
   { value: 'focus', label: 'Needs you', statuses: null },
   { value: 'new', label: 'New', statuses: ['PENDING'] },
   { value: 'kitchen', label: 'In the kitchen', statuses: ['ACCEPTED', 'PREPARING'] },
-  { value: 'ready', label: 'Ready', statuses: ['READY'] },
+  // Covers a delivery ticket already dispatched too, or it would fall out of every lane once it leaves READY.
+  { value: 'ready', label: 'Ready', statuses: ['READY', 'OUT_FOR_DELIVERY'] },
 ];
 
 /**
@@ -195,7 +196,7 @@ export function Dashboard() {
                   index={i}
                   focus={flags.get(order.id) ?? null}
                   menu={menu}
-                  canAdd={newestPerTable.get(order.tableId) === order.id}
+                  canAdd={order.tableId !== null && newestPerTable.get(order.tableId) === order.id}
                   now={now}
                   onApply={applyOrder}
                   onResync={reloadOrders}

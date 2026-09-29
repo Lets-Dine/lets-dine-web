@@ -13,7 +13,7 @@ import { SessionCode } from '../components/Bits';
 import { RatingPill } from '../components/Rating';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, EYEBROW, GLASS, ICON_BTN, RAIL, SHELL, WIDE, cx } from '../components/ui';
 import { Clock, Plate, Plus, Receipt, Search, X } from '../components/icons';
-import { useRestaurant } from './RestaurantLayout';
+import { useRestaurant, visitLabel } from './RestaurantLayout';
 import { EmptyState } from './Shell';
 
 /** Diner never sees this twice — dismissing it (or adding a first dish) retires it for good. */
@@ -168,7 +168,7 @@ export function Menu() {
           <div className="flex flex-col gap-2.5 lg:max-w-3xl">
             <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-bg/60 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.09em] text-ink-2 ring-1 ring-hairline-strong ring-inset backdrop-blur-md">
               <span className="size-1.5 rounded-full bg-mint shadow-[0_0_0_3px_rgb(78_203_143/0.2)]" aria-hidden />
-              {table.name}
+              {visitLabel(table)}
             </span>
             <h1 className={cx(DISPLAY, 'text-[clamp(30px,9vw,38px)] lg:text-5xl')}>{menu.restaurant.name}</h1>
             <div className="flex flex-wrap items-center gap-2">
@@ -181,7 +181,8 @@ export function Menu() {
             <p className="max-w-[46ch] text-[13.5px] leading-relaxed text-ink-3 lg:text-[15px]">
               {menu.restaurant.description}
             </p>
-            <SessionCode label="Group session" token={session.anonymousSessionToken} />
+            {/* Joining by code only makes sense at a shared table — nobody joins a delivery order. */}
+            {table && <SessionCode label="Group session" token={session.anonymousSessionToken} />}
           </div>
         </div>
       </header>

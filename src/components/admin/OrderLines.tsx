@@ -65,11 +65,10 @@ export const BULK_DONE: Partial<Record<ItemStatus, string>> = {
  */
 export function nextBulkStage(order: Order): { stage: ItemStatus; items: OrderItem[] } | null {
   const live = billableItems(order.items);
-  return (
-    (['PENDING', 'PREPARING', 'READY'] as ItemStatus[])
-      .map((stage) => ({ stage, items: live.filter((i) => i.status === stage) }))
-      .find((group) => group.items.length > 1) ?? null
-  );
+  // Delivery has no READY → SERVED move to bulk — the driver takes every plated
+  // line at once when the order itself is marked delivered (see `nextItemStatus`).
+  const stages: ItemStatus[] = order.orderType === 'DELIVERY' ? ['PENDING', 'PREPARING'] : ['PENDING', 'PREPARING', 'READY'];
+  return stages.map((stage) => ({ stage, items: live.filter((i) => i.status === stage) })).find((group) => group.items.length > 1) ?? null;
 }
 
 /** Why this ticket is lit, in the ticket's own words. */
@@ -140,7 +139,7 @@ export function ItemRow({
   const staff = useStaff();
   const { allows } = useAuth();
   const { pending, run } = useCommand();
-  const next = nextItemStatus(item.status);
+  const next = nextItemStatus(item.status, order.orderType);
   const started = Boolean(order.acceptedAt);
   const flag = itemFocus(item, order, now);
   const cancelled = item.status === 'CANCELLED';

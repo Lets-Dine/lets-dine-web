@@ -1,4 +1,4 @@
-import type { ItemStatus, Order, OrderItem, OrderStatus } from './types';
+import type { ItemStatus, Order, OrderItem, OrderStatus, OrderType } from './types';
 
 /**
  * The single home for order/item status logic — lookup tables, transition
@@ -15,8 +15,17 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   ACCEPTED: 'Accepted',
   PREPARING: 'Preparing',
   READY: 'Ready',
+  OUT_FOR_DELIVERY: 'Out for delivery',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
+};
+
+/** Delivery-only manual transitions — `READY → OUT_FOR_DELIVERY → COMPLETED` — kept separate from
+ *  `NEXT_STATUS`/`ADVANCE_LABEL` below (dine-in's one remaining manual step) so neither order type's
+ *  buttons can leak onto the other's ticket. */
+export const DELIVERY_ADVANCE_LABEL: Record<'READY' | 'OUT_FOR_DELIVERY', string> = {
+  READY: 'Out for delivery',
+  OUT_FOR_DELIVERY: 'Mark delivered',
 };
 
 /** The one remaining manual order-level transition — everything else now follows the items. */
@@ -43,7 +52,7 @@ export function canCancelOrder(order: Pick<Order, 'status' | 'items'>): boolean 
   return order.items.every((i) => i.status === 'PENDING' || i.status === 'CANCELLED');
 }
 
-export const STATUS_ORDER: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'COMPLETED'];
+export const STATUS_ORDER: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'COMPLETED'];
 
 export function statusIndex(status: OrderStatus): number {
   return STATUS_ORDER.indexOf(status);
@@ -71,7 +80,14 @@ export const ITEM_ADVANCE_LABEL: Partial<Record<ItemStatus, string>> = {
   READY: 'Mark Served',
 };
 
-export function nextItemStatus(status: ItemStatus): ItemStatus | null {
+/**
+ * A delivery order has no server to hand a plated dish to — the driver takes
+ * every line at once, so no single item goes SERVED on its own (mirrors the
+ * backend's `OrderItemEntity`). `settleDeliveryOrder` moves every READY item
+ * to SERVED together once the order itself is marked delivered.
+ */
+export function nextItemStatus(status: ItemStatus, orderType: OrderType = 'DINE_IN'): ItemStatus | null {
+  if (orderType === 'DELIVERY' && status === 'READY') return null;
   return ITEM_NEXT_STATUS[status] ?? null;
 }
 
@@ -104,6 +120,20 @@ export function deriveOrderStatus(order: Pick<Order, 'acceptedAt' | 'cancelledAt
   return 'ACCEPTED';
 }
 
+/**
+ * Same derivation, capped at `READY` for a delivery order — `OUT_FOR_DELIVERY`
+ * and `COMPLETED` only ever advance manually (mirrors the server's
+ * `deriveOrderStatus` cap in `order-status.util.ts`, so the mock kitchen never
+ * auto-completes a delivery ticket just because every dish got plated).
+ */
+export function deriveOrderStatusForType(
+  order: Pick<Order, 'acceptedAt' | 'cancelledAt' | 'items'>,
+  orderType: OrderType,
+): OrderStatus {
+  const derived = deriveOrderStatus(order);
+  return orderType === 'DELIVERY' && derived === 'COMPLETED' ? 'READY' : derived;
+}
+
 /** How many of an order's live items have reached each side of "ready", for a one-line summary. */
 export function itemStatusSummary(order: Order): { total: number; ready: number } {
   const live = billableItems(order.items);
@@ -114,7 +144,7 @@ export function itemStatusSummary(order: Order): { total: number; ready: number 
 /* ── Diner-facing copy ──────────────────────────────────────────────── */
 
 /** Still moving through the kitchen — the diner should be able to find these. */
-export const OPEN_STATUSES: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'];
+export const OPEN_STATUSES: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'];
 
 export function isOpenOrder(status: OrderStatus): boolean {
   return OPEN_STATUSES.includes(status);
@@ -125,6 +155,7 @@ export const DINER_STATUS_LABEL: Record<OrderStatus, string> = {
   ACCEPTED: 'Accepted',
   PREPARING: 'Preparing',
   READY: 'Ready',
+  OUT_FOR_DELIVERY: 'Out for delivery',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
 };
@@ -134,6 +165,7 @@ export const DINER_STATUS_HINT: Record<OrderStatus, string> = {
   ACCEPTED: 'They have your order',
   PREPARING: 'On the grill',
   READY: 'Coming to your table',
+  OUT_FOR_DELIVERY: 'On its way to you',
   COMPLETED: 'Enjoy your meal',
   CANCELLED: 'Nothing was sent to the kitchen',
 };
@@ -146,6 +178,8 @@ export function dinerStatusToast(status: OrderStatus): { message: string; icon: 
       return { message: 'Kitchen is preparing your order', icon: '🔥' };
     case 'READY':
       return { message: 'Your order is ready', icon: '🔔' };
+    case 'OUT_FOR_DELIVERY':
+      return { message: 'Your order is on its way', icon: '🛵' };
     case 'COMPLETED':
       return { message: 'Enjoy your meal', icon: '✓' };
     case 'CANCELLED':
@@ -328,6 +362,7 @@ export function itemTally(order: Order): Record<ItemStatus, number> {
 export function newestOrderPerTable(orders: Order[]): Map<string, string> {
   const newest = new Map<string, Order>();
   for (const order of orders) {
+    if (!order.tableId) continue; // delivery orders have no table to group by
     const held = newest.get(order.tableId);
     if (!held || Date.parse(order.createdAt) > Date.parse(held.createdAt)) newest.set(order.tableId, order);
   }

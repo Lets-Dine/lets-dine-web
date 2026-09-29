@@ -162,9 +162,12 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       id: `ord_h${dayIndex}_${i}`,
       reference: '',
       restaurantId: RESTAURANT.id,
+      // History is seeded dine-in only — a real restaurant's 90-day reporting slice has no delivery yet.
+      orderType: 'DINE_IN',
       tableId: table.id,
       tableName: table.name,
       sessionId: `ses_h${dayIndex}_${i}`,
+      customerId: null,
       status: cancelled ? 'CANCELLED' : 'COMPLETED',
       acceptedAt: cancelled ? null : placed.toISOString(),
       cancelledAt: cancelled ? placed.toISOString() : null,
@@ -172,6 +175,7 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       subtotal,
       serviceCharge,
       tax,
+      deliveryFee: 0,
       discount: 0,
       total: subtotal + serviceCharge + tax,
       currency: RESTAURANT.currency,
@@ -179,6 +183,10 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       updatedAt: completedAt.toISOString(),
       completedAt: cancelled ? null : completedAt.toISOString(),
       reviewedDishIds: [],
+      deliveryAddress: null,
+      deliveryPhone: null,
+      deliveryCustomerName: null,
+      deliveryNote: null,
     });
   }
   return orders;

@@ -3,6 +3,7 @@ import { STAFF } from '../data/staff';
 import type {
   AddOn,
   AuditEntry,
+  Customer,
   DiningSession,
   DiningTable,
   Dish,
@@ -49,7 +50,10 @@ export interface Store {
   orders: Order[];
   reviews: Review[];
   idempotency: Record<string, string>;
+  /** Keyed `${restaurantId}:${tableId}` for a dine-in session, `${restaurantId}:delivery:${phone}` for a delivery one. */
   sessions: Record<string, DiningSession>;
+  /** Delivery repeat-customer records, keyed by `(restaurantId, phone)` — mirrors the backend's `Customer` model. */
+  customers: Customer[];
   /** Null until someone edits: the seed menu materialises into the store then. */
   menu: MenuState | null;
   tables: DiningTable[] | null;
@@ -76,6 +80,7 @@ export function emptyStore(): Store {
     reviews: [],
     idempotency: {},
     sessions: {},
+    customers: [],
     menu: null,
     tables: null,
     staff: null,

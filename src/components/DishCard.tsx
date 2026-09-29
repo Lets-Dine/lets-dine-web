@@ -2,9 +2,10 @@ import { Link } from 'react-router-dom';
 import { useCart } from '../state/CartContext';
 import { badgesFor } from '../domain/metrics';
 import type { RankContext } from '../domain/metrics';
+import { dishPriceRange } from '../domain/money';
 import type { Dish } from '../domain/types';
 import { haptic } from '../platform/haptics';
-import { Badges, DietMarks, DishImage, Price, QuantityStepper } from './Bits';
+import { Badges, DietMarks, DishImage, Price, PriceRange, QuantityStepper } from './Bits';
 import { RatingPill } from './Rating';
 import { cx } from './ui';
 import { Plus } from './icons';
@@ -143,7 +144,11 @@ export function DishRow({ dish, href, ctx, onQuickAdd }: Props) {
           )}
         </div>
         <p className="text-[13px] leading-relaxed text-ink-3 line-clamp-2-safe">{dish.description}</p>
-        {!varianted && <Price value={dish.price} currency={dish.currency} className="mt-0.5 text-[15px]" />}
+        {varianted ? (
+          <PriceRange {...dishPriceRange(dish)} currency={dish.currency} className="mt-0.5 text-[15px]" />
+        ) : (
+          <Price value={dish.price} currency={dish.currency} className="mt-0.5 text-[15px]" />
+        )}
       </Link>
 
       <div className="relative w-27 shrink-0">
@@ -196,7 +201,11 @@ export function DishTile({ dish, href, ctx, onQuickAdd, rank }: Props & { rank?:
       <div className="flex items-center gap-2">
         <Link to={href} className="min-w-0 flex-1">
           <h3 className="truncate text-[14.5px] font-semibold tracking-tight">{dish.name}</h3>
-          {!varianted && <Price value={dish.price} currency={dish.currency} className="text-[13.5px] text-ink-2" />}
+          {varianted ? (
+            <PriceRange {...dishPriceRange(dish)} currency={dish.currency} className="text-[13.5px] text-ink-2" />
+          ) : (
+            <Price value={dish.price} currency={dish.currency} className="text-[13.5px] text-ink-2" />
+          )}
         </Link>
         <AddControl dish={dish} onQuickAdd={onQuickAdd} tone="inset" />
       </div>

@@ -1,4 +1,4 @@
-import type { AddOnDraft, DishDraft, DishVariantDraft, StaffDraft } from './admin';
+import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft } from './admin';
 import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
 import type {
@@ -29,10 +29,10 @@ import { getSocket, joinRoom } from './socket';
 /**
  * The manager-facing half of the real API, wired up so far: signing in, and
  * running the category list, the menu board, the order pass, the table
- * roster and billing (`/auth/staff/*`, `/restaurant/categories`,
+ * roster, billing and settings (`/auth/staff/*`, `/restaurant/categories`,
  * `/restaurant/dishes`, `/restaurant/orders`, `/restaurant/profile`,
  * `/restaurant/tables`, `/restaurant/payments`).
- * Reviews, settings and the analytics history (`allOrders`) still come from
+ * Reviews and the analytics history (`allOrders`) still come from
  * `admin.ts` — they have not been moved across yet.
  *
  * The mutation endpoints (create/update/archive/restore/reorder) return the
@@ -102,6 +102,7 @@ interface ApiRestaurant {
   timezone: string;
   serviceChargeRate: number;
   taxRate: number;
+  deliveryFeeAmount?: number | null;
 }
 
 interface ApiCategory {
@@ -214,9 +215,11 @@ interface ApiOrder {
   id: string;
   reference: string;
   restaurantId: string;
-  tableId: string;
-  tableName: string;
+  orderType: Order['orderType'];
+  tableId: string | null;
+  tableName: string | null;
   sessionId: string;
+  customerId?: string | null;
   status: OrderStatus;
   acceptedAt: string | null;
   cancelledAt: string | null;
@@ -224,6 +227,7 @@ interface ApiOrder {
   subtotal: number;
   serviceCharge: number;
   tax: number;
+  deliveryFee?: number | null;
   discount: number;
   total: number;
   currency: string;
@@ -231,6 +235,10 @@ interface ApiOrder {
   updatedAt: string;
   completedAt: string | null;
   reviewedDishIds: string[];
+  deliveryAddress?: string | null;
+  deliveryPhone?: string | null;
+  deliveryCustomerName?: string | null;
+  deliveryNote?: string | null;
 }
 
 interface ApiPaymentItem {
@@ -245,7 +253,7 @@ interface ApiPayment {
   id: string;
   restaurantId: string;
   sessionId: string;
-  tableId: string;
+  tableId: string | null;
   subtotal: number;
   serviceCharge: number;
   tax: number;
@@ -286,6 +294,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     ratingCount: 0,
     serviceChargeRate: api.serviceChargeRate,
     taxRate: api.taxRate,
+    deliveryFeeAmount: api.deliveryFeeAmount ?? null,
   };
 }
 
@@ -387,9 +396,11 @@ function toOrder(api: ApiOrder): Order {
     id: api.id,
     reference: api.reference,
     restaurantId: api.restaurantId,
+    orderType: api.orderType,
     tableId: api.tableId,
     tableName: api.tableName,
     sessionId: api.sessionId,
+    customerId: api.customerId ?? null,
     status: api.status,
     acceptedAt: api.acceptedAt,
     cancelledAt: api.cancelledAt,
@@ -411,6 +422,7 @@ function toOrder(api: ApiOrder): Order {
     subtotal: api.subtotal,
     serviceCharge: api.serviceCharge,
     tax: api.tax,
+    deliveryFee: api.deliveryFee ?? 0,
     discount: api.discount,
     total: api.total,
     currency: api.currency,
@@ -418,6 +430,10 @@ function toOrder(api: ApiOrder): Order {
     updatedAt: api.updatedAt,
     completedAt: api.completedAt,
     reviewedDishIds: api.reviewedDishIds,
+    deliveryAddress: api.deliveryAddress ?? null,
+    deliveryPhone: api.deliveryPhone ?? null,
+    deliveryCustomerName: api.deliveryCustomerName ?? null,
+    deliveryNote: api.deliveryNote ?? null,
   };
 }
 
@@ -518,6 +534,15 @@ export async function adminMenu(): Promise<Menu> {
     dishes: dishes.map((dish) => toDish(dish, mapped.currency)).sort((a, b) => a.sortOrder - b.sortOrder),
     addOns: addOns.map((addOn) => toAddOn(addOn, mapped.currency)).sort((a, b) => a.sortOrder - b.sortOrder),
   };
+}
+
+export async function updateSettings(patch: SettingsPatch): Promise<Restaurant> {
+  const restaurant = await apiRequest<ApiRestaurant>('/restaurant/profile', {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  return toRestaurant(restaurant);
 }
 
 export async function createCategory(name: string, emoji: string): Promise<MenuCategory> {
@@ -901,6 +926,27 @@ export async function advanceOrderItem(orderId: string, itemId: string, expected
       body: JSON.stringify({ status: to }),
     },
   );
+  return toOrder(order);
+}
+
+/** Delivery-only: `READY -> OUT_FOR_DELIVERY`, the same one-shot manual override `acceptOrder` uses for `PENDING -> ACCEPTED`. */
+export async function advanceDeliveryOrder(orderId: string, expected: 'READY'): Promise<Order> {
+  if (expected !== 'READY') throw new ApiError(409, 'This order is not ready to go out yet.');
+
+  const order = await apiRequest<ApiOrder>(`/restaurant/orders/${encodeURIComponent(orderId)}/status`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ status: 'OUT_FOR_DELIVERY' }),
+  });
+  return toOrder(order);
+}
+
+/** Delivery's equivalent of settling a table — one order's own bill, charged the moment it's handed over. */
+export async function settleDeliveryOrder(orderId: string): Promise<Order> {
+  const order = await apiRequest<ApiOrder>(`/restaurant/orders/${encodeURIComponent(orderId)}/settle-delivery`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
   return toOrder(order);
 }
 

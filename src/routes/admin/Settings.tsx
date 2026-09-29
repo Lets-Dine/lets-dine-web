@@ -1,25 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getSettings, restoreSeedMenu, setAutoKitchen, updateSettings } from '../../api/admin';
-import { listAudit } from '../../api/staff';
-import { resetDemoData } from '../../api/client';
+import { listAudit, updateSettings } from '../../api/staff';
+import { symbolFor } from '../../domain/money';
 import { ROLE_LABEL, ROLE_SCOPE } from '../../domain/permissions';
 import type { AuditEntry } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../../components/time';
-import {
-  ADMIN_PRIMARY,
-  Confirm,
-  Field,
-  INPUT_BOX,
-  PageTitle,
-  Panel,
-  TextArea,
-  TextInput,
-  Toggle,
-  useCommand,
-} from '../../components/admin/kit';
+import { ADMIN_PRIMARY, Field, INPUT_BOX, PageTitle, Panel, TextArea, TextInput, useCommand } from '../../components/admin/kit';
 import { History } from '../../components/icons';
 import { cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
@@ -44,11 +32,10 @@ export function Settings() {
   const [name, setName] = useState(restaurant.name);
   const [tagline, setTagline] = useState(restaurant.tagline);
   const [description, setDescription] = useState(restaurant.description);
+  const [coverImageUrl, setCoverImageUrl] = useState(restaurant.coverImageUrl);
   const [service, setService] = useState((restaurant.serviceChargeRate * 100).toFixed(1));
   const [tax, setTax] = useState((restaurant.taxRate * 100).toFixed(1));
-  const settings = useAsync(() => getSettings(staff), [staff]);
-  const [kitchenOverride, setKitchen] = useState<boolean | null>(null);
-  const autoKitchen = kitchenOverride ?? settings.data?.autoKitchen ?? true;
+  const [deliveryFee, setDeliveryFee] = useState((((restaurant.deliveryFeeAmount ?? 0) / 100).toFixed(2)));
 
   const audit = useAsync(async () => (await listAudit(staff, 5)).rows, [staff]);
 
@@ -56,8 +43,10 @@ export function Settings() {
     name !== restaurant.name ||
     tagline !== restaurant.tagline ||
     description !== restaurant.description ||
+    coverImageUrl !== restaurant.coverImageUrl ||
     Number(service) / 100 !== restaurant.serviceChargeRate ||
-    Number(tax) / 100 !== restaurant.taxRate;
+    Number(tax) / 100 !== restaurant.taxRate ||
+    Math.round(Number(deliveryFee) * 100) !== (restaurant.deliveryFeeAmount ?? 0);
 
   const save = () =>
     void run(
@@ -67,8 +56,10 @@ export function Settings() {
           name,
           tagline,
           description,
+          coverImageUrl: coverImageUrl.trim() || null,
           serviceChargeRate: Number(service) / 100,
           taxRate: Number(tax) / 100,
+          deliveryFeeAmount: Math.round(Number(deliveryFee) * 100) || null,
         }),
       'Settings saved',
     ).then(() => {
@@ -80,7 +71,7 @@ export function Settings() {
     <>
       <PageTitle title="Settings" subtitle={`Signed in as ${staff.name} · ${ROLE_LABEL[staff.role]}`} />
 
-      <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
+      <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr] lg:items-start">
         <div className="grid gap-4">
           <Panel title="Restaurant" hint={canEdit ? undefined : 'Only an owner can change these'}>
             <fieldset disabled={!canEdit} className="grid gap-4 disabled:opacity-60">
@@ -96,6 +87,26 @@ export function Settings() {
             </fieldset>
           </Panel>
 
+          <Panel title="Cover image" hint="Shown at the top of the diner menu">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="h-28 w-full shrink-0 overflow-hidden rounded-2xl ring-1 ring-hairline ring-inset sm:w-44">
+                {coverImageUrl ? (
+                  <img src={coverImageUrl} alt="" className="size-full object-cover" />
+                ) : (
+                  <div
+                    className="size-full bg-surface-2 bg-[radial-gradient(circle_at_50%_-10%,rgb(255_138_61/0.35),transparent_68%)]"
+                    aria-hidden
+                  />
+                )}
+              </div>
+              <fieldset disabled={!canEdit} className="min-w-0 flex-1 disabled:opacity-60">
+                <Field label="Image URL" hint="A full https:// link to a wide, landscape photo.">
+                  <TextInput value={coverImageUrl} onChange={setCoverImageUrl} placeholder="https://…/cover.jpg" maxLength={500} />
+                </Field>
+              </fieldset>
+            </div>
+          </Panel>
+
           <Panel title="Charges" hint="Applied to every order the moment it is placed">
             <fieldset disabled={!canEdit} className="grid gap-4 sm:grid-cols-2 disabled:opacity-60">
               <Field label="Service charge" hint="Percent of the subtotal.">
@@ -103,6 +114,9 @@ export function Settings() {
               </Field>
               <Field label="Tax" hint="Percent of subtotal plus service charge.">
                 <PercentInput value={tax} onChange={setTax} />
+              </Field>
+              <Field label="Delivery fee" hint="Flat amount added to a delivery order only. Leave at 0 for none.">
+                <MoneyInput value={deliveryFee} onChange={setDeliveryFee} currency={restaurant.currency} />
               </Field>
             </fieldset>
             <p className="mt-4 text-[12.5px] leading-relaxed text-ink-4">
@@ -153,52 +167,6 @@ export function Settings() {
               called anyway.
             </p>
           </Panel>
-
-          <Panel title="Demo controls" hint="Not part of the product">
-            <Toggle
-              checked={autoKitchen}
-              onChange={(next) => {
-                setKitchen(next);
-                void run('kitchen', () => setAutoKitchen(staff, next), next ? 'Demo kitchen on' : 'Demo kitchen off');
-              }}
-              label="Demo kitchen"
-              hint="Advances orders placed from this browser's diner app on a timer, so the diner flow works with nobody at the pass. Orders on the restaurant queue always wait for staff."
-            />
-
-            {canEdit && (
-              <>
-                <div className="my-3 h-px bg-hairline" />
-                <p className="mb-2 text-[13px] leading-relaxed text-ink-3">
-                  Put the menu, categories, tables and settings back to how they shipped. Orders and reviews are kept.
-                </p>
-                <Confirm
-                  label="Restore the original menu"
-                  question="Discard menu edits?"
-                  confirmLabel="Restore"
-                  onConfirm={() =>
-                    void run('restore', () => restoreSeedMenu(staff), 'Menu restored to the original').then(() => {
-                      reloadMenu();
-                      audit.reload();
-                    })
-                  }
-                />
-
-                <div className="my-3 h-px bg-hairline" />
-                <p className="mb-2 text-[13px] leading-relaxed text-ink-3">
-                  Wipe everything this browser has stored — orders, reviews, carts, the queue and the audit log.
-                </p>
-                <Confirm
-                  label="Reset all demo data"
-                  question="Erase everything?"
-                  confirmLabel="Erase"
-                  onConfirm={() => {
-                    resetDemoData();
-                    window.location.href = '/admin';
-                  }}
-                />
-              </>
-            )}
-          </Panel>
         </div>
       </div>
     </>
@@ -217,6 +185,22 @@ function PercentInput({ value, onChange }: { value: string; onChange: (next: str
       <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-[13.5px] font-semibold text-ink-4">
         %
       </span>
+    </span>
+  );
+}
+
+function MoneyInput({ value, onChange, currency }: { value: string; onChange: (next: string) => void; currency: string }) {
+  return (
+    <span className="relative block">
+      <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[13.5px] font-semibold text-ink-4">
+        {symbolFor(currency)}
+      </span>
+      <input
+        className={cx(INPUT_BOX, 'pl-11 tnum')}
+        value={value}
+        inputMode="decimal"
+        onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
+      />
     </span>
   );
 }
