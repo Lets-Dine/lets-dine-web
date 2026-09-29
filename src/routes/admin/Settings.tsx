@@ -7,7 +7,7 @@ import type { AuditEntry } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../../components/time';
-import { ADMIN_PRIMARY, Field, INPUT_BOX, PageTitle, Panel, TextArea, TextInput, useCommand } from '../../components/admin/kit';
+import { ADMIN_PRIMARY, Field, INPUT_BOX, MoneyInput, PageTitle, Panel, PercentInput, TextArea, TextInput, useCommand } from '../../components/admin/kit';
 import { History } from '../../components/icons';
 import { cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
@@ -35,7 +35,7 @@ export function Settings() {
   const [coverImageUrl, setCoverImageUrl] = useState(restaurant.coverImageUrl);
   const [service, setService] = useState((restaurant.serviceChargeRate * 100).toFixed(1));
   const [tax, setTax] = useState((restaurant.taxRate * 100).toFixed(1));
-  const [deliveryFee, setDeliveryFee] = useState((((restaurant.deliveryFeeAmount ?? 0) / 100).toFixed(2)));
+  const [deliveryFee, setDeliveryFee] = useState(restaurant.deliveryFeeAmount ?? 0);
 
   const audit = useAsync(async () => (await listAudit(staff, 5)).rows, [staff]);
 
@@ -59,7 +59,7 @@ export function Settings() {
           coverImageUrl: coverImageUrl.trim() || null,
           serviceChargeRate: Number(service) / 100,
           taxRate: Number(tax) / 100,
-          deliveryFeeAmount: Math.round(Number(deliveryFee) * 100) || null,
+          deliveryFeeAmount: deliveryFee,
         }),
       'Settings saved',
     ).then(() => {
@@ -173,37 +173,6 @@ export function Settings() {
   );
 }
 
-function PercentInput({ value, onChange }: { value: string; onChange: (next: string) => void }) {
-  return (
-    <span className="relative block">
-      <input
-        className={cx(INPUT_BOX, 'pr-9 tnum')}
-        value={value}
-        inputMode="decimal"
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
-      />
-      <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-[13.5px] font-semibold text-ink-4">
-        %
-      </span>
-    </span>
-  );
-}
-
-function MoneyInput({ value, onChange, currency }: { value: string; onChange: (next: string) => void; currency: string }) {
-  return (
-    <span className="relative block">
-      <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[13.5px] font-semibold text-ink-4">
-        {symbolFor(currency)}
-      </span>
-      <input
-        className={cx(INPUT_BOX, 'pl-11 tnum')}
-        value={value}
-        inputMode="decimal"
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
-      />
-    </span>
-  );
-}
 
 /** Deliberately quiet — no colour coding here. The full-colour, filterable
  *  version of this same row lives on the dedicated audit page (`AuditLog.tsx`),

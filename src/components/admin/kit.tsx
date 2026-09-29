@@ -431,6 +431,23 @@ export function MoneyInput({
   );
 }
 
+export function PercentInput({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  return (
+    <span className="relative block">
+      <input
+        className={cx(INPUT_BOX, 'pr-9 tnum')}
+        value={value ?? ''}
+        placeholder="0.00"
+        inputMode="decimal"
+        onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
+      />
+      <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-[13.5px] font-semibold text-ink-4">
+        %
+      </span>
+    </span>
+  );
+}
+
 export function Toggle({
   checked,
   onChange,
