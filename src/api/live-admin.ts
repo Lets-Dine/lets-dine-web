@@ -1,12 +1,15 @@
-import type { DishDraft, StaffDraft } from './admin';
+import type { AddOnDraft, DishDraft, DishVariantDraft, StaffDraft } from './admin';
 import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
 import type {
+  AddOn,
   AuditAction,
   AuditEntry,
+  DietaryType,
   DiningTable,
   Dish,
   DishStats,
+  DishVariant,
   ItemStatus,
   Menu,
   MenuCategory,
@@ -109,6 +112,17 @@ interface ApiCategory {
   sortOrder: number;
 }
 
+interface ApiDishVariant {
+  id: string;
+  name: string;
+  price: number;
+  isAvailable: boolean;
+  isArchived: boolean;
+  sortOrder: number;
+  spiceLevel: number;
+  dietaryType: DietaryType;
+}
+
 interface ApiDish {
   id: string;
   restaurantId: string;
@@ -123,8 +137,26 @@ interface ApiDish {
   isFeatured: boolean;
   sortOrder: number;
   spiceLevel: number;
-  isVeg: boolean;
+  dietaryType: DietaryType;
   stats: DishStats;
+  addOnIds: string[];
+  variants: ApiDishVariant[];
+}
+
+interface ApiAddOn {
+  id: string;
+  restaurantId: string;
+  name: string;
+  price: number;
+  isAvailable: boolean;
+  isArchived: boolean;
+  sortOrder: number;
+}
+
+interface ApiOrderItemAddOn {
+  addOnId: string;
+  nameSnapshot: string;
+  price: number;
 }
 
 interface ApiOrderItem {
@@ -137,6 +169,10 @@ interface ApiOrderItem {
   notes: string;
   status: ItemStatus;
   statusUpdatedAt: string;
+  addOns?: ApiOrderItemAddOn[];
+  variantId?: string | null;
+  variantNameSnapshot?: string | null;
+  variantPriceSnapshot?: number | null;
 }
 
 interface ApiDiningTable {
@@ -219,6 +255,7 @@ interface ApiPayment {
   currency: string;
   createdAt: string;
   createdBy: string | null;
+  createdByName: string | null;
   items: ApiPaymentItem[];
 }
 
@@ -262,6 +299,20 @@ function toCategory(api: ApiCategory): MenuCategory {
   };
 }
 
+function toDishVariant(api: ApiDishVariant, currency: string): DishVariant {
+  return {
+    id: api.id,
+    name: api.name,
+    price: api.price,
+    currency,
+    isAvailable: api.isAvailable,
+    isArchived: api.isArchived,
+    sortOrder: api.sortOrder,
+    spiceLevel: api.spiceLevel as DishVariant['spiceLevel'],
+    dietaryType: api.dietaryType,
+  };
+}
+
 function toDish(api: ApiDish, currency: string): Dish {
   return {
     id: api.id,
@@ -278,8 +329,23 @@ function toDish(api: ApiDish, currency: string): Dish {
     isFeatured: api.isFeatured,
     sortOrder: api.sortOrder,
     spiceLevel: api.spiceLevel as Dish['spiceLevel'],
-    isVeg: api.isVeg,
+    dietaryType: api.dietaryType,
     stats: api.stats,
+    addOnIds: api.addOnIds ?? [],
+    variants: (api.variants ?? []).map((v) => toDishVariant(v, currency)),
+  };
+}
+
+function toAddOn(api: ApiAddOn, currency: string): AddOn {
+  return {
+    id: api.id,
+    restaurantId: api.restaurantId,
+    name: api.name,
+    price: api.price,
+    currency,
+    isAvailable: api.isAvailable,
+    isArchived: api.isArchived,
+    sortOrder: api.sortOrder,
   };
 }
 
@@ -337,6 +403,10 @@ function toOrder(api: ApiOrder): Order {
       notes: item.notes,
       status: item.status,
       statusUpdatedAt: item.statusUpdatedAt,
+      addOns: (item.addOns ?? []).map((a) => ({ addOnId: a.addOnId, nameSnapshot: a.nameSnapshot, price: a.price })),
+      variantId: item.variantId ?? null,
+      variantNameSnapshot: item.variantNameSnapshot ?? null,
+      variantPriceSnapshot: item.variantPriceSnapshot ?? null,
     })),
     subtotal: api.subtotal,
     serviceCharge: api.serviceCharge,
@@ -366,6 +436,7 @@ function toPayment(api: ApiPayment): Payment {
     currency: api.currency,
     createdAt: api.createdAt,
     createdBy: api.createdBy,
+    createdByName: api.createdByName,
     items: api.items.map((item) => ({
       id: item.id,
       dishId: item.dishId,
@@ -425,17 +496,27 @@ async function fetchDishes(): Promise<ApiDish[]> {
   return page.rows;
 }
 
+/** Archived add-ons included, same reason as `fetchDishes`. */
+async function fetchAddOns(): Promise<ApiAddOn[]> {
+  const page = await apiRequest<Paginated<ApiAddOn>>('/restaurant/add-ons?limit=0', {
+    headers: authHeaders(),
+  });
+  return page.rows;
+}
+
 export async function adminMenu(): Promise<Menu> {
-  const [restaurant, categories, dishes] = await Promise.all([
+  const [restaurant, categories, dishes, addOns] = await Promise.all([
     apiRequest<ApiRestaurant>('/restaurant/profile', { headers: authHeaders() }),
     fetchCategories(),
     fetchDishes(),
+    fetchAddOns(),
   ]);
   const mapped = toRestaurant(restaurant);
   return {
     restaurant: mapped,
     categories,
     dishes: dishes.map((dish) => toDish(dish, mapped.currency)).sort((a, b) => a.sortOrder - b.sortOrder),
+    addOns: addOns.map((addOn) => toAddOn(addOn, mapped.currency)).sort((a, b) => a.sortOrder - b.sortOrder),
   };
 }
 
@@ -499,19 +580,20 @@ function dishBody(draft: Partial<DishDraft>): Record<string, unknown> {
   if (draft.description !== undefined) body.description = draft.description.trim();
   if (draft.imageUrl !== undefined) body.imageUrl = draft.imageUrl;
   if (draft.price !== undefined) body.price = draft.price;
-  if (draft.isVeg !== undefined) body.isVeg = draft.isVeg;
+  if (draft.dietaryType !== undefined) body.dietaryType = draft.dietaryType;
   if (draft.spiceLevel !== undefined) body.spiceLevel = draft.spiceLevel;
   if (draft.isAvailable !== undefined) body.isAvailable = draft.isAvailable;
   if (draft.isFeatured !== undefined) body.isFeatured = draft.isFeatured;
   return body;
 }
 
-export async function createDish(draft: DishDraft): Promise<void> {
-  await apiRequest<ApiDish>('/restaurant/dishes', {
+export async function createDish(draft: DishDraft): Promise<{ id: string }> {
+  const created = await apiRequest<ApiDish>('/restaurant/dishes', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(dishBody(draft)),
   });
+  return { id: created.id };
 }
 
 export async function updateDish(dishId: string, patch: Partial<DishDraft>): Promise<void> {
@@ -554,6 +636,85 @@ export async function moveDish(dishId: string, direction: -1 | 1): Promise<void>
   });
 }
 
+/* ── Add-ons ───────────────────────────────────────────────────── */
+
+function addOnBody(draft: Partial<AddOnDraft>): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (draft.name !== undefined) body.name = draft.name.trim();
+  if (draft.price !== undefined) body.price = draft.price;
+  if (draft.isAvailable !== undefined) body.isAvailable = draft.isAvailable;
+  return body;
+}
+
+export async function createAddOn(draft: AddOnDraft): Promise<void> {
+  await apiRequest<ApiAddOn>('/restaurant/add-ons', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(addOnBody(draft)),
+  });
+}
+
+export async function updateAddOn(addOnId: string, patch: Partial<AddOnDraft>): Promise<void> {
+  await apiRequest<ApiAddOn>(`/restaurant/add-ons/${encodeURIComponent(addOnId)}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(addOnBody(patch)),
+  });
+}
+
+export async function setAddOnArchived(addOnId: string, archived: boolean): Promise<void> {
+  await apiRequest<ApiAddOn>(`/restaurant/add-ons/${encodeURIComponent(addOnId)}/${archived ? 'archive' : 'restore'}`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+}
+
+export async function setDishAddOns(dishId: string, addOnIds: string[]): Promise<void> {
+  await apiRequest<ApiDish>(`/restaurant/dishes/${encodeURIComponent(dishId)}/add-ons`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ addOnIds }),
+  });
+}
+
+/* ── Dish variants ─────────────────────────────────────────────── */
+
+function dishVariantBody(draft: Partial<DishVariantDraft>): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (draft.name !== undefined) body.name = draft.name.trim();
+  if (draft.price !== undefined) body.price = draft.price;
+  if (draft.isAvailable !== undefined) body.isAvailable = draft.isAvailable;
+  if (draft.dietaryType !== undefined) body.dietaryType = draft.dietaryType;
+  if (draft.spiceLevel !== undefined) body.spiceLevel = draft.spiceLevel;
+  return body;
+}
+
+export async function createDishVariant(dishId: string, draft: DishVariantDraft): Promise<void> {
+  await apiRequest<ApiDishVariant>(`/restaurant/dishes/${encodeURIComponent(dishId)}/variants`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(dishVariantBody(draft)),
+  });
+}
+
+export async function updateDishVariant(dishId: string, variantId: string, patch: Partial<DishVariantDraft>): Promise<void> {
+  await apiRequest<ApiDishVariant>(
+    `/restaurant/dishes/${encodeURIComponent(dishId)}/variants/${encodeURIComponent(variantId)}`,
+    {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify(dishVariantBody(patch)),
+    },
+  );
+}
+
+export async function setDishVariantArchived(dishId: string, variantId: string, archived: boolean): Promise<void> {
+  await apiRequest<ApiDishVariant>(
+    `/restaurant/dishes/${encodeURIComponent(dishId)}/variants/${encodeURIComponent(variantId)}/${archived ? 'archive' : 'restore'}`,
+    { method: 'POST', headers: authHeaders() },
+  );
+}
+
 /* ── Tables ────────────────────────────────────────────────────── */
 
 export async function listTables(): Promise<DiningTable[]> {
@@ -592,6 +753,15 @@ export async function setTableActive(tableId: string, active: boolean): Promise<
 
 export async function regenerateQr(tableId: string): Promise<DiningTable> {
   const table = await apiRequest<ApiDiningTable>(`/restaurant/tables/${encodeURIComponent(tableId)}/qr`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  return toTable(table);
+}
+
+/** Seats a table on the diner's behalf — the same visit a QR scan would have opened. */
+export async function startTableSession(tableId: string): Promise<DiningTable> {
+  const table = await apiRequest<ApiDiningTable>(`/restaurant/tables/${encodeURIComponent(tableId)}/start-session`, {
     method: 'POST',
     headers: authHeaders(),
   });

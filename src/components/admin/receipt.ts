@@ -1,4 +1,5 @@
 import { formatMoney } from '../../domain/money';
+import type { PaymentMethod } from '../../domain/types';
 
 /**
  * The one paper artifact the till produces — a settle-table charge (Tables.tsx)
@@ -21,6 +22,12 @@ export interface ReceiptTotals {
   total: number;
 }
 
+/** Omitted for the pre-payment bill preview — nothing has actually been charged yet. */
+export interface ReceiptPayment {
+  method: PaymentMethod;
+  takenBy: string | null;
+}
+
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
 }
@@ -30,6 +37,7 @@ export function printReceipt(
   lines: ReceiptLine[],
   totals: ReceiptTotals,
   restaurantName: string,
+  payment?: ReceiptPayment,
 ): boolean {
   const sheet = window.open('', '_blank', 'width=420,height=640');
   if (!sheet) return false;
@@ -41,6 +49,11 @@ export function printReceipt(
         `<tr><td>${escapeHtml(i.dishNameSnapshot)}</td><td class="num">${i.quantity}</td><td class="num"><b>${formatMoney(i.total, currency)}</b></td></tr>`,
     )
     .join('');
+  const paymentRows = payment
+    ? `<div class="row"><span>Paid by</span><span>${payment.method === 'CASH' ? 'Cash' : 'Card'}</span></div>` +
+      (payment.takenBy ? `<div class="row"><span>Served by</span><span>${escapeHtml(payment.takenBy)}</span></div>` : '') +
+      `<div class="rule"></div>`
+    : '';
 
   sheet.document.write(`<!doctype html><html><head><meta charset="utf-8">
   <title>${escapeHtml(restaurantName)} — ${escapeHtml(table.name)} receipt</title>
@@ -65,15 +78,16 @@ export function printReceipt(
       <p class="muted" style="margin:6px 0 0">${escapeHtml(table.name)}${table.capacity ? ` · ${table.capacity} seats` : ''}</p>
     </div>
     <div class="rule"></div>
+    ${paymentRows}
     <table class="items">
       <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Total</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="rule"></div>
     <div class="row"><span>Subtotal</span><span>${formatMoney(subtotal, currency)}</span></div>
+    ${discount > 0 ? `<div class="row"><span>Discount</span><span>−${formatMoney(discount, currency)}</span></div>` : ''}
     <div class="row"><span>Service</span><span>${formatMoney(serviceCharge, currency)}</span></div>
     <div class="row"><span>Tax</span><span>${formatMoney(tax, currency)}</span></div>
-    ${discount > 0 ? `<div class="row"><span>Discount</span><span>−${formatMoney(discount, currency)}</span></div>` : ''}
     <div class="row" style="align-items:baseline"><span style="font-size:16px;font-weight:900">Total</span><span class="total">${formatMoney(total, currency)}</span></div>
     <div class="rule"></div>
     <p class="center muted">Thank you · ${new Date().toLocaleString()}</p>

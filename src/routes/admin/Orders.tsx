@@ -1,34 +1,9 @@
 import { useMemo, useState } from 'react';
-import { acceptOrder, advanceOrderItem, rejectOrder } from '../../api/staff';
-import {
-  ADVANCE_LABEL,
-  ITEM_ADVANCE_LABEL,
-  STATUS_LABEL,
-  billableItems,
-  byUrgencyThenAge,
-  canCancelOrder,
-  focusMap,
-  newestOrderPerTable,
-} from '../../domain/orderStatus';
-import type { Focus } from '../../domain/orderStatus';
-import { formatMoney } from '../../domain/money';
-import type { ItemStatus, Menu, Order, OrderItem, OrderStatus } from '../../domain/types';
-import { useAuth, useStaff } from '../../state/AuthContext';
+import { byUrgencyThenAge, focusMap, newestOrderPerTable } from '../../domain/orderStatus';
+import type { Order, OrderStatus } from '../../domain/types';
 import { useNow } from '../../state/useNow';
-import { clockTime, relativeTime } from '../../components/time';
-import {
-  ADMIN_PRIMARY,
-  Confirm,
-  Empty,
-  PANEL,
-  PageTitle,
-  Panel,
-  Segmented,
-  StatusPill,
-  useCommand,
-} from '../../components/admin/kit';
-import { BULK_DONE, FocusRibbon, ItemRow, Progress, nextBulkStage } from '../../components/admin/OrderLines';
-import { DISPLAY, cx } from '../../components/ui';
+import { Empty, PageTitle, Panel, Segmented } from '../../components/admin/kit';
+import { PassCard } from '../../components/admin/PassCard';
 import { useDashboard } from './AdminLayout';
 
 /**
@@ -65,20 +40,6 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
 
 /** How often the ages on screen re-read the clock. Fast enough that a "5m" is never a lie by much. */
 const TICK_MS = 15_000;
-
-/**
- * The status colour language, borrowed for each ticket's left edge so a lane
- * of cards is readable at arm's length. Tailwind only emits CSS for class
- * names it can find as literal text, so these are whole classes.
- */
-const ACCENT: Record<OrderStatus, string> = {
-  PENDING: 'border-l-flame-3',
-  ACCEPTED: 'border-l-gold',
-  PREPARING: 'border-l-pass',
-  READY: 'border-l-mint',
-  COMPLETED: 'border-l-ink-4',
-  CANCELLED: 'border-l-berry',
-};
 
 export function Orders() {
   const { menu, orders, reloadOrders, applyOrder } = useDashboard();
@@ -175,10 +136,11 @@ export function Orders() {
         </Panel>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {shown.map((order) => (
-            <Ticket
+          {shown.map((order, i) => (
+            <PassCard
               key={order.id}
               order={order}
+              index={i}
               focus={flags.get(order.id) ?? null}
               menu={menu}
               canAdd={newestPerTable.get(order.tableId) === order.id}
@@ -190,159 +152,5 @@ export function Orders() {
         </div>
       )}
     </>
-  );
-}
-
-interface TicketProps {
-  order: Order;
-  focus: Focus | null;
-  menu: Menu;
-  canAdd: boolean;
-  now: number;
-  onApply: (order: Order) => void;
-  onResync: () => void;
-}
-
-function Ticket({ order, focus, now, onApply, onResync }: TicketProps) {
-  const staff = useStaff();
-  const { allows } = useAuth();
-  const { pending, run } = useCommand();
-  // Add dish is commented out for now — see the footer button and `menu`/`canAdd` in TicketProps.
-  // const [adding, setAdding] = useState(false);
-
-  const units = billableItems(order.items).reduce((n, i) => n + i.quantity, 0);
-  const open = order.status !== 'COMPLETED' && order.status !== 'CANCELLED';
-  const canEdit = open && allows('orders:advance');
-  const bulk = nextBulkStage(order);
-
-  /** Every mutation here answers with the new ticket, so the card repaints before the next poll. */
-  const apply = (key: string, action: () => Promise<Order>, success?: string) =>
-    void run(key, async () => onApply(await action()), success).then((ok) => {
-      if (!ok) onResync();
-    });
-
-  const advanceAll = (stage: ItemStatus, items: OrderItem[]) =>
-    void run(
-      `bulk:${order.id}`,
-      async () => {
-        let latest = order;
-        for (const item of items) latest = await advanceOrderItem(staff, order.id, item.id, stage);
-        onApply(latest);
-      },
-      `${items.length} dishes ${BULK_DONE[stage]}`,
-    ).then((ok) => {
-      if (!ok) onResync();
-    });
-
-  return (
-    <article
-      className={cx(
-        PANEL,
-        'flex flex-col overflow-hidden border-l-[3px]',
-        ACCENT[order.status],
-        focus?.level === 'critical' && 'ring-[1.5px] ring-berry/40',
-        focus?.level === 'warn' && 'ring-[1.5px] ring-gold/35',
-      )}
-    >
-      <header className="flex items-start justify-between gap-3 px-4 py-3">
-        <div className="min-w-0">
-          <div className={cx(DISPLAY, 'text-[19px] tnum')}>Order {order.reference}</div>
-          <div className="mt-0.5 truncate text-[13px] text-ink-3">
-            {order.tableName} · {units} item{units === 1 ? '' : 's'}
-          </div>
-        </div>
-        <div className="shrink-0 text-right">
-          <StatusPill status={order.status} label={STATUS_LABEL[order.status]} />
-          <div className={cx('mt-1 text-[12px] tnum', focus ? 'font-semibold text-berry-ink' : 'text-ink-4')}>
-            {clockTime(order.createdAt)} · {relativeTime(order.createdAt)}
-          </div>
-        </div>
-      </header>
-
-      <Progress order={order} />
-
-      {focus && <FocusRibbon focus={focus} className="px-4 py-1.5" />}
-
-      <ul className="flex-1 divide-y divide-hairline border-t border-hairline px-4">
-        {order.items.map((item) => (
-          <ItemRow key={item.id} order={order} item={item} now={now} canEdit={canEdit} onApply={onApply} onResync={onResync} />
-        ))}
-      </ul>
-
-      {/* Add dish, commented out for now — see `adding` state above.
-      {adding && (
-        <DishPicker
-          menu={menu}
-          busy={pending !== null}
-          onClose={() => setAdding(false)}
-          onPick={(dish) => apply(`add:${dish.id}`, () => addOrderItem(staff, order.tableId, dish.id), `${dish.name} added`)}
-        />
-      )}
-      */}
-
-      <footer className="border-t border-hairline px-4 py-3">
-        <div className="mb-3 flex items-baseline justify-between gap-3">
-          <span className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-ink-4">Total</span>
-          <span className={cx(DISPLAY, 'text-[19px] tnum')}>{formatMoney(order.total, order.currency)}</span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {order.status === 'PENDING' && allows('orders:advance') ? (
-            <button
-              type="button"
-              disabled={pending !== null}
-              className={cx(ADMIN_PRIMARY, 'flex-1')}
-              onClick={() => apply(order.id, () => acceptOrder(staff, order.id, 'PENDING'), `${order.reference} accepted`)}
-            >
-              {pending === order.id ? 'Working…' : ADVANCE_LABEL.PENDING}
-            </button>
-          ) : bulk && allows('orders:advance') ? (
-            <button
-              type="button"
-              disabled={pending !== null}
-              className={cx(ADMIN_PRIMARY, 'flex-1')}
-              onClick={() => advanceAll(bulk.stage, bulk.items)}
-            >
-              {pending === `bulk:${order.id}` ? 'Working…' : `${ITEM_ADVANCE_LABEL[bulk.stage]} all ${bulk.items.length}`}
-            </button>
-          ) : (
-            <span className="flex-1 text-[13px] text-ink-4">
-              {order.status === 'COMPLETED'
-                ? `Served ${order.completedAt ? relativeTime(order.completedAt) : ''}`
-                : order.status === 'CANCELLED'
-                  ? 'Cancelled'
-                  : 'In the kitchen — move each dish above'}
-            </span>
-          )}
-
-          {/* Add dish, commented out for now — see `adding` state above.
-          {canEdit && canAdd && (
-            <button
-              type="button"
-              disabled={pending !== null}
-              aria-expanded={adding}
-              className={cx(ADMIN_TINY, 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset')}
-              onClick={() => setAdding((on) => !on)}
-            >
-              {adding ? <X size={13} /> : <Plus size={13} />}
-              {adding ? 'Close' : 'Add dish'}
-            </button>
-          )}
-          */}
-
-          {canCancelOrder(order) && allows('orders:cancel') && (
-            <Confirm
-              label="Cancel"
-              question="Cancel this order?"
-              confirmLabel="Cancel it"
-              disabled={pending !== null}
-              onConfirm={() =>
-                apply(order.id, () => rejectOrder(staff, order.id, 'Cancelled from the pass'), `${order.reference} cancelled`)
-              }
-            />
-          )}
-        </div>
-      </footer>
-    </article>
   );
 }

@@ -1,6 +1,6 @@
 import type { CreateOrderInput } from './client';
 import type { ReviewDraft } from './client';
-import type { CartLine, DiningSession, DiningTable, Dish, DishStats, Menu, MenuCategory, Order, Payment, PaymentMethod, Restaurant, Review } from '../domain/types';
+import type { AddOn, CartLine, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Menu, MenuCategory, Order, Payment, PaymentMethod, Restaurant, Review } from '../domain/types';
 import { apiRequest } from './http';
 import type { Paginated } from './http';
 import { getSocket, joinRoom } from './socket';
@@ -80,6 +80,17 @@ interface ApiCategory {
   sortOrder: number;
 }
 
+interface ApiDishVariant {
+  id: string;
+  name: string;
+  price: number;
+  isAvailable: boolean;
+  isArchived: boolean;
+  sortOrder: number;
+  spiceLevel: number;
+  dietaryType: DietaryType;
+}
+
 interface ApiDish {
   id: string;
   restaurantId: string;
@@ -94,14 +105,27 @@ interface ApiDish {
   isFeatured: boolean;
   sortOrder: number;
   spiceLevel: number;
-  isVeg: boolean;
+  dietaryType: DietaryType;
   stats: DishStats;
+  addOnIds: string[];
+  variants: ApiDishVariant[];
+}
+
+interface ApiAddOn {
+  id: string;
+  restaurantId: string;
+  name: string;
+  price: number;
+  isAvailable: boolean;
+  isArchived: boolean;
+  sortOrder: number;
 }
 
 interface ApiMenu {
   restaurant: ApiRestaurant;
   categories: ApiCategory[];
   dishes: ApiDish[];
+  addOns: ApiAddOn[];
 }
 
 interface ApiReview {
@@ -118,6 +142,12 @@ interface ApiReview {
   createdAt: string;
 }
 
+interface ApiOrderItemAddOn {
+  addOnId: string;
+  nameSnapshot: string;
+  price: number;
+}
+
 interface ApiOrderItem {
   id: string;
   dishId: string;
@@ -128,6 +158,10 @@ interface ApiOrderItem {
   notes: string;
   status: Order['items'][number]['status'];
   statusUpdatedAt: string;
+  addOns?: ApiOrderItemAddOn[];
+  variantId?: string | null;
+  variantNameSnapshot?: string | null;
+  variantPriceSnapshot?: number | null;
 }
 
 interface ApiOrder {
@@ -210,6 +244,20 @@ function toCategory(api: ApiCategory): MenuCategory {
   };
 }
 
+function toDishVariant(api: ApiDishVariant, currency: string): DishVariant {
+  return {
+    id: api.id,
+    name: api.name,
+    price: api.price,
+    currency,
+    isAvailable: api.isAvailable,
+    isArchived: api.isArchived,
+    sortOrder: api.sortOrder,
+    spiceLevel: api.spiceLevel as DishVariant['spiceLevel'],
+    dietaryType: api.dietaryType,
+  };
+}
+
 function toDish(api: ApiDish, currency: string): Dish {
   return {
     id: api.id,
@@ -226,8 +274,23 @@ function toDish(api: ApiDish, currency: string): Dish {
     isFeatured: api.isFeatured,
     sortOrder: api.sortOrder,
     spiceLevel: api.spiceLevel as Dish['spiceLevel'],
-    isVeg: api.isVeg,
+    dietaryType: api.dietaryType,
     stats: api.stats,
+    addOnIds: api.addOnIds ?? [],
+    variants: (api.variants ?? []).map((v) => toDishVariant(v, currency)),
+  };
+}
+
+function toAddOn(api: ApiAddOn, currency: string): AddOn {
+  return {
+    id: api.id,
+    restaurantId: api.restaurantId,
+    name: api.name,
+    price: api.price,
+    currency,
+    isAvailable: api.isAvailable,
+    isArchived: api.isArchived,
+    sortOrder: api.sortOrder,
   };
 }
 
@@ -269,6 +332,10 @@ function toOrder(api: ApiOrder): Order {
       notes: item.notes,
       status: item.status,
       statusUpdatedAt: item.statusUpdatedAt,
+      addOns: (item.addOns ?? []).map((a) => ({ addOnId: a.addOnId, nameSnapshot: a.nameSnapshot, price: a.price })),
+      variantId: item.variantId ?? null,
+      variantNameSnapshot: item.variantNameSnapshot ?? null,
+      variantPriceSnapshot: item.variantPriceSnapshot ?? null,
     })),
     subtotal: api.subtotal,
     serviceCharge: api.serviceCharge,
@@ -305,6 +372,7 @@ interface ApiPayment {
   currency: string;
   createdAt: string;
   createdBy: string | null;
+  createdByName: string | null;
   items: ApiPaymentItem[];
 }
 
@@ -323,6 +391,7 @@ function toPayment(api: ApiPayment): Payment {
     currency: api.currency,
     createdAt: api.createdAt,
     createdBy: api.createdBy,
+    createdByName: api.createdByName,
     items: api.items.map((item) => ({
       id: item.id,
       dishId: item.dishId,
@@ -473,6 +542,7 @@ export async function getMenu(restaurantSlug: string): Promise<Menu> {
     // Archived dishes never reach this endpoint; unavailable ones do, because
     // "sold out" is information a diner wants.
     dishes: menu.dishes.map((dish) => toDish(dish, restaurant.currency)),
+    addOns: menu.addOns.map((addOn) => toAddOn(addOn, restaurant.currency)),
   };
 }
 
@@ -522,7 +592,13 @@ export async function createOrder({ session, lines, idempotencyKey }: CreateOrde
       'idempotency-key': idempotencyKey,
     },
     body: JSON.stringify({
-      lines: lines.map((line: CartLine) => ({ dishId: line.dishId, quantity: line.quantity, note: line.note })),
+      lines: lines.map((line: CartLine) => ({
+        dishId: line.dishId,
+        quantity: line.quantity,
+        note: line.note,
+        variantId: line.variantId ?? undefined,
+        addOnIds: line.addOnIds,
+      })),
     }),
   });
   return toOrder(order);

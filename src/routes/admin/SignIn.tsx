@@ -7,6 +7,7 @@ import { DEMO_PIN } from '../../data/staff';
 import { ROLE_LABEL, ROLE_SCOPE } from '../../domain/permissions';
 import { useAuth } from '../../state/AuthContext';
 import { AdminThemeToggle } from '../../state/AdminTheme';
+import { usePageTitle } from '../../state/usePageTitle';
 import { ADMIN_PRIMARY, Field, PANEL, TextInput } from '../../components/admin/kit';
 import { DISPLAY, SHELL, cx } from '../../components/ui';
 
@@ -18,6 +19,7 @@ import { DISPLAY, SHELL, cx } from '../../components/ui';
  */
 export function SignIn() {
   const { staff, signIn } = useAuth();
+  usePageTitle("Sign in · Let's Dine admin");
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/admin';

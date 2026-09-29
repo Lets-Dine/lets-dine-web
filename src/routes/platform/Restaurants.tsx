@@ -17,6 +17,7 @@ import {
   useCommand,
 } from '../../components/admin/kit';
 import { Search } from '../../components/icons';
+import { usePageTitle } from '../../state/usePageTitle';
 import { cx } from '../../components/ui';
 
 function slugify(name: string): string {
@@ -47,6 +48,7 @@ const emptyForm = {
  * that creates the next one together with its first OWNER account.
  */
 export function PlatformRestaurants() {
+  usePageTitle('Restaurants · Platform admin');
   const [keyword, setKeyword] = useState('');
   const list = useAsync(() => listPlatformRestaurants(keyword), [keyword]);
   const { busy, run } = useCommand();

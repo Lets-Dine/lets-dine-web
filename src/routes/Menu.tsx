@@ -6,7 +6,9 @@ import { buildSections } from '../domain/metrics';
 import type { Dish } from '../domain/types';
 import { haptic } from '../platform/haptics';
 import { useCart } from '../state/CartContext';
+import { usePageTitle } from '../state/usePageTitle';
 import { DishRow, DishTile } from '../components/DishCard';
+import { QuickAddSheet } from '../components/QuickAddSheet';
 import { SessionCode } from '../components/Bits';
 import { RatingPill } from '../components/Rating';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, EYEBROW, GLASS, ICON_BTN, RAIL, SHELL, WIDE, cx } from '../components/ui';
@@ -45,16 +47,23 @@ function GuideStep({ icon, step, title, text }: { icon: ReactNode; step: string;
 
 export function Menu() {
   const { menu, table, session, ctx, base } = useRestaurant();
+  usePageTitle(`${menu.restaurant.name} · Menu`, menu.restaurant.tagline);
   const cart = useCart();
   const [query, setQuery] = useState('');
   const [scrolled, setScrolled] = useState(false);
   const [activeCategory, setActiveCategory] = useState(menu.categories[0]?.id ?? '');
   const [guideDismissed, setGuideDismissed] = useState(readGuideDismissed);
+  const [quickAdd, setQuickAdd] = useState<{ dish: Dish; trigger: HTMLElement } | null>(null);
   const sectionRefs = useRef(new Map<string, HTMLElement>());
   const chipRailRef = useRef<HTMLDivElement>(null);
 
   const href = (dish: Dish) => `${base}/d/${dish.id}`;
   const sections = useMemo(() => buildSections(menu.dishes, ctx), [menu.dishes, ctx]);
+  const openQuickAdd = (dish: Dish, trigger: HTMLElement) => setQuickAdd({ dish, trigger });
+  const closeQuickAdd = () => {
+    quickAdd?.trigger.focus();
+    setQuickAdd(null);
+  };
 
   const dismissGuide = () => {
     setGuideDismissed(true);
@@ -304,7 +313,7 @@ export function Menu() {
           ) : (
             <div className="md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-3">
               {results.map((d) => (
-                <DishRow key={d.id} dish={d} href={href(d)} ctx={ctx} />
+                <DishRow key={d.id} dish={d} href={href(d)} ctx={ctx} onQuickAdd={openQuickAdd} />
               ))}
             </div>
           )}
@@ -345,7 +354,7 @@ export function Menu() {
                   )}
                 >
                   {section.dishes.map((d, i) => (
-                    <DishTile key={d.id} dish={d} href={href(d)} ctx={ctx} rank={isFlagship ? i + 1 : undefined} />
+                    <DishTile key={d.id} dish={d} href={href(d)} ctx={ctx} rank={isFlagship ? i + 1 : undefined} onQuickAdd={openQuickAdd} />
                   ))}
                 </div>
               </section>
@@ -413,7 +422,7 @@ export function Menu() {
                     </h2>
                     <div className="md:grid md:grid-cols-2 md:gap-3 lg:mt-2">
                       {dishes.map((d) => (
-                        <DishRow key={d.id} dish={d} href={href(d)} ctx={ctx} />
+                        <DishRow key={d.id} dish={d} href={href(d)} ctx={ctx} onQuickAdd={openQuickAdd} />
                       ))}
                     </div>
                   </section>
@@ -432,6 +441,8 @@ export function Menu() {
       )}
 
       <div className="h-[calc(var(--dock-h)+var(--safe-b))] lg:h-8" />
+
+      {quickAdd && <QuickAddSheet dish={quickAdd.dish} href={href(quickAdd.dish)} onClose={closeQuickAdd} />}
     </main>
   );
 }

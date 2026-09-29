@@ -1,7 +1,7 @@
 import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
 import type { AuditEntry, DiningTable, ItemStatus, Menu, MenuCategory, Order, Payment, PaymentMethod, StaffMember } from '../domain/types';
 import * as mock from './admin';
-import type { DishDraft, StaffDraft } from './admin';
+import type { AddOnDraft, DishDraft, DishVariantDraft, StaffDraft } from './admin';
 import { IS_LIVE_API } from './http';
 import * as live from './live-admin';
 
@@ -64,6 +64,38 @@ export function moveDish(actor: StaffMember, dishId: string, direction: -1 | 1) 
   return IS_LIVE_API ? live.moveDish(dishId, direction) : mock.moveDish(actor, dishId, direction);
 }
 
+export function createAddOn(actor: StaffMember, draft: AddOnDraft) {
+  return IS_LIVE_API ? live.createAddOn(draft) : mock.createAddOn(actor, draft);
+}
+
+export function updateAddOn(actor: StaffMember, addOnId: string, patch: Partial<AddOnDraft>) {
+  return IS_LIVE_API ? live.updateAddOn(addOnId, patch) : mock.updateAddOn(actor, addOnId, patch);
+}
+
+export function setAddOnArchived(actor: StaffMember, addOnId: string, archived: boolean) {
+  return IS_LIVE_API ? live.setAddOnArchived(addOnId, archived) : mock.setAddOnArchived(actor, addOnId, archived);
+}
+
+export function setDishAddOns(actor: StaffMember, dishId: string, addOnIds: string[]) {
+  return IS_LIVE_API ? live.setDishAddOns(dishId, addOnIds) : mock.setDishAddOns(actor, dishId, addOnIds);
+}
+
+export function createDishVariant(actor: StaffMember, dishId: string, draft: DishVariantDraft) {
+  return IS_LIVE_API ? live.createDishVariant(dishId, draft) : mock.createDishVariant(actor, dishId, draft);
+}
+
+export function updateDishVariant(actor: StaffMember, dishId: string, variantId: string, patch: Partial<DishVariantDraft>) {
+  return IS_LIVE_API
+    ? live.updateDishVariant(dishId, variantId, patch)
+    : mock.updateDishVariant(actor, dishId, variantId, patch);
+}
+
+export function setDishVariantArchived(actor: StaffMember, dishId: string, variantId: string, archived: boolean) {
+  return IS_LIVE_API
+    ? live.setDishVariantArchived(dishId, variantId, archived)
+    : mock.setDishVariantArchived(actor, dishId, variantId, archived);
+}
+
 export function listTables(actor: StaffMember): Promise<DiningTable[]> {
   return IS_LIVE_API ? live.listTables() : mock.listTables(actor);
 }
@@ -82,6 +114,11 @@ export function setTableActive(actor: StaffMember, tableId: string, active: bool
 
 export function regenerateQr(actor: StaffMember, tableId: string): Promise<DiningTable> {
   return IS_LIVE_API ? live.regenerateQr(tableId) : mock.regenerateQr(actor, tableId);
+}
+
+/** Seats a table on a diner's behalf — for a guest who can't or won't scan the QR themselves. */
+export function startTableSession(actor: StaffMember, tableId: string): Promise<DiningTable> {
+  return IS_LIVE_API ? live.startTableSession(tableId) : mock.startTableSession(actor, tableId);
 }
 
 export function endTableSession(actor: StaffMember, tableId: string): Promise<DiningTable> {

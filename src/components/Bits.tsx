@@ -68,13 +68,19 @@ export function SessionCode({ label, token, className }: { label: string; token:
   );
 }
 
-export function DietMarks({ dish }: { dish: Dish }) {
-  if (!dish.isVeg && dish.spiceLevel === 0) return null;
+export function DietMarks({ dish }: { dish: Pick<Dish, 'dietaryType' | 'spiceLevel'> }) {
+  const isLeafy = dish.dietaryType === 'VEG' || dish.dietaryType === 'VEGAN';
+  if (!isLeafy && dish.dietaryType !== 'HALAL' && dish.spiceLevel === 0) return null;
   return (
     <span className="ml-1.5 inline-flex translate-y-px items-center gap-1.5" aria-hidden>
-      {dish.isVeg && (
-        <span className="leading-none text-leaf" title="Vegetarian">
+      {isLeafy && (
+        <span className="leading-none text-leaf" title={dish.dietaryType === 'VEGAN' ? 'Vegan' : 'Vegetarian'}>
           <Leaf size={11} />
+        </span>
+      )}
+      {dish.dietaryType === 'HALAL' && (
+        <span className="text-[10px] font-semibold leading-none text-leaf" title="Halal">
+          Halal
         </span>
       )}
       {dish.spiceLevel > 0 && (

@@ -9,10 +9,23 @@ import { RatingPill } from './Rating';
 import { cx } from './ui';
 import { Plus } from './icons';
 
-/** Compact add control: one tap the first time, a stepper after that. */
-function AddControl({ dish, tone = 'solid' }: { dish: Dish; tone?: 'solid' | 'inset' }) {
+/** Compact add control: one tap the first time, a stepper after that. Dishes with add-ons or a required variant open a quick-add sheet right here instead of a blind quick-add. */
+function AddControl({
+  dish,
+  onQuickAdd,
+  tone = 'solid',
+}: {
+  dish: Dish;
+  onQuickAdd: (dish: Dish, trigger: HTMLElement) => void;
+  tone?: 'solid' | 'inset';
+}) {
   const cart = useCart();
-  const quantity = cart.quantityOf(dish.id);
+  // Sums every customized line for this dish, not just the plain one — a dish
+  // with add-ons can be in the cart several times over, once per combination.
+  const quantity = cart.lines.filter((l) => l.dishId === dish.id).reduce((sum, l) => sum + l.quantity, 0);
+  // A varianted dish must never get an instant single-tap add, even with zero add-ons —
+  // the diner still has to pick a variant.
+  const needsSheet = dish.addOnIds.length > 0 || dish.variants.length > 0;
 
   if (!dish.isAvailable) {
     return (
@@ -22,7 +35,7 @@ function AddControl({ dish, tone = 'solid' }: { dish: Dish; tone?: 'solid' | 'in
     );
   }
 
-  if (quantity > 0) {
+  if (quantity > 0 && !needsSheet) {
     return (
       <div className="animate-pop">
         <div
@@ -40,28 +53,48 @@ function AddControl({ dish, tone = 'solid' }: { dish: Dish; tone?: 'solid' | 'in
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        haptic.commit();
-        cart.add(dish.id, 1);
-        // toast(`${dish.name} added`, <Bag size={19} />, {
-        //   label: 'Undo',
-        //   onAction: () => cart.setQuantity(dish.id, 0),
-        // });
-      }}
-      aria-label={`Add ${dish.name}`}
-      className={cx(
-        'inline-flex items-center justify-center gap-0.5 rounded-full font-bold tracking-tight text-white',
-        'transition-move active:scale-90',
-        tone === 'solid'
-          ? 'h-8.5 pl-3 pr-3.5 text-[13.5px] bg-flame shadow-[0_8px_20px_-8px_rgb(255_110_50/0.85)]'
-          : 'h-8 pl-2.5 pr-3 text-[13px] bg-surface-2 text-flame-1 ring-1 ring-flame-2/35 ring-inset',
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        onClick={(e) => {
+          haptic.commit();
+          if (needsSheet) {
+            onQuickAdd(dish, e.currentTarget);
+            return;
+          }
+          cart.add(dish.id, 1);
+        }}
+        aria-label={
+          needsSheet
+            ? quantity > 0
+              ? `${quantity} of ${dish.name} in your cart — choose options to add another`
+              : `Choose options for ${dish.name}`
+            : `Add ${dish.name}`
+        }
+        className={cx(
+          'inline-flex items-center justify-center gap-0.5 rounded-full font-bold tracking-tight text-white',
+          'transition-move active:scale-90',
+          tone === 'solid'
+            ? 'h-8.5 pl-3 pr-3.5 text-[13.5px] bg-flame shadow-[0_8px_20px_-8px_rgb(255_110_50/0.85)]'
+            : 'h-8 pl-2.5 pr-3 text-[13px] bg-surface-2 text-flame-1 ring-1 ring-flame-2/35 ring-inset',
+        )}
+      >
+        <Plus size={15} />
+        Add
+      </button>
+      {/* Customized lines can't collapse into one stepper — several add-on
+          combinations of the same dish can sit in the cart at once — so the
+          running total shows as a badge and another tap opens the sheet again. */}
+      {quantity > 0 && (
+        <b
+          key={quantity}
+          aria-hidden
+          className="absolute -right-1.5 -top-1.5 grid h-4.5 min-w-4.5 animate-bump place-items-center rounded-full bg-flame px-1 text-[10.5px] font-extrabold leading-none text-white tnum ring-2 ring-bg"
+        >
+          {quantity}
+        </b>
       )}
-    >
-      <Plus size={15} />
-      Add
-    </button>
+    </span>
   );
 }
 
@@ -69,11 +102,18 @@ interface Props {
   dish: Dish;
   href: string;
   ctx: RankContext;
+  onQuickAdd: (dish: Dish, trigger: HTMLElement) => void;
+}
+
+/** A dish priced off its variants has nothing of its own worth showing — no single price, spice level, or dietary type applies once there's a choice to make. */
+function hasActiveVariant(dish: Dish): boolean {
+  return dish.variants.some((v) => !v.isArchived);
 }
 
 /** Row card — the workhorse of the full menu. Two per line once there is room. */
-export function DishRow({ dish, href, ctx }: Props) {
+export function DishRow({ dish, href, ctx, onQuickAdd }: Props) {
   const badges = badgesFor(dish, ctx);
+  const varianted = hasActiveVariant(dish);
   return (
     <article
       className={cx(
@@ -92,7 +132,7 @@ export function DishRow({ dish, href, ctx }: Props) {
         )}
         <h3 className="text-[16px] font-semibold leading-tight tracking-tight">
           {dish.name}
-          <DietMarks dish={dish} />
+          {!varianted && <DietMarks dish={dish} />}
         </h3>
         <div className="flex flex-wrap items-center gap-2">
           <RatingPill rating={dish.stats.avgRating} count={dish.stats.ratingCount} />
@@ -103,7 +143,7 @@ export function DishRow({ dish, href, ctx }: Props) {
           )}
         </div>
         <p className="text-[13px] leading-relaxed text-ink-3 line-clamp-2-safe">{dish.description}</p>
-        <Price value={dish.price} currency={dish.currency} className="mt-0.5 text-[15px]" />
+        {!varianted && <Price value={dish.price} currency={dish.currency} className="mt-0.5 text-[15px]" />}
       </Link>
 
       <div className="relative w-27 shrink-0">
@@ -111,7 +151,7 @@ export function DishRow({ dish, href, ctx }: Props) {
           <DishImage dish={dish} className="size-27 rounded-2xl shadow-lift ring-1 ring-hairline ring-inset" />
         </Link>
         <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2">
-          <AddControl dish={dish} />
+          <AddControl dish={dish} onQuickAdd={onQuickAdd} />
         </div>
       </div>
     </article>
@@ -119,8 +159,9 @@ export function DishRow({ dish, href, ctx }: Props) {
 }
 
 /** Tall card for the merchandising rails. Scrolls on phones, grids on laptops. */
-export function DishTile({ dish, href, ctx, rank }: Props & { rank?: number }) {
+export function DishTile({ dish, href, ctx, onQuickAdd, rank }: Props & { rank?: number }) {
   const badges = badgesFor(dish, ctx);
+  const varianted = hasActiveVariant(dish);
   return (
     <article
       className={cx('flex w-42 shrink-0 snap-start flex-col gap-2.5 lg:w-full', !dish.isAvailable && 'opacity-50')}
@@ -155,9 +196,9 @@ export function DishTile({ dish, href, ctx, rank }: Props & { rank?: number }) {
       <div className="flex items-center gap-2">
         <Link to={href} className="min-w-0 flex-1">
           <h3 className="truncate text-[14.5px] font-semibold tracking-tight">{dish.name}</h3>
-          <Price value={dish.price} currency={dish.currency} className="text-[13.5px] text-ink-2" />
+          {!varianted && <Price value={dish.price} currency={dish.currency} className="text-[13.5px] text-ink-2" />}
         </Link>
-        <AddControl dish={dish} tone="inset" />
+        <AddControl dish={dish} onQuickAdd={onQuickAdd} tone="inset" />
       </div>
     </article>
   );

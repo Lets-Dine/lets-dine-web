@@ -19,7 +19,17 @@ function socketOrigin(): string {
 }
 
 export function getSocket(): Socket {
-  if (!socket) socket = io(socketOrigin(), { transports: ['websocket', 'polling'] });
+  if (!socket) {
+    socket = io(socketOrigin(), { transports: ['websocket', 'polling'] });
+    // Socket.IO auto-reconnects on its own for a dropped connection, a timed-out
+    // ping, or a transport error — but not when the *server* is the one that
+    // disconnected the client (`io server disconnect`), which is deliberately
+    // left manual so a server-side kick (e.g. revoking a session) sticks. That
+    // is never what we want here, so force the reconnect ourselves.
+    socket.on('disconnect', (reason) => {
+      if (reason === 'io server disconnect') socket?.connect();
+    });
+  }
   return socket;
 }
 

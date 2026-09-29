@@ -8,9 +8,11 @@ import type { Permission } from '../../domain/permissions';
 import type { Menu, Order } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { AdminThemeToggle } from '../../state/AdminTheme';
+import { usePageTitle } from '../../state/usePageTitle';
 import { Loading } from '../../components/admin/kit';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Cash, Folder, Grid, History, Plate, Receipt, Sliders, Star, Table, TrendUp, Users } from '../../components/icons';
+import { Cash, Folder, Grid, History, Plate, Receipt, Sliders, Sparkle, Star, Table, TrendUp, Users } from '../../components/icons';
+import { playNewOrderSound } from '../../platform/sound';
 
 /**
  * The dashboard frame. Navigation is filtered by role rather than disabled by
@@ -55,6 +57,7 @@ const NAV: NavItem[] = [
   { to: '/admin', label: 'Dashboard', icon: Grid, permission: 'orders:view', end: true },
   { to: '/admin/orders', label: 'Orders', icon: Receipt, permission: 'orders:view' },
   { to: '/admin/menu', label: 'Menu', icon: Plate, permission: 'menu:view' },
+  { to: '/admin/add-ons', label: 'Add-ons', icon: Sparkle, permission: 'menu:edit' },
   { to: '/admin/categories', label: 'Categories', icon: Folder, permission: 'menu:edit' },
   { to: '/admin/tables', label: 'Tables', icon: Table, permission: 'tables:view' },
   { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view' },
@@ -68,9 +71,9 @@ const NAV: NavItem[] = [
 /** How often the queue re-reads itself. A pass cannot wait a minute for a ticket. */
 const POLL_MS = 8000;
 
-/** Only Dashboard, Orders and Tables render anything from the queue — no reason for the rest to poll or hold a socket open for it. */
+/** Only Dashboard, Orders and Tables (including one table's own detail page) render anything from the queue — no reason for the rest to poll or hold a socket open for it. */
 function routeNeedsOrders(pathname: string): boolean {
-  return pathname === '/admin' || pathname === '/admin/orders' || pathname === '/admin/tables';
+  return pathname === '/admin' || pathname === '/admin/orders' || pathname.startsWith('/admin/tables');
 }
 
 export function AdminLayout() {
@@ -89,6 +92,8 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
+  /** `null` until the queue has loaded once — the first load seeds this silently, it never sounds the alert. */
+  const knownOrderIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     alive.current = true;
@@ -103,15 +108,32 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
       .catch((e: Error) => alive.current && setError(e.message));
   }, [staff]);
 
+  /** Sounds the alert for any id this poll turned up that wasn't there last time — silent on the very first load. */
+  const noteOrders = useCallback((next: Order[]) => {
+    const seen = knownOrderIds.current;
+    if (seen) {
+      if (next.some((o) => !seen.has(o.id))) playNewOrderSound();
+      for (const o of next) seen.add(o.id);
+    } else {
+      knownOrderIds.current = new Set(next.map((o) => o.id));
+    }
+  }, []);
+
   const reloadOrders = useCallback(() => {
     listQueue(staff)
-      .then((next) => alive.current && setOrders(next))
+      .then((next) => {
+        if (!alive.current) return;
+        noteOrders(next);
+        setOrders(next);
+      })
       .catch((e: Error) => alive.current && setError(e.message));
-  }, [staff]);
+  }, [staff, noteOrders]);
 
   /** A brand-new ticket the queue hasn't seen yet — appended rather than replacing the list. */
   const applyCreated = useCallback((created: Order) => {
     if (!alive.current) return;
+    playNewOrderSound();
+    knownOrderIds.current?.add(created.id);
     setOrders((prev) => {
       if (!prev) return [created];
       return prev.some((o) => o.id === created.id) ? prev.map((o) => (o.id === created.id ? created : o)) : [created, ...prev];
@@ -142,6 +164,9 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     const timer = setInterval(reloadOrders, POLL_MS);
     return () => clearInterval(timer);
   }, [needsOrders, reloadOrders, applyCreated, applyUpdated]);
+
+  const activeLabel = NAV.find((item) => (item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)))?.label;
+  usePageTitle(`${activeLabel ?? 'Dashboard'} · ${menu?.restaurant.name ?? "Let's Dine"} admin`);
 
   const waiting = useMemo(() => (orders ?? []).filter((o) => o.status === 'PENDING').length, [orders]);
 

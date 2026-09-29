@@ -11,7 +11,7 @@ import {
 } from '../../domain/orderStatus';
 import type { Focus } from '../../domain/orderStatus';
 import { formatMoney } from '../../domain/money';
-import type { Dish, ItemStatus, Menu, Order, OrderItem } from '../../domain/types';
+import type { Dish, ItemStatus, Menu, Order, OrderItem, OrderItemAddOn } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { cx } from '../ui';
 import { Minus, Plus } from '../icons';
@@ -43,6 +43,13 @@ const ITEM_ACTION: Partial<Record<ItemStatus, string>> = {
   PREPARING: 'bg-mint/16 text-mint-ink ring-1 ring-mint/30 ring-inset',
   READY: 'bg-flame text-white shadow-flame',
 };
+
+/** Add-ons can repeat (two extra cheeses) — group the snapshots into one "Extra cheese ×2" label each. */
+function addOnLabels(addOns: OrderItemAddOn[]): string[] {
+  const counts = new Map<string, number>();
+  for (const a of addOns) counts.set(a.nameSnapshot, (counts.get(a.nameSnapshot) ?? 0) + 1);
+  return [...counts.entries()].map(([name, qty]) => (qty > 1 ? `${name} ×${qty}` : name));
+}
 
 /** Past tense of each item transition, for the toast after a whole stage moves at once. */
 export const BULK_DONE: Partial<Record<ItemStatus, string>> = {
@@ -166,6 +173,12 @@ export function ItemRow({
           <span className={cx('block text-[14.5px] font-semibold leading-snug', cancelled && 'line-through')}>
             {item.dishNameSnapshot}
           </span>
+          {item.variantNameSnapshot && (
+            <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-2">{item.variantNameSnapshot}</span>
+          )}
+          {item.addOns.length > 0 && (
+            <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-3">+ {addOnLabels(item.addOns).join(', ')}</span>
+          )}
           {item.notes && <span className="mt-0.5 block text-[12.5px] italic leading-snug text-gold">“{item.notes}”</span>}
         </span>
         <span className="shrink-0 text-[13.5px] tnum text-ink-3">

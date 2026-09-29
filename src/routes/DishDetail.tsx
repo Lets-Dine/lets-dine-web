@@ -5,15 +5,16 @@ import { track } from '../domain/analytics';
 import { MERCH } from '../domain/config';
 import { formatMoney } from '../domain/money';
 import { badgesFor } from '../domain/metrics';
-import type { Dish } from '../domain/types';
 import { haptic } from '../platform/haptics';
-import { Badges, DietMarks, DishImage, QuantityStepper, Skeleton, SoldOutBadge } from '../components/Bits';
+import { Badges, DietMarks, DishImage, Skeleton, SoldOutBadge } from '../components/Bits';
+import { DishAddForm } from '../components/DishAddForm';
 import { RatingBreakdown, RatingPill, SubRating } from '../components/Rating';
 import { ReviewCard } from '../components/ReviewCard';
-import { BTN, BTN_GHOST, BTN_SIZE, DISPLAY, EYEBROW, GLASS, ICON_BTN, INPUT, SHELL, TAG, TAG_OFF, cx } from '../components/ui';
+import { BTN_GHOST, DISPLAY, EYEBROW, GLASS, ICON_BTN, SHELL, TAG, TAG_OFF, cx } from '../components/ui';
 import { ChevronLeft, Info } from '../components/icons';
 import { useAsync } from '../state/useAsync';
 import { useCart } from '../state/CartContext';
+import { usePageTitle } from '../state/usePageTitle';
 import { useToast } from '../state/ToastContext';
 import { useRestaurant } from './RestaurantLayout';
 import { EmptyState, ErrorScreen } from './Shell';
@@ -30,12 +31,15 @@ export function DishDetail() {
 
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState('');
+  const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [showAllReviews, setShowAllReviews] = useState(false);
 
   const currency = menu.restaurant.currency;
   const dishQuery = useAsync(() => getDish(dishId, currency), [dishId, currency]);
   const reviewsQuery = useAsync(() => getDishReviews(dishId), [dishId]);
   const dish = dishQuery.data;
+  usePageTitle(dish ? `${dish.name} · ${menu.restaurant.name}` : menu.restaurant.name, dish?.description);
 
   useEffect(() => {
     if (dish) track('dish_detail_viewed', { dishId: dish.id, name: dish.name });
@@ -65,15 +69,26 @@ export function DishDetail() {
   const reviews = reviewsQuery.data ?? [];
   const withComments = reviews.filter((r) => r.comment.length > 0);
   const shown = showAllReviews ? withComments : withComments.slice(0, 3);
+  const availableAddOns = menu.addOns.filter((a) => dish.addOnIds.includes(a.id) && a.isAvailable && !a.isArchived);
+  const availableVariants = [...dish.variants]
+    .filter((v) => v.isAvailable && !v.isArchived)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const selectedVariant = availableVariants.find((v) => v.id === selectedVariantId) ?? null;
+  // The mere existence of a non-archived variant means the dish's own price/spice/type no
+  // longer apply, even if every variant happens to be marked unavailable right now.
+  const variantPriced = dish.variants.some((v) => !v.isArchived);
+  // Add-ons can repeat — two extra cheeses is two entries of the same id, mirroring `CartLine.addOnIds`.
+  const setAddOnQty = (id: string, qty: number) =>
+    setSelectedAddOnIds((prev) => [...prev.filter((a) => a !== id), ...Array(Math.max(qty, 0)).fill(id)]);
 
   const addToCart = () => {
-    const before = cart.quantityOf(dish.id);
+    const before = cart.quantityOf(dish.id, selectedVariantId, selectedAddOnIds);
     haptic.commit();
-    cart.add(dish.id, quantity, note);
+    cart.add(dish.id, quantity, note, selectedVariantId, selectedAddOnIds);
     track('dish_added_to_cart', { dishId: dish.id, quantity });
     toast(`${quantity} × ${dish.name} added`, '🛒', {
       label: 'Undo',
-      onAction: () => cart.setQuantity(dish.id, before),
+      onAction: () => cart.setQuantity(dish.id, before, selectedVariantId, selectedAddOnIds),
     });
     goBack();
   };
@@ -124,25 +139,33 @@ export function DishDetail() {
 
               <h1 className={cx(DISPLAY, 'mb-2 text-[clamp(27px,8vw,33px)] lg:text-4xl')}>
                 {dish.name}
-                <DietMarks dish={dish} />
+                {!variantPriced && <DietMarks dish={dish} />}
               </h1>
               <p className="text-[14.5px] leading-relaxed text-ink-2 lg:text-[15.5px]">{dish.description}</p>
 
               <div className="mt-4 flex items-baseline justify-between gap-3 pb-1">
-                <span className="text-[26px] font-bold tracking-tighter tnum lg:text-3xl">
-                  {formatMoney(dish.price, dish.currency)}
-                </span>
+                {(selectedVariant || !variantPriced) && (
+                  <span className="text-[26px] font-bold tracking-tighter tnum lg:text-3xl">
+                    {formatMoney(selectedVariant ? selectedVariant.price : dish.price, dish.currency)}
+                  </span>
+                )}
                 <RatingPill rating={stats.avgRating} count={stats.ratingCount} size="md" />
               </div>
 
               {/* Desktop keeps the add controls in the flow of the page. */}
               <div className="mt-6 hidden lg:block">
-                <AddPanel
+                <DishAddForm
                   dish={dish}
                   quantity={quantity}
                   setQuantity={setQuantity}
                   note={note}
                   setNote={setNote}
+                  addOns={availableAddOns}
+                  selectedAddOnIds={selectedAddOnIds}
+                  onSetAddOnQty={setAddOnQty}
+                  variants={availableVariants}
+                  selectedVariantId={selectedVariantId}
+                  onSelectVariant={setSelectedVariantId}
                   onAdd={addToCart}
                 />
               </div>
@@ -244,76 +267,22 @@ export function DishDetail() {
         )}
       >
         <div className="mx-auto w-full max-w-[620px]">
-          <AddPanel
+          <DishAddForm
             dish={dish}
             quantity={quantity}
             setQuantity={setQuantity}
             note={note}
             setNote={setNote}
+            addOns={availableAddOns}
+            selectedAddOnIds={selectedAddOnIds}
+            onSetAddOnQty={setAddOnQty}
+            variants={availableVariants}
+            selectedVariantId={selectedVariantId}
+            onSelectVariant={setSelectedVariantId}
             onAdd={addToCart}
           />
         </div>
       </div>
     </main>
-  );
-}
-
-function AddPanel({
-  dish,
-  quantity,
-  setQuantity,
-  note,
-  setNote,
-  onAdd,
-}: {
-  dish: Dish;
-  quantity: number;
-  setQuantity: (n: number) => void;
-  note: string;
-  setNote: (s: string) => void;
-  onAdd: () => void;
-}) {
-  const [noteOpen, setNoteOpen] = useState(note.length > 0);
-
-  if (!dish.isAvailable) {
-    return (
-      <button type="button" className={cx(BTN_GHOST, 'w-full')} disabled>
-        Not available today
-      </button>
-    );
-  }
-  return (
-    <div className="flex flex-col gap-2.5">
-      {/* Most diners never write a note, and on a phone this panel is pinned
-          over the page — so the common path shows first and the note is one
-          tap deeper, exactly as it already works in the cart. */}
-      {noteOpen ? (
-        <input
-          type="text"
-          value={note}
-          maxLength={140}
-          autoFocus
-          onChange={(e) => setNote(e.target.value)}
-          onBlur={() => note.trim().length === 0 && setNoteOpen(false)}
-          placeholder="No onions, extra spicy…"
-          aria-label="Note for the kitchen"
-          className={cx(INPUT, 'h-11')}
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => setNoteOpen(true)}
-          className="w-fit py-0.5 text-[13px] font-semibold text-flame-1"
-        >
-          + Add a note for the kitchen
-        </button>
-      )}
-      <div className="flex items-center gap-2.5">
-        <QuantityStepper value={quantity} onChange={setQuantity} min={1} size="lg" />
-        <button type="button" className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')} onClick={onAdd}>
-          Add · {formatMoney(dish.price * quantity, dish.currency)}
-        </button>
-      </div>
-    </div>
   );
 }

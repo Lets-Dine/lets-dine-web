@@ -19,6 +19,7 @@ import { BTN, BTN_FLAME, BTN_GHOST, BTN_SIZE, EYEBROW, SHELL, cx } from '../comp
 import { Check, Clock, Sparkle, X } from '../components/icons';
 import { clockTime } from '../components/time';
 import { useSessionOrders } from '../state/SessionOrdersContext';
+import { usePageTitle } from '../state/usePageTitle';
 import { useToast } from '../state/ToastContext';
 import { PAGE, SPLIT } from './Cart';
 import { useRestaurant } from './RestaurantLayout';
@@ -34,7 +35,8 @@ const ITEM_PILL_STYLE: Record<OrderItem['status'], string> = {
 
 export function OrderStatus() {
   const { orderId = '' } = useParams();
-  const { table, session, base } = useRestaurant();
+  const { menu, table, session, base } = useRestaurant();
+  usePageTitle(`Order status · ${menu.restaurant.name}`);
   const navigate = useNavigate();
   const toast = useToast();
   const { orders, rememberOrder } = useSessionOrders();

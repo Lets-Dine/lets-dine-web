@@ -4,6 +4,7 @@ import { ApiError } from '../../api/store';
 import { IS_LIVE_API } from '../../api/http';
 import { readPlatformKey, unlockPlatform } from '../../api/platform';
 import { AdminThemeToggle } from '../../state/AdminTheme';
+import { usePageTitle } from '../../state/usePageTitle';
 import { ADMIN_PRIMARY, Field, PANEL, TextInput } from '../../components/admin/kit';
 import { DISPLAY, SHELL, cx } from '../../components/ui';
 
@@ -12,6 +13,7 @@ import { DISPLAY, SHELL, cx } from '../../components/ui';
  * `x-platform-key` — there is no platform user table in the MVP.
  */
 export function PlatformSignIn() {
+  usePageTitle('Sign in · Platform admin');
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/platform';

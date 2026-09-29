@@ -15,6 +15,7 @@ import { RestaurantLayout } from './routes/RestaurantLayout';
 import { ReviewFlow } from './routes/ReviewFlow';
 import { AdminLayout } from './routes/admin/AdminLayout';
 import { Analytics } from './routes/admin/Analytics';
+import { AddOns } from './routes/admin/AddOns';
 import { AuditLog } from './routes/admin/AuditLog';
 import { Categories } from './routes/admin/Categories';
 import { Dashboard } from './routes/admin/Dashboard';
@@ -27,6 +28,7 @@ import { Settings } from './routes/admin/Settings';
 import { SignIn } from './routes/admin/SignIn';
 import { Staff } from './routes/admin/Staff';
 import { Tables } from './routes/admin/Tables';
+import { TableDetail } from './routes/admin/TableDetail';
 import { PlatformLayout } from './routes/platform/PlatformLayout';
 import { PlatformSignIn } from './routes/platform/PlatformSignIn';
 import { PlatformRestaurants } from './routes/platform/Restaurants';
@@ -107,8 +109,10 @@ export default function App() {
                 <Route path="orders" element={<Orders />} />
                 <Route path="menu" element={<MenuBoard />} />
                 <Route path="menu/:dishId" element={<DishEditor />} />
+                <Route path="add-ons" element={<AddOns />} />
                 <Route path="categories" element={<Categories />} />
                 <Route path="tables" element={<Tables />} />
+                <Route path="tables/:tableId" element={<TableDetail />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="reviews" element={<Reviews />} />
                 <Route path="analytics" element={<Analytics />} />

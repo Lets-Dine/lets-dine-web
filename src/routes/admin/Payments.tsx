@@ -6,7 +6,7 @@ import type { Payment, PaymentMethod } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { clockTime, relativeTime } from '../../components/time';
-import { DOCKET_CARD, DocketDaySection, DocketEmpty, INPUT_BOX, LedgerStat, Loading, PageTitle, Perforation, Segmented } from '../../components/admin/kit';
+import { DOCKET_CARD, DocketDaySection, DocketEmpty, INPUT_BOX, LedgerStat, Loading, PageTitle, Perforation, Segmented, dayLabel, groupByDay } from '../../components/admin/kit';
 import { cx } from '../../components/ui';
 import { Cash, Check, ChevronRight, Qr, Receipt, X } from '../../components/icons';
 import { useDashboard } from './AdminLayout';
@@ -27,20 +27,6 @@ const METHOD_OPTIONS: { value: MethodFilter; label: string }[] = [
   { value: 'CASH', label: 'Cash' },
   { value: 'CARD', label: 'Card' },
 ];
-
-function dayKey(iso: string): string {
-  return new Date(iso).toDateString();
-}
-
-function dayLabel(iso: string): string {
-  const at = new Date(iso);
-  const now = new Date();
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const diffDays = Math.round((startOfDay(now) - startOfDay(at)) / 86_400_000);
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  return at.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-}
 
 export function Payments() {
   const staff = useStaff();
@@ -149,16 +135,7 @@ export function Payments() {
     [byTable, method],
   );
 
-  const groups = useMemo(() => {
-    const map = new Map<string, Payment[]>();
-    for (const p of filtered) {
-      const key = dayKey(p.createdAt);
-      const bucket = map.get(key);
-      if (bucket) bucket.push(p);
-      else map.set(key, [p]);
-    }
-    return [...map.values()];
-  }, [filtered]);
+  const groups = useMemo(() => groupByDay(filtered, (p) => p.createdAt), [filtered]);
 
   const collected = useMemo(() => rows.reduce((sum, p) => sum + p.total, 0), [rows]);
   const discounted = useMemo(() => rows.reduce((sum, p) => sum + p.discount, 0), [rows]);
@@ -173,6 +150,7 @@ export function Payments() {
       payment.items.map((i) => ({ dishNameSnapshot: i.dishNameSnapshot, quantity: i.quantity, total: i.unitPrice * i.quantity })),
       { currency: payment.currency, subtotal: payment.subtotal, serviceCharge: payment.serviceCharge, tax: payment.tax, discount: payment.discount, total: payment.total },
       menu.restaurant.name,
+      { method: payment.method, takenBy: payment.createdByName },
     );
   };
 
@@ -405,6 +383,12 @@ function PaymentDetail({
             <span>Subtotal</span>
             <span className="tnum">{formatMoney(payment.subtotal, payment.currency)}</span>
           </div>
+          {payment.discount > 0 && (
+            <div className="flex items-center justify-between">
+              <span>Discount</span>
+              <span className="tnum">−{formatMoney(payment.discount, payment.currency)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span>Service</span>
             <span className="tnum">{formatMoney(payment.serviceCharge, payment.currency)}</span>
@@ -413,12 +397,6 @@ function PaymentDetail({
             <span>Tax</span>
             <span className="tnum">{formatMoney(payment.tax, payment.currency)}</span>
           </div>
-          {payment.discount > 0 && (
-            <div className="flex items-center justify-between">
-              <span>Discount</span>
-              <span className="tnum">−{formatMoney(payment.discount, payment.currency)}</span>
-            </div>
-          )}
         </div>
 
         <div className="mx-6 border-t-2 border-dashed border-docket-line" />

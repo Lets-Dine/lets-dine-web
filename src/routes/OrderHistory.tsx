@@ -9,6 +9,7 @@ import { Check } from '../components/icons';
 import { EYEBROW, SHELL, cx } from '../components/ui';
 import { clockTime, relativeTime } from '../components/time';
 import { useSessionOrders } from '../state/SessionOrdersContext';
+import { usePageTitle } from '../state/usePageTitle';
 import { PAGE } from './Cart';
 import { useRestaurant } from './RestaurantLayout';
 import { EmptyState, TopBar } from './Shell';
@@ -29,7 +30,8 @@ const STATUS_TONE: Record<OrderStatus, string> = {
 };
 
 export function OrderHistory() {
-  const { table, session, base } = useRestaurant();
+  const { menu, table, session, base } = useRestaurant();
+  usePageTitle(`Your orders · ${menu.restaurant.name}`);
   const { orders, ready } = useSessionOrders();
   const [payment, setPayment] = useState<Payment | null>(null);
 

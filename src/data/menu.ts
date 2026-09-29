@@ -1,4 +1,4 @@
-import type { Dish, DishStats, DiningTable, MenuCategory, Restaurant } from '../domain/types';
+import type { AddOn, Dish, DishStats, DiningTable, MenuCategory, Restaurant } from '../domain/types';
 
 const rs = (rupees: number) => rupees * 100;
 
@@ -63,6 +63,24 @@ export const CATEGORIES: MenuCategory[] = [
   { id: 'cat_drink', restaurantId: RESTAURANT.id, name: 'Drinks', emoji: '🥤', sortOrder: 6 },
   { id: 'cat_sweet', restaurantId: RESTAURANT.id, name: 'Desserts', emoji: '🍮', sortOrder: 7 },
 ];
+
+const ADD_ON_SEEDS: [id: string, name: string, rupees: number][] = [
+  ['add_extra_cheese', 'Extra Cheese', 60],
+  ['add_extra_meat', 'Extra Meat', 120],
+  ['add_chilli_achar', 'Extra Chilli Achar', 40],
+  ['add_fried_egg', 'Fried Egg', 50],
+];
+
+export const ADD_ONS: AddOn[] = ADD_ON_SEEDS.map(([id, name, rupees], index) => ({
+  id,
+  restaurantId: RESTAURANT.id,
+  name,
+  price: rs(rupees),
+  currency: RESTAURANT.currency,
+  isAvailable: true,
+  isArchived: false,
+  sortOrder: index,
+}));
 
 /** [overall, count, taste, portion, value, recommendRate, orders30d, ordersPrev30d] */
 type StatTuple = [number, number, number, number, number, number, number, number];
@@ -132,6 +150,7 @@ interface DishSeed {
   unavailable?: boolean;
   stats: StatTuple | null;
   tags?: [string, number][];
+  addOns?: string[];
 }
 
 const SEEDS: DishSeed[] = [
@@ -147,6 +166,7 @@ const SEEDS: DishSeed[] = [
     spice: 1,
     stats: [4.7, 512, 4.8, 4.5, 4.7, 0.93, 480, 452],
     tags: [['Delicious', 288], ['Juicy', 201], ['Good value', 154]],
+    addOns: ['add_chilli_achar'],
   },
   {
     id: 'dsh_jhol_momo',
@@ -197,6 +217,7 @@ const SEEDS: DishSeed[] = [
     featured: true,
     stats: [4.8, 238, 4.8, 4.4, 4.5, 0.89, 212, 181],
     tags: [['Smoky', 164], ['Juicy', 131], ['Large portion', 74]],
+    addOns: ['add_extra_meat', 'add_chilli_achar'],
   },
   {
     id: 'dsh_mutton_sekuwa',
@@ -293,6 +314,7 @@ const SEEDS: DishSeed[] = [
     featured: true,
     stats: [4.7, 302, 4.7, 4.9, 4.8, 0.94, 331, 302],
     tags: [['Large portion', 214], ['Good value', 178], ['Delicious', 121]],
+    addOns: ['add_fried_egg', 'add_extra_meat'],
   },
   {
     id: 'dsh_mutton_curry',
@@ -341,6 +363,7 @@ const SEEDS: DishSeed[] = [
     spice: 1,
     stats: [4.1, 288, 4.1, 4.3, 4.2, 0.68, 302, 311],
     tags: [['Large portion', 121], ['Mild', 88]],
+    addOns: ['add_extra_cheese', 'add_fried_egg'],
   },
   {
     id: 'dsh_thukpa',
@@ -461,6 +484,9 @@ export const DISHES: Dish[] = SEEDS.map((seed, index) => ({
   isFeatured: Boolean(seed.featured),
   sortOrder: index,
   spiceLevel: seed.spice ?? 0,
-  isVeg: Boolean(seed.veg),
+  dietaryType: seed.veg ? 'VEG' : 'NON_VEG',
   stats: stats(seed.stats, seed.tags),
+  addOnIds: seed.addOns ?? [],
+  // No seed dish has variants yet — every dish keeps pricing off `price` exactly as before.
+  variants: [],
 }));

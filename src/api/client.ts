@@ -9,6 +9,7 @@ import type {
   DiningTable,
   Dish,
   DishStats,
+  DishVariant,
   ItemStatus,
   Menu,
   Order,
@@ -229,12 +230,13 @@ export async function getMenu(restaurantSlug: string): Promise<Menu> {
   const store = readStore();
   const restaurant = restaurantOf(store);
   if (restaurantSlug !== restaurant.slug) throw new ApiError(404, 'Menu not found.');
-  const { categories, dishes } = menuOf(store);
+  const { categories, dishes, addOns } = menuOf(store);
   return {
     restaurant,
     categories: [...categories].sort((a, b) => a.sortOrder - b.sortOrder),
     // An archived dish keeps its order history but leaves the menu entirely.
     dishes: dishes.filter((d) => !d.isArchived).map((d) => hydrateDish(d, store)),
+    addOns: addOns.filter((a) => !a.isArchived),
   };
 }
 
@@ -299,6 +301,7 @@ export async function createOrder({ session, lines, idempotencyKey }: CreateOrde
   const table = tablesOf(store).find((t) => t.id === session.tableId);
   const menu = menuOf(store);
 
+  const addOnById = new Map(menu.addOns.map((a) => [a.id, a]));
   const now = new Date().toISOString();
   const items: OrderItem[] = lines.map((line) => {
     const dish = menu.dishes.find((d) => d.id === line.dishId);
@@ -306,16 +309,42 @@ export async function createOrder({ session, lines, idempotencyKey }: CreateOrde
     if (!dish.isAvailable) throw new ApiError(409, `${dish.name} just went off the menu.`);
     if (!Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > 30)
       throw new ApiError(400, 'Invalid quantity.');
+
+    // Add-ons, like the dish itself, are re-resolved and re-priced here — a
+    // client-sent price or an add-on id that isn't actually linked to this
+    // dish is never trusted.
+    const addOns = (line.addOnIds ?? []).map((addOnId) => {
+      const addOn = addOnById.get(addOnId);
+      if (!addOn || !dish.addOnIds.includes(addOnId) || addOn.isArchived || !addOn.isAvailable)
+        throw new ApiError(400, `One of the add-ons for ${dish.name} is no longer available.`);
+      return { addOnId: addOn.id, nameSnapshot: addOn.name, price: addOn.price };
+    });
+
+    // The chosen variant is re-resolved and re-priced here too, same rule as
+    // the dish and its add-ons — never trust a client-sent price or name.
+    const activeVariants = dish.variants.filter((v) => !v.isArchived);
+    let variant: DishVariant | null = null;
+    if (line.variantId) {
+      variant = activeVariants.find((v) => v.id === line.variantId && v.isAvailable) ?? null;
+      if (!variant) throw new ApiError(400, `The selected option for ${dish.name} is no longer available.`);
+    } else if (activeVariants.length > 0) {
+      throw new ApiError(400, `Choose an option for ${dish.name}.`);
+    }
+
     return {
       id: uid('itm'),
       dishId: dish.id,
       dishNameSnapshot: dish.name,
       imageUrlSnapshot: dish.imageUrl,
-      unitPrice: dish.price,
+      unitPrice: (variant ? variant.price : dish.price) + addOns.reduce((sum, a) => sum + a.price, 0),
       quantity: line.quantity,
       notes: line.note.slice(0, 140),
       status: 'PENDING',
       statusUpdatedAt: now,
+      addOns,
+      variantId: variant?.id ?? null,
+      variantNameSnapshot: variant?.name ?? null,
+      variantPriceSnapshot: variant?.price ?? null,
     };
   });
 

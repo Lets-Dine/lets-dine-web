@@ -3,6 +3,7 @@ import { resetDemoData } from '../api/client';
 import { demoEntry, getRestaurant } from '../api/diner';
 import { funnel } from '../domain/analytics';
 import { useAsync } from '../state/useAsync';
+import { usePageTitle } from '../state/usePageTitle';
 import { Skeleton } from '../components/Bits';
 import { RatingPill } from '../components/Rating';
 import { BTN, BTN_QUIET, BTN_SIZE_LG, DISPLAY, SHELL, cx } from '../components/ui';
@@ -19,6 +20,7 @@ export function Entry() {
   // restaurant on the card, so the two can never disagree.
   const entry = demoEntry();
   const restaurant = useAsync(async () => (entry ? getRestaurant(entry.slug) : null), [entry?.slug]).data;
+  usePageTitle(restaurant ? `${restaurant.name} · Scan to order` : "Let's Dine · Scan to order");
   const { dishDecisionRate, counts } = funnel();
 
   return (

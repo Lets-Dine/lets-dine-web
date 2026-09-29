@@ -1,6 +1,7 @@
-import { CATEGORIES, DISHES, RESTAURANT, TABLES } from '../data/menu';
+import { ADD_ONS, CATEGORIES, DISHES, RESTAURANT, TABLES } from '../data/menu';
 import { STAFF } from '../data/staff';
 import type {
+  AddOn,
   AuditEntry,
   DiningSession,
   DiningTable,
@@ -41,6 +42,7 @@ export const STORE_KEY = 'myfood.store.v4';
 export interface MenuState {
   categories: MenuCategory[];
   dishes: Dish[];
+  addOns: AddOn[];
 }
 
 export interface Store {
@@ -138,7 +140,7 @@ export function newQrToken(): string {
    dashboard has touched something, the store's copy wins.            */
 
 export function menuOf(store: Store): MenuState {
-  return store.menu ?? { categories: CATEGORIES, dishes: DISHES };
+  return store.menu ?? { categories: CATEGORIES, dishes: DISHES, addOns: ADD_ONS };
 }
 
 export function tablesOf(store: Store): DiningTable[] {
@@ -160,7 +162,13 @@ export function withEditableMenu(store: Store): Store & { menu: MenuState } {
     ...store,
     menu: {
       categories: CATEGORIES.map((c) => ({ ...c })),
-      dishes: DISHES.map((d) => ({ ...d, stats: { ...d.stats } })),
+      dishes: DISHES.map((d) => ({
+        ...d,
+        stats: { ...d.stats },
+        addOnIds: [...d.addOnIds],
+        variants: d.variants.map((v) => ({ ...v })),
+      })),
+      addOns: ADD_ONS.map((a) => ({ ...a })),
     },
   };
 }

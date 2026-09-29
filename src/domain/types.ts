@@ -12,6 +12,8 @@ export type OrderStatus =
 /** An item's own progress through the kitchen — independent of its siblings. */
 export type ItemStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
 
+export type DietaryType = 'VEG' | 'NON_VEG' | 'VEGAN' | 'HALAL';
+
 export interface Restaurant {
   id: string;
   name: string;
@@ -102,8 +104,44 @@ export interface Dish {
   isFeatured: boolean;
   sortOrder: number;
   spiceLevel: 0 | 1 | 2 | 3;
-  isVeg: boolean;
+  dietaryType: DietaryType;
   stats: DishStats;
+  /** Add-ons a diner can pick for this dish — ids into `Menu.addOns`. */
+  addOnIds: string[];
+  /**
+   * Required, single-choice size/style options (e.g. Small/Medium/Large), embedded in
+   * full — deliberately NOT the `addOnIds`/`Menu.addOns` pattern, because a variant has
+   * no cross-dish reuse case ("Large" on one dish is a different price/thing than
+   * "Large" on another). A dish with any non-archived variant requires a diner to pick
+   * exactly one; a dish with none prices off `price` exactly as it does today.
+   */
+  variants: DishVariant[];
+}
+
+/** A required, single-choice size/style option that replaces `Dish.price`, e.g. "Large". */
+export interface DishVariant {
+  id: string;
+  name: string;
+  price: Minor;
+  currency: string;
+  isAvailable: boolean;
+  isArchived: boolean;
+  sortOrder: number;
+  spiceLevel: 0 | 1 | 2 | 3;
+  dietaryType: DietaryType;
+}
+
+/** A priced extra a diner can attach to a dish, e.g. "Extra cheese". */
+export interface AddOn {
+  id: string;
+  restaurantId: string;
+  name: string;
+  price: Minor;
+  currency: string;
+  isAvailable: boolean;
+  /** Add-ons already ordered are archived, never hard-deleted — same rule as a dish. */
+  isArchived: boolean;
+  sortOrder: number;
 }
 
 export interface Review {
@@ -126,6 +164,17 @@ export interface CartLine {
   dishId: string;
   quantity: number;
   note: string;
+  /** The chosen size/style, if the dish has any — part of the line's identity, same reasoning as `addOnIds`. */
+  variantId: string | null;
+  /** Add-on ids selected for this line — part of the line's identity, so a differently-customized order of the same dish is a separate line. */
+  addOnIds: string[];
+}
+
+/** A snapshot of one add-on as it was when the order was placed — never re-read from the live catalog. */
+export interface OrderItemAddOn {
+  addOnId: string;
+  nameSnapshot: string;
+  price: Minor;
 }
 
 export interface OrderItem {
@@ -133,11 +182,16 @@ export interface OrderItem {
   dishId: string;
   dishNameSnapshot: string;
   imageUrlSnapshot: string | null;
+  /** Dish (or variant) price plus every selected add-on's price, snapshotted together. */
   unitPrice: Minor;
   quantity: number;
   notes: string;
   status: ItemStatus;
   statusUpdatedAt: string;
+  addOns: OrderItemAddOn[];
+  variantId: string | null;
+  variantNameSnapshot: string | null;
+  variantPriceSnapshot: Minor | null;
 }
 
 export type PaymentMethod = 'CASH' | 'CARD';
@@ -165,6 +219,7 @@ export interface Payment {
   currency: string;
   createdAt: string;
   createdBy: string | null;
+  createdByName: string | null;
   items: PaymentItem[];
 }
 
@@ -198,6 +253,7 @@ export interface Menu {
   restaurant: Restaurant;
   categories: MenuCategory[];
   dishes: Dish[];
+  addOns: AddOn[];
 }
 
 export type BadgeKind = 'popular' | 'loved' | 'trending' | 'gem' | 'value' | 'pick';
@@ -240,6 +296,15 @@ export type AuditAction =
   | 'dish_restored'
   | 'dish_featured'
   | 'dish_reordered'
+  | 'dish_add_ons_updated'
+  | 'dish_variant_created'
+  | 'dish_variant_updated'
+  | 'dish_variant_archived'
+  | 'dish_variant_restored'
+  | 'addon_created'
+  | 'addon_updated'
+  | 'addon_archived'
+  | 'addon_restored'
   | 'category_created'
   | 'category_renamed'
   | 'category_deleted'
@@ -248,6 +313,7 @@ export type AuditAction =
   | 'table_renamed'
   | 'table_disabled'
   | 'table_enabled'
+  | 'table_session_started'
   | 'table_session_ended'
   | 'qr_regenerated'
   | 'order_status_changed'

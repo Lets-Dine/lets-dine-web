@@ -27,6 +27,7 @@ import {
 } from '../components/ui';
 import { Check, Sparkle, X } from '../components/icons';
 import { useAsync } from '../state/useAsync';
+import { usePageTitle } from '../state/usePageTitle';
 import { useToast } from '../state/ToastContext';
 import { useSessionOrders } from '../state/SessionOrdersContext';
 import { useRestaurant } from './RestaurantLayout';
@@ -54,6 +55,7 @@ const blankDraft = (dishId: string): Draft => ({
 export function ReviewFlow() {
   const { orderId = '' } = useParams();
   const { menu, session, base } = useRestaurant();
+  usePageTitle(`Rate your order · ${menu.restaurant.name}`);
   const navigate = useNavigate();
   const toast = useToast();
   const { rememberOrder } = useSessionOrders();
@@ -63,6 +65,7 @@ export function ReviewFlow() {
     [orderId, session.anonymousSessionToken],
   );
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [answeredAgain, setAnsweredAgain] = useState<Set<string>>(new Set());
   const [index, setIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState<Order | null>(null);
@@ -141,6 +144,9 @@ export function ReviewFlow() {
   const draft = drafts[item.dishId] ?? blankDraft(item.dishId);
   const dish = menu.dishes.find((d) => d.id === item.dishId);
   const isLast = index >= pending.length - 1;
+  const answeredThisItem = answeredAgain.has(item.dishId);
+  /** Skip is only an out for a dish you never touched — once stars are in, the would-again answer is not optional. */
+  const blockedByOrderAgain = draft.overall > 0 && !answeredThisItem;
 
   const update = (patch: Partial<Draft>) =>
     setDrafts((prev) => ({ ...prev, [item.dishId]: { ...draft, ...patch, touched: true } }));
@@ -239,41 +245,47 @@ export function ReviewFlow() {
           </div>
 
           {draft.overall > 0 && (
-            <div className="flex animate-rise flex-col gap-5 border-t border-hairline pt-4.5">
-              <div className="flex flex-col gap-2.5">
-                <b className="text-[13.5px] font-semibold">Would you order it again next time?</b>
-                <div className="flex gap-2">
-                  {(
-                    [
-                      [true, 'Yes', <Check size={14} key="y" />],
-                      [false, 'No', <X size={14} key="n" />],
-                    ] as const
-                  ).map(([yes, label, icon]) => {
-                    const on = draft.wouldOrderAgain === yes;
-                    return (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => {
-                          haptic.select();
-                          update({ wouldOrderAgain: yes });
-                        }}
-                        className={cx(
-                          'inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full text-[14px] font-semibold',
-                          'transition-move active:scale-96',
-                          !on && 'bg-surface-2 text-ink-3 ring-1 ring-hairline ring-inset',
-                          on && yes && 'bg-mint/15 text-mint ring-[1.5px] ring-mint/40 ring-inset',
-                          on && !yes && 'bg-berry/13 text-[#ff90a4] ring-[1.5px] ring-berry/35 ring-inset',
-                        )}
-                      >
-                        {icon}
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
+            <div className="flex animate-rise flex-col gap-2.5">
+              <b className="text-[15.5px] font-bold tracking-tight">Would you order it again next time?</b>
+              <div className="grid grid-cols-2 gap-2.5">
+                {(
+                  [
+                    [true, 'Yes', <Check size={17} key="y" />],
+                    [false, 'No', <X size={17} key="n" />],
+                  ] as const
+                ).map(([yes, label, icon]) => {
+                  const on = answeredThisItem && draft.wouldOrderAgain === yes;
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        haptic.select();
+                        setAnsweredAgain((prev) => new Set(prev).add(item.dishId));
+                        update({ wouldOrderAgain: yes });
+                      }}
+                      className={cx(
+                        'inline-flex h-14 items-center justify-center gap-2 rounded-2xl text-[15.5px] font-bold',
+                        'transition-move active:scale-96',
+                        !on && 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset',
+                        on && yes && 'bg-mint/16 text-mint ring-2 ring-mint/45 ring-inset shadow-[0_10px_24px_-16px_rgb(78_203_143/0.7)]',
+                        on && !yes && 'bg-berry/14 text-[#ff90a4] ring-2 ring-berry/45 ring-inset shadow-[0_10px_24px_-16px_rgb(255_94_122/0.6)]',
+                      )}
+                    >
+                      {icon}
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
+              {!answeredThisItem && (
+                <span className="text-[12px] text-ink-4">One tap, then a few more details to round it out.</span>
+              )}
+            </div>
+          )}
 
+          {answeredThisItem && (
+            <div className="flex animate-rise flex-col gap-5 border-t border-hairline pt-4.5">
               <div className="flex flex-col gap-1">
                 {(
                   [
@@ -329,14 +341,14 @@ export function ReviewFlow() {
 
         {/* Desktop puts the controls right below the card instead of pinning them. */}
         <div className="hidden gap-2.5 pt-5 lg:flex">
-          <button type="button" className={BTN_GHOST} onClick={next} disabled={submitting}>
+          <button type="button" className={BTN_GHOST} onClick={next} disabled={blockedByOrderAgain || submitting}>
             Skip
           </button>
           <button
             type="button"
             className={cx(BTN_FLAME, 'flex-1')}
             onClick={next}
-            disabled={draft.overall === 0 || submitting}
+            disabled={draft.overall === 0 || blockedByOrderAgain || submitting}
           >
             {submitting ? 'Submitting…' : isLast ? 'Submit ratings' : 'Next dish'}
           </button>
@@ -353,14 +365,14 @@ export function ReviewFlow() {
         )}
       >
         <div className="mx-auto flex w-full max-w-[620px] items-center gap-2.5">
-          <button type="button" className={BTN_GHOST} onClick={next} disabled={submitting}>
+          <button type="button" className={BTN_GHOST} onClick={next} disabled={blockedByOrderAgain || submitting}>
             Skip
           </button>
           <button
             type="button"
             className={cx(BTN, BTN_SIZE, 'flex-1 bg-flame text-white shadow-flame')}
             onClick={next}
-            disabled={draft.overall === 0 || submitting}
+            disabled={draft.overall === 0 || blockedByOrderAgain || submitting}
           >
             {submitting ? 'Submitting…' : isLast ? 'Submit ratings' : 'Next dish'}
           </button>

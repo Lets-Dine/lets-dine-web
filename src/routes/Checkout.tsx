@@ -8,9 +8,10 @@ import { BTN, BTN_FLAME, BTN_SIZE, DISPLAY, EYEBROW, GLASS, SHELL, cx } from '..
 import { Check } from '../components/icons';
 import { requestNotifyPermission } from '../platform/notify';
 import { useCart } from '../state/CartContext';
+import { usePageTitle } from '../state/usePageTitle';
 import { useSessionOrders } from '../state/SessionOrdersContext';
 import { useToast } from '../state/ToastContext';
-import { BillLines, PAGE, SPLIT, useBill } from './Cart';
+import { BillLines, PAGE, SPLIT, addOnLabels, lineUnitPrice, useBill, variantLabel } from './Cart';
 import { useRestaurant } from './RestaurantLayout';
 import { TopBar } from './Shell';
 
@@ -21,6 +22,7 @@ const PAYMENT_METHODS = [
 
 export function Checkout() {
   const { menu, table, session, base } = useRestaurant();
+  usePageTitle(`Checkout · ${menu.restaurant.name}`);
   const cart = useCart();
   const { rememberOrder } = useSessionOrders();
   const navigate = useNavigate();
@@ -90,14 +92,27 @@ export function Checkout() {
               {cart.lines.map((line) => {
                 const dish = byId.get(line.dishId);
                 if (!dish) return null;
+                const addOnNames = addOnLabels(line.addOnIds, menu.addOns);
+                const variantName = variantLabel(dish, line.variantId);
                 return (
-                  <li className="flex items-start gap-3 text-[14px]" key={line.dishId}>
+                  <li
+                    className="flex items-start gap-3 text-[14px]"
+                    key={`${line.dishId}:${line.variantId ?? ''}:${line.addOnIds.join(',')}`}
+                  >
                     <span className="min-w-6 font-bold text-flame-1 tnum">{line.quantity}×</span>
                     <span className="min-w-0 flex-1">
-                      <b className="font-semibold">{dish.name}</b>
+                      <b className="font-semibold">
+                        {dish.name}
+                        {variantName && ` — ${variantName}`}
+                      </b>
+                      {addOnNames.length > 0 && (
+                        <span className="mt-0.5 block text-[12px] text-ink-3">+ {addOnNames.join(', ')}</span>
+                      )}
                       {line.note && <em className="mt-0.5 block text-[12px] italic text-ink-4">“{line.note}”</em>}
                     </span>
-                    <span className="tnum">{formatMoney(dish.price * line.quantity, currency)}</span>
+                    <span className="tnum">
+                      {formatMoney(lineUnitPrice(dish, line.variantId, line.addOnIds, menu.addOns) * line.quantity, currency)}
+                    </span>
                   </li>
                 );
               })}

@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { track } from '../domain/analytics';
 import { formatMoney, percentOf } from '../domain/money';
-import type { Dish } from '../domain/types';
+import type { AddOn, CartLine, Dish } from '../domain/types';
 import { haptic } from '../platform/haptics';
 import { DishImage, QuantityStepper } from '../components/Bits';
+import { QuickAddSheet } from '../components/QuickAddSheet';
 import { BTN, BTN_FLAME, BTN_SIZE, EYEBROW, GLASS, SHELL, cx } from '../components/ui';
 import { Plus } from '../components/icons';
 import { useCart } from '../state/CartContext';
+import { usePageTitle } from '../state/usePageTitle';
 import { useToast } from '../state/ToastContext';
 import { useRestaurant } from './RestaurantLayout';
 import { EmptyState, TopBar } from './Shell';
@@ -16,11 +18,44 @@ import { EmptyState, TopBar } from './Shell';
 export const PAGE = 'mx-auto w-full max-w-[620px] px-4 sm:px-6 lg:max-w-5xl lg:px-8';
 export const SPLIT = 'lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-10';
 
+/** A line's per-unit price: the chosen variant (or the dish's own price) plus every add-on it carries. */
+export function lineUnitPrice(dish: Dish, variantId: string | null, addOnIds: string[], addOns: AddOn[]): number {
+  const base = variantId ? (dish.variants.find((v) => v.id === variantId)?.price ?? dish.price) : dish.price;
+  const byId = new Map(addOns.map((a) => [a.id, a]));
+  return base + addOnIds.reduce((sum, id) => sum + (byId.get(id)?.price ?? 0), 0);
+}
+
+/** The chosen size/style's name, e.g. "Large" — `null` for a variant-less dish or a line whose variant is gone. */
+export function variantLabel(dish: Dish, variantId: string | null): string | null {
+  if (!variantId) return null;
+  return dish.variants.find((v) => v.id === variantId)?.name ?? null;
+}
+
+/** Add-ons can repeat (two extra cheeses) — group them into one "Extra cheese ×2" label each. */
+export function addOnLabels(addOnIds: string[], addOns: AddOn[]): string[] {
+  const byId = new Map(addOns.map((a) => [a.id, a]));
+  const counts = new Map<string, number>();
+  for (const id of addOnIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+  return [...counts.entries()]
+    .map(([id, qty]) => {
+      const name = byId.get(id)?.name;
+      return name ? (qty > 1 ? `${name} ×${qty}` : name) : null;
+    })
+    .filter((n): n is string => Boolean(n));
+}
+
 /** Client-side totals mirror the server formula, but the server's number wins. */
-export function useBill(lines: { dishId: string; quantity: number }[], dishes: Dish[]) {
+export function useBill(
+  lines: { dishId: string; quantity: number; variantId?: string | null; addOnIds?: string[] }[],
+  dishes: Dish[],
+) {
   const { menu } = useRestaurant();
   const byId = new Map(dishes.map((d) => [d.id, d]));
-  const subtotal = lines.reduce((sum, l) => sum + (byId.get(l.dishId)?.price ?? 0) * l.quantity, 0);
+  const subtotal = lines.reduce((sum, l) => {
+    const dish = byId.get(l.dishId);
+    if (!dish) return sum;
+    return sum + lineUnitPrice(dish, l.variantId ?? null, l.addOnIds ?? [], menu.addOns) * l.quantity;
+  }, 0);
   const serviceCharge = percentOf(subtotal, menu.restaurant.serviceChargeRate);
   const tax = percentOf(subtotal + serviceCharge, menu.restaurant.taxRate);
   return { subtotal, serviceCharge, tax, total: subtotal + serviceCharge + tax };
@@ -63,11 +98,18 @@ export function BillLines({
 
 export function Cart() {
   const { menu, table, base, session } = useRestaurant();
+  usePageTitle(`Your order · ${menu.restaurant.name}`);
   const cart = useCart();
   const navigate = useNavigate();
   const toast = useToast();
   const [openNote, setOpenNote] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ line: CartLine; trigger: HTMLElement } | null>(null);
   const sessionEnded = Boolean(session.endedAt);
+
+  const closeEdit = () => {
+    editing?.trigger.focus();
+    setEditing(null);
+  };
 
   const byId = new Map(menu.dishes.map((d) => [d.id, d]));
   const bill = useBill(cart.lines, menu.dishes);
@@ -99,6 +141,8 @@ export function Cart() {
     navigate(`${base}/checkout`);
   };
 
+  const editingDish = editing ? byId.get(editing.line.dishId) : undefined;
+
   return (
     <main className={SHELL}>
       <TopBar
@@ -114,11 +158,15 @@ export function Cart() {
             {cart.lines.map((line) => {
               const dish = byId.get(line.dishId);
               if (!dish) return null;
-              const noteOpen = openNote === line.dishId || line.note.length > 0;
+              const lineKey = `${line.dishId}:${line.variantId ?? ''}:${line.addOnIds.join(',')}`;
+              const noteOpen = openNote === lineKey || line.note.length > 0;
+              const addOnNames = addOnLabels(line.addOnIds, menu.addOns);
+              const variantName = variantLabel(dish, line.variantId);
+              const unitPrice = lineUnitPrice(dish, line.variantId, line.addOnIds, menu.addOns);
               return (
                 <article
                   className="flex gap-3.5 rounded-3xl bg-surface p-3.5 ring-1 ring-hairline ring-inset"
-                  key={line.dishId}
+                  key={lineKey}
                 >
                   <Link to={`${base}/d/${dish.id}`} aria-label={dish.name}>
                     <DishImage dish={dish} className="size-16.5 shrink-0 rounded-xl" monogram="text-xl" />
@@ -131,14 +179,32 @@ export function Cart() {
                         className="text-[15px] font-semibold leading-tight tracking-tight hover:text-flame-1"
                       >
                         {dish.name}
+                        {variantName && ` — ${variantName}`}
                       </Link>
                       <span className="shrink-0 text-[14.5px] font-bold tnum">
-                        {formatMoney(dish.price * line.quantity, currency)}
+                        {formatMoney(unitPrice * line.quantity, currency)}
                       </span>
                     </div>
 
+                    {addOnNames.length > 0 && (
+                      <span className="mt-0.5 block text-[12px] text-ink-3">+ {addOnNames.join(', ')}</span>
+                    )}
+
+                    {(dish.addOnIds.length > 0 || dish.variants.length > 0) && dish.isAvailable && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          haptic.select();
+                          setEditing({ line, trigger: e.currentTarget });
+                        }}
+                        className="mt-0.5 block text-[12px] font-semibold text-flame-1"
+                      >
+                        {addOnNames.length > 0 || variantName ? 'Edit extras' : '+ Add extras'}
+                      </button>
+                    )}
+
                     <span className="mt-0.5 block text-[12px] text-ink-4 tnum">
-                      {formatMoney(dish.price, currency)} each
+                      {formatMoney(unitPrice, currency)} each
                       {!dish.isAvailable && <b className="font-semibold text-berry"> · no longer available</b>}
                     </span>
 
@@ -147,13 +213,13 @@ export function Cart() {
                         value={line.note}
                         maxLength={140}
                         placeholder="Note for the kitchen"
-                        onChange={(e) => cart.setNote(line.dishId, e.target.value)}
+                        onChange={(e) => cart.setNote(line.dishId, e.target.value, line.variantId, line.addOnIds)}
                         className="mt-2 h-8.5 w-full rounded-xl bg-surface-2 px-3 text-[13px] outline-none ring-1 ring-hairline ring-inset placeholder:text-ink-4 focus:ring-[1.5px] focus:ring-flame-2/35"
                       />
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setOpenNote(line.dishId)}
+                        onClick={() => setOpenNote(lineKey)}
                         className="mt-1.5 block text-[12.5px] font-semibold text-flame-1"
                       >
                         + Add a note
@@ -161,16 +227,20 @@ export function Cart() {
                     )}
 
                     <div className="mt-2.5 flex items-center justify-between">
-                      <QuantityStepper value={line.quantity} onChange={(n) => cart.setQuantity(line.dishId, n)} size="sm" />
+                      <QuantityStepper
+                        value={line.quantity}
+                        onChange={(n) => cart.setQuantity(line.dishId, n, line.variantId, line.addOnIds)}
+                        size="sm"
+                      />
                       <button
                         type="button"
                         /* Removal is reversible, so it needs no confirmation — it
                            needs an undo. One tap out, one tap back. */
                         onClick={() => {
-                          const index = cart.lines.findIndex((l) => l.dishId === line.dishId);
+                          const index = cart.lines.findIndex((l) => l === line);
                           const removed = { ...line };
                           haptic.warn();
-                          cart.remove(line.dishId);
+                          cart.remove(line.dishId, line.variantId, line.addOnIds);
                           toast(`${dish.name} removed`, '🗑️', {
                             label: 'Undo',
                             onAction: () => cart.restore(removed, index),
@@ -248,6 +318,20 @@ export function Cart() {
           </button>
         </div>
       </div>
+
+      {editing && editingDish && (
+        <QuickAddSheet
+          dish={editingDish}
+          href={`${base}/d/${editingDish.id}`}
+          initial={{
+            quantity: editing.line.quantity,
+            note: editing.line.note,
+            variantId: editing.line.variantId,
+            addOnIds: editing.line.addOnIds,
+          }}
+          onClose={closeEdit}
+        />
+      )}
     </main>
   );
 }

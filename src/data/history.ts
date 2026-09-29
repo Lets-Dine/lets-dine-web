@@ -146,6 +146,10 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       notes,
       status: cancelled ? 'CANCELLED' : 'SERVED',
       statusUpdatedAt: placed.toISOString(),
+      addOns: [],
+      variantId: null,
+      variantNameSnapshot: null,
+      variantPriceSnapshot: null,
     }));
 
     const subtotal = sumLines(items);

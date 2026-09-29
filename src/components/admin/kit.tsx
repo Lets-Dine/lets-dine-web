@@ -6,7 +6,7 @@ import type { Minor, OrderStatus } from '../../domain/types';
 import { haptic } from '../../platform/haptics';
 import { useToast } from '../../state/ToastContext';
 import { BTN, DISPLAY, cx } from '../ui';
-import { Check, X } from '../icons';
+import { Check, ChevronRight, X } from '../icons';
 
 /**
  * The dashboard's vocabulary. It shares the diner app's palette and easings —
@@ -67,6 +67,46 @@ export function Panel({
       )}
       <div className={bare ? '' : PAD}>{children}</div>
     </section>
+  );
+}
+
+/** Same look as `Panel`, but the whole thing is a native `<details>` disclosure — no JS state needed. */
+export function CollapsiblePanel({
+  title,
+  hint,
+  action,
+  children,
+  className,
+  bare = false,
+  variant = 'default',
+  defaultOpen = false,
+}: {
+  title: string;
+  hint?: string;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  bare?: boolean;
+  variant?: 'default' | 'accent' | 'subtle';
+  defaultOpen?: boolean;
+}) {
+  const variantClass = variant === 'accent' ? PANEL_ACCENT : variant === 'subtle' ? PANEL_SUBTLE : PANEL;
+  return (
+    <details className={cx(variantClass, 'group', className)} open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
+        <ChevronRight size={14} className="shrink-0 text-ink-4 transition-transform duration-150 group-open:rotate-90" />
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-[15px] font-semibold tracking-tight">{title}</h2>
+          {hint && <p className="mt-0.5 truncate text-[12.5px] text-ink-3">{hint}</p>}
+        </div>
+        {action && (
+          <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            {action}
+          </div>
+        )}
+      </summary>
+      <div className={cx('border-t border-hairline', bare ? '' : PAD)}>{children}</div>
+    </details>
   );
 }
 
@@ -160,6 +200,37 @@ export function LedgerStat({ label, value, sub }: { label: string; value: string
       {sub && <div className="mt-0.5 text-[10.5px] text-docket-inksoft">{sub}</div>}
     </div>
   );
+}
+
+/** Groups rows sharing a calendar day — payments in the till ledger, orders in a table's own history. */
+export function dayKey(iso: string): string {
+  return new Date(iso).toDateString();
+}
+
+/** "Today"/"Yesterday" while recent, the full weekday and date once it isn't. */
+export function dayLabel(iso: string): string {
+  const at = new Date(iso);
+  const now = new Date();
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(at)) / 86_400_000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return at.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+/**
+ * Buckets rows into day-groups in the order they're given — callers that want newest-day-first
+ * (every listing that uses this so far) sort `rows` newest-first before calling.
+ */
+export function groupByDay<T>(rows: T[], createdAt: (row: T) => string): T[][] {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = dayKey(createdAt(row));
+    const bucket = map.get(key);
+    if (bucket) bucket.push(row);
+    else map.set(key, [row]);
+  }
+  return [...map.values()];
 }
 
 /** One day's worth of rows in a docket listing — a torn-paper card with a count against its date. */
@@ -332,11 +403,11 @@ export function MoneyInput({
   onChange,
   currency,
 }: {
-  value: Minor;
+  value: Minor | "";
   onChange: (next: Minor) => void;
   currency: string;
 }) {
-  const [text, setText] = useState(() => (value / 100).toFixed(2));
+  const [text, setText] = useState(() => value ? (value / 100).toFixed(2) : '');
   return (
     <span className="relative block">
       <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[13.5px] font-semibold text-ink-4">
@@ -344,15 +415,16 @@ export function MoneyInput({
       </span>
       <input
         className={cx(INPUT_BOX, 'pl-12 tnum')}
-        value={text}
+        value={text ?? ''}
         inputMode="decimal"
+        placeholder="0.00"
         onChange={(e) => {
           const next = e.target.value.replace(/[^0-9.]/g, '');
           setText(next);
           const parsed = Number.parseFloat(next);
           if (Number.isFinite(parsed)) onChange(Math.round(parsed * 100));
         }}
-        onBlur={() => setText((value / 100).toFixed(2))}
+        onBlur={() => setText(value ? (value / 100).toFixed(2) : '')}
       />
     </span>
   );

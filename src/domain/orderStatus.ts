@@ -66,9 +66,9 @@ const ITEM_NEXT_STATUS: Partial<Record<ItemStatus, ItemStatus>> = {
 };
 
 export const ITEM_ADVANCE_LABEL: Partial<Record<ItemStatus, string>> = {
-  PENDING: 'Start',
-  PREPARING: 'Ready',
-  READY: 'Served',
+  PENDING: 'Start Preparing',
+  PREPARING: 'Mark Ready',
+  READY: 'Mark Served',
 };
 
 export function nextItemStatus(status: ItemStatus): ItemStatus | null {

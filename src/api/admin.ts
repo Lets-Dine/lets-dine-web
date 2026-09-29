@@ -16,10 +16,14 @@ import {
 import { ROLE_LABEL, can } from '../domain/permissions';
 import type { Permission } from '../domain/permissions';
 import type {
+  AddOn,
   AuditAction,
   AuditEntry,
+  DietaryType,
+  DiningSession,
   DiningTable,
   Dish,
+  DishVariant,
   ItemStatus,
   Menu,
   MenuCategory,
@@ -40,10 +44,12 @@ import {
   latency,
   menuOf,
   newQrToken,
+  newSessionToken,
   readStore,
   restaurantOf,
   staffOf,
   tablesOf,
+  takeReference,
   uid,
   withEditableMenu,
   withEditableStaff,
@@ -224,6 +230,10 @@ function seedQueue(store: Store): Store {
         notes: line === 1 && i % 3 === 0 ? 'No onion please' : '',
         status: seedItemStatus(status, line, dishIndices.length),
         statusUpdatedAt: placed.toISOString(),
+        addOns: [],
+        variantId: null,
+        variantNameSnapshot: null,
+        variantPriceSnapshot: null,
       };
     });
 
@@ -395,7 +405,16 @@ export async function rejectOrder(actor: StaffMember, orderId: string, reason: s
   if (!canCancelOrder(order)) throw new ApiError(409, 'That order has already left the kitchen.');
 
   const now = new Date().toISOString();
-  const updated: Order = { ...order, status: 'CANCELLED', cancelledAt: now, updatedAt: now };
+  // §20/§27 — a whole-order cancel voids every line the kitchen hasn't already served; a served
+  // dish is food already delivered and stays on the bill regardless of the ticket's fate. In
+  // practice `canCancelOrder` above already means every line here is still PENDING.
+  const items: OrderItem[] = order.items.map((i) =>
+    i.status === 'SERVED' || i.status === 'CANCELLED' ? i : { ...i, status: 'CANCELLED' as ItemStatus, statusUpdatedAt: now },
+  );
+  const updated: Order = recomputeTotals(
+    { ...order, items, status: 'CANCELLED', cancelledAt: now, updatedAt: now },
+    restaurantOf(store),
+  );
   writeStore(
     record(
       { ...store, orders: store.orders.map((o) => (o.id === orderId ? updated : o)) },
@@ -486,9 +505,10 @@ export async function completePayment(
     return { dishId: dish.id, dishNameSnapshot: dish.name, unitPrice: dish.price, quantity };
   });
   const subtotal = sumLines(paymentItems);
-  const serviceCharge = percentOf(subtotal, restaurant.serviceChargeRate);
-  const tax = percentOf(subtotal + serviceCharge, restaurant.taxRate);
-  const total = subtotal + serviceCharge + tax - discount;
+  const discountedSubtotal = subtotal - discount;
+  const serviceCharge = percentOf(discountedSubtotal, restaurant.serviceChargeRate);
+  const tax = percentOf(discountedSubtotal + serviceCharge, restaurant.taxRate);
+  const total = discountedSubtotal + serviceCharge + tax;
   if (total < 0) throw new ApiError(409, "The discount can't be more than the bill.");
 
   const payment: Payment = {
@@ -505,6 +525,7 @@ export async function completePayment(
     currency: restaurant.currency,
     createdAt: new Date().toISOString(),
     createdBy: actor.id,
+    createdByName: actor.name,
     items: paymentItems.map((item) => ({ id: uid('payi'), ...item })),
   };
 
@@ -593,12 +614,55 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
   const table = tablesOf(store).find((t) => t.id === tableId);
   if (!table) throw new ApiError(404, 'That table no longer exists.');
 
-  const order = store.orders
+  // A table's id outlives any one visit, and a visit's orders outlive being settled — so the
+  // table's latest order by timestamp alone can be a stranger's already-ended visit, or this
+  // visit's own ticket from before it was paid up. Only an order that's both *this* open visit's
+  // and still open itself is worth landing on; anything else means a fresh order starts instead,
+  // the same way a diner's own next round does after their last one is settled.
+  const session = store.sessions[`${table.restaurantId}:${table.id}`];
+  const sessionOpen = Boolean(session && Date.parse(session.expiresAt) > Date.now());
+  const latest = store.orders
     .filter((o) => o.tableId === tableId)
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
-  if (!order) throw new ApiError(409, `${table.name} has no order to add to.`);
 
-  const dish = menuOf(store).dishes.find((d) => d.id === dishId);
+  let base = store;
+  let order = sessionOpen && latest?.sessionId === session.id && isTableOpen(latest.status) ? latest : undefined;
+
+  // A table staff just seated (§ startTableSession) has an open visit but nobody has
+  // ordered yet — there is no order to land on, so the first dish starts one, the same
+  // way a diner's own first checkout would.
+  if (!order) {
+    if (!sessionOpen)
+      throw new ApiError(409, `${table.name} has no open visit — seat the table before adding an order.`);
+
+    const startedAt = new Date().toISOString();
+    const { store: numbered, reference } = takeReference(base);
+    order = {
+      id: uid('ord'),
+      reference,
+      restaurantId: table.restaurantId,
+      tableId: table.id,
+      tableName: table.name,
+      sessionId: session.id,
+      status: 'PENDING',
+      acceptedAt: null,
+      cancelledAt: null,
+      items: [],
+      subtotal: 0,
+      serviceCharge: 0,
+      tax: 0,
+      discount: 0,
+      total: 0,
+      currency: restaurantOf(base).currency,
+      createdAt: startedAt,
+      updatedAt: startedAt,
+      completedAt: null,
+      reviewedDishIds: [],
+    };
+    base = { ...numbered, orders: [...numbered.orders, order] };
+  }
+
+  const dish = menuOf(base).dishes.find((d) => d.id === dishId);
   if (!dish) throw new ApiError(404, 'That dish is no longer on the menu.');
 
   const now = new Date().toISOString();
@@ -620,15 +684,19 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
           notes: '',
           status: 'PENDING',
           statusUpdatedAt: now,
+          addOns: [],
+          variantId: null,
+          variantNameSnapshot: null,
+          variantPriceSnapshot: null,
         },
       ];
 
   const next = { ...order, items, updatedAt: now };
   next.status = deriveOrderStatus(next);
-  const updated = recomputeTotals(next, restaurantOf(store));
+  const updated = recomputeTotals(next, restaurantOf(base));
   writeStore(
     record(
-      { ...store, orders: store.orders.map((o) => (o.id === order.id ? updated : o)) },
+      { ...base, orders: base.orders.map((o) => (o.id === order.id ? updated : o)) },
       actor,
       'order_item_added' as AuditAction,
       `Order ${order.reference}`,
@@ -675,11 +743,12 @@ export async function removeOrderItem(actor: StaffMember, orderId: string, itemI
 export async function adminMenu(actor: StaffMember): Promise<Menu> {
   authorize(actor, 'menu:view');
   const store = readStore();
-  const { categories, dishes } = menuOf(store);
+  const { categories, dishes, addOns } = menuOf(store);
   return {
     restaurant: restaurantOf(store),
     categories: [...categories].sort((a, b) => a.sortOrder - b.sortOrder),
     dishes: [...dishes].sort((a, b) => a.sortOrder - b.sortOrder),
+    addOns: [...addOns].sort((a, b) => a.sortOrder - b.sortOrder),
   };
 }
 
@@ -689,7 +758,7 @@ export interface DishDraft {
   categoryId: string;
   price: Minor;
   imageUrl: string | null;
-  isVeg: boolean;
+  dietaryType: DietaryType;
   spiceLevel: 0 | 1 | 2 | 3;
   isAvailable: boolean;
   isFeatured: boolean;
@@ -732,7 +801,9 @@ export async function createDish(actor: StaffMember, draft: DishDraft): Promise<
     isFeatured: draft.isFeatured,
     sortOrder,
     spiceLevel: draft.spiceLevel,
-    isVeg: draft.isVeg,
+    dietaryType: draft.dietaryType,
+    addOnIds: [],
+    variants: [],
     stats: {
       ratingCount: 0,
       avgRating: null,
@@ -778,7 +849,7 @@ export async function updateDish(actor: StaffMember, dishId: string, patch: Part
     categoryId: patch.categoryId ?? before.categoryId,
     price: patch.price ?? before.price,
     imageUrl: patch.imageUrl !== undefined ? patch.imageUrl : before.imageUrl,
-    isVeg: patch.isVeg ?? before.isVeg,
+    dietaryType: patch.dietaryType ?? before.dietaryType,
     spiceLevel: patch.spiceLevel ?? before.spiceLevel,
     isAvailable: patch.isAvailable ?? before.isAvailable,
     isFeatured: patch.isFeatured ?? before.isFeatured,
@@ -822,7 +893,7 @@ export async function updateDish(actor: StaffMember, dishId: string, patch: Part
     after.description !== before.description ||
     after.categoryId !== before.categoryId ||
     after.imageUrl !== before.imageUrl ||
-    after.isVeg !== before.isVeg ||
+    after.dietaryType !== before.dietaryType ||
     after.spiceLevel !== before.spiceLevel;
   if (otherChange) store = record(store, actor, 'dish_updated', after.name, 'Details edited');
 
@@ -874,6 +945,270 @@ export async function moveDish(actor: StaffMember, dishId: string, direction: -1
   writeStore(
     record({ ...base, menu: { ...base.menu, dishes } }, actor, 'dish_reordered', dish.name, `Moved ${direction < 0 ? 'up' : 'down'}`),
   );
+}
+
+/* ── Add-ons ───────────────────────────────────────────────────────── */
+
+export interface AddOnDraft {
+  name: string;
+  price: Minor;
+  isAvailable: boolean;
+}
+
+function validateAddOnDraft(draft: AddOnDraft): void {
+  if (draft.name.trim().length < 2) throw new ApiError(400, 'An add-on needs a name.');
+  if (!Number.isInteger(draft.price) || draft.price < 0) throw new ApiError(400, 'Price must be a whole amount.');
+  if (draft.price > 10_000_00) throw new ApiError(400, 'That price looks like a typo.');
+}
+
+export async function createAddOn(actor: StaffMember, draft: AddOnDraft): Promise<AddOn> {
+  authorize(actor, 'menu:edit');
+  await latency();
+  validateAddOnDraft(draft);
+  const base = withEditableMenu(readStore());
+  const restaurant = restaurantOf(base);
+
+  const addOn: AddOn = {
+    id: uid('adn'),
+    restaurantId: restaurant.id,
+    name: draft.name.trim(),
+    price: draft.price,
+    currency: restaurant.currency,
+    isAvailable: draft.isAvailable,
+    isArchived: false,
+    sortOrder: Math.max(-1, ...base.menu.addOns.map((a) => a.sortOrder)) + 1,
+  };
+
+  writeStore(
+    record(
+      { ...base, menu: { ...base.menu, addOns: [...base.menu.addOns, addOn] } },
+      actor,
+      'addon_created',
+      addOn.name,
+      `Added at ${formatPrice(addOn.price, restaurant)}`,
+    ),
+  );
+  return addOn;
+}
+
+export async function updateAddOn(actor: StaffMember, addOnId: string, patch: Partial<AddOnDraft>): Promise<AddOn> {
+  authorize(actor, 'menu:edit');
+  await latency();
+  const base = withEditableMenu(readStore());
+  const before = base.menu.addOns.find((a) => a.id === addOnId);
+  if (!before) throw new ApiError(404, 'That add-on no longer exists.');
+
+  const draft: AddOnDraft = {
+    name: patch.name ?? before.name,
+    price: patch.price ?? before.price,
+    isAvailable: patch.isAvailable ?? before.isAvailable,
+  };
+  validateAddOnDraft(draft);
+
+  const after: AddOn = { ...before, name: draft.name.trim(), price: draft.price, isAvailable: draft.isAvailable };
+  const restaurant = restaurantOf(base);
+  const detail =
+    after.price !== before.price
+      ? `${formatPrice(before.price, restaurant)} → ${formatPrice(after.price, restaurant)}`
+      : after.isAvailable !== before.isAvailable
+        ? after.isAvailable
+          ? 'Back on the menu'
+          : 'Marked unavailable'
+        : 'Details edited';
+
+  writeStore(
+    record(
+      { ...base, menu: { ...base.menu, addOns: base.menu.addOns.map((a) => (a.id === addOnId ? after : a)) } },
+      actor,
+      'addon_updated',
+      after.name,
+      detail,
+    ),
+  );
+  return after;
+}
+
+/** Same rule as a dish (§28): an add-on already on a past order is archived, never deleted. */
+export async function setAddOnArchived(actor: StaffMember, addOnId: string, archived: boolean): Promise<AddOn> {
+  authorize(actor, 'menu:edit');
+  await latency();
+  const base = withEditableMenu(readStore());
+  const addOn = base.menu.addOns.find((a) => a.id === addOnId);
+  if (!addOn) throw new ApiError(404, 'That add-on no longer exists.');
+
+  const after: AddOn = { ...addOn, isArchived: archived };
+  writeStore(
+    record(
+      { ...base, menu: { ...base.menu, addOns: base.menu.addOns.map((a) => (a.id === addOnId ? after : a)) } },
+      actor,
+      archived ? 'addon_archived' : 'addon_restored',
+      addOn.name,
+      archived ? 'Archived — no longer linkable, kept in order history' : 'Restored',
+    ),
+  );
+  return after;
+}
+
+/** Replaces the whole set of add-ons linked to a dish in one motion. */
+export async function setDishAddOns(actor: StaffMember, dishId: string, addOnIds: string[]): Promise<Dish> {
+  authorize(actor, 'menu:edit');
+  await latency();
+  const base = withEditableMenu(readStore());
+  const dish = base.menu.dishes.find((d) => d.id === dishId);
+  if (!dish) throw new ApiError(404, 'That dish is not on the menu.');
+
+  const ids = [...new Set(addOnIds)];
+  const known = new Set(base.menu.addOns.map((a) => a.id));
+  if (!ids.every((id) => known.has(id))) throw new ApiError(400, 'One of those add-ons no longer exists.');
+
+  const after: Dish = { ...dish, addOnIds: ids };
+  writeStore(
+    record(
+      { ...base, menu: { ...base.menu, dishes: base.menu.dishes.map((d) => (d.id === dishId ? after : d)) } },
+      actor,
+      'dish_add_ons_updated',
+      dish.name,
+      ids.length === 0 ? 'No add-ons linked' : `${ids.length} add-on${ids.length === 1 ? '' : 's'} linked`,
+    ),
+  );
+  return after;
+}
+
+/* ── Dish variants ─────────────────────────────────────────────────── */
+
+/**
+ * Owned by the one dish being edited, not a restaurant-wide catalog like
+ * `AddOn` — so unlike `setDishAddOns` there is no bulk "replace the set"
+ * method, just ordinary per-row create/update/archive.
+ */
+export interface DishVariantDraft {
+  name: string;
+  price: Minor;
+  isAvailable: boolean;
+  dietaryType: DietaryType;
+  spiceLevel: 0 | 1 | 2 | 3;
+}
+
+function validateVariantDraft(draft: DishVariantDraft): void {
+  if (draft.name.trim().length < 1) throw new ApiError(400, 'A variant needs a name.');
+  if (!Number.isInteger(draft.price) || draft.price < 0) throw new ApiError(400, 'Price must be a whole amount.');
+  if (draft.price > 10_000_00) throw new ApiError(400, 'That price looks like a typo.');
+}
+
+export async function createDishVariant(actor: StaffMember, dishId: string, draft: DishVariantDraft): Promise<Dish> {
+  authorize(actor, 'menu:edit');
+  await latency();
+  validateVariantDraft(draft);
+  const base = withEditableMenu(readStore());
+  const dish = base.menu.dishes.find((d) => d.id === dishId);
+  if (!dish) throw new ApiError(404, 'That dish is not on the menu.');
+
+  const variant: DishVariant = {
+    id: uid('var'),
+    name: draft.name.trim(),
+    price: draft.price,
+    currency: dish.currency,
+    isAvailable: draft.isAvailable,
+    isArchived: false,
+    sortOrder: Math.max(-1, ...dish.variants.map((v) => v.sortOrder)) + 1,
+    dietaryType: draft.dietaryType,
+    spiceLevel: draft.spiceLevel,
+  };
+  const after: Dish = { ...dish, variants: [...dish.variants, variant] };
+
+  writeStore(
+    record(
+      { ...base, menu: { ...base.menu, dishes: base.menu.dishes.map((d) => (d.id === dishId ? after : d)) } },
+      actor,
+      'dish_variant_created',
+      `${dish.name} — ${variant.name}`,
+      `Added at ${formatPrice(variant.price, restaurantOf(base))}`,
+    ),
+  );
+  return after;
+}
+
+export async function updateDishVariant(
+  actor: StaffMember,
+  dishId: string,
+  variantId: string,
+  patch: Partial<DishVariantDraft>,
+): Promise<Dish> {
+  authorize(actor, 'menu:edit');
+  await latency();
+  const base = withEditableMenu(readStore());
+  const dish = base.menu.dishes.find((d) => d.id === dishId);
+  if (!dish) throw new ApiError(404, 'That dish is not on the menu.');
+  const before = dish.variants.find((v) => v.id === variantId);
+  if (!before) throw new ApiError(404, 'That variant no longer exists.');
+
+  const draft: DishVariantDraft = {
+    name: patch.name ?? before.name,
+    price: patch.price ?? before.price,
+    isAvailable: patch.isAvailable ?? before.isAvailable,
+    dietaryType: patch.dietaryType ?? before.dietaryType,
+    spiceLevel: patch.spiceLevel ?? before.spiceLevel,
+  };
+  validateVariantDraft(draft);
+
+  const after: DishVariant = {
+    ...before,
+    name: draft.name.trim(),
+    price: draft.price,
+    isAvailable: draft.isAvailable,
+    dietaryType: draft.dietaryType,
+    spiceLevel: draft.spiceLevel,
+  };
+  const restaurant = restaurantOf(base);
+  const detail =
+    after.price !== before.price
+      ? `${formatPrice(before.price, restaurant)} → ${formatPrice(after.price, restaurant)}`
+      : after.isAvailable !== before.isAvailable
+        ? after.isAvailable
+          ? 'Back on the menu'
+          : 'Marked unavailable'
+        : 'Details edited';
+
+  const afterDish: Dish = { ...dish, variants: dish.variants.map((v) => (v.id === variantId ? after : v)) };
+  writeStore(
+    record(
+      { ...base, menu: { ...base.menu, dishes: base.menu.dishes.map((d) => (d.id === dishId ? afterDish : d)) } },
+      actor,
+      'dish_variant_updated',
+      `${dish.name} — ${after.name}`,
+      detail,
+    ),
+  );
+  return afterDish;
+}
+
+/** Same rule as a dish/add-on (§28): a variant already on a past order is archived, never deleted. */
+export async function setDishVariantArchived(
+  actor: StaffMember,
+  dishId: string,
+  variantId: string,
+  archived: boolean,
+): Promise<Dish> {
+  authorize(actor, 'menu:edit');
+  await latency();
+  const base = withEditableMenu(readStore());
+  const dish = base.menu.dishes.find((d) => d.id === dishId);
+  if (!dish) throw new ApiError(404, 'That dish is not on the menu.');
+  const variant = dish.variants.find((v) => v.id === variantId);
+  if (!variant) throw new ApiError(404, 'That variant no longer exists.');
+
+  const after: DishVariant = { ...variant, isArchived: archived };
+  const afterDish: Dish = { ...dish, variants: dish.variants.map((v) => (v.id === variantId ? after : v)) };
+  writeStore(
+    record(
+      { ...base, menu: { ...base.menu, dishes: base.menu.dishes.map((d) => (d.id === dishId ? afterDish : d)) } },
+      actor,
+      archived ? 'dish_variant_archived' : 'dish_variant_restored',
+      `${dish.name} — ${variant.name}`,
+      archived ? 'Archived — no longer selectable, kept in order history' : 'Restored',
+    ),
+  );
+  return afterDish;
 }
 
 /* ── Categories ────────────────────────────────────────────────────── */
@@ -1137,6 +1472,48 @@ function closingSummary(closed: Order[]): string {
   if (cancelled === 0) return `${completed} order${completed === 1 ? '' : 's'} marked completed`;
   if (completed === 0) return `${cancelled} order${cancelled === 1 ? '' : 's'} cancelled — the kitchen never started them`;
   return `${completed} order${completed === 1 ? '' : 's'} completed, ${cancelled} cancelled`;
+}
+
+/**
+ * Seats a table the QR never got to: a diner who can't or won't scan for
+ * themselves, so staff open the visit on their behalf instead, the same
+ * session a scan would have started. Gated on `orders:advance` rather than
+ * `tables:edit` — this is service, not table configuration, so any server
+ * working the floor can do it, not only a manager.
+ */
+export async function startTableSession(actor: StaffMember, tableId: string): Promise<DiningTable> {
+  authorize(actor, 'orders:advance');
+  await latency();
+  const base = seedQueue(readStore());
+  const table = tablesOf(base).find((t) => t.id === tableId);
+  if (!table) throw new ApiError(404, 'That table no longer exists.');
+  if (!table.isActive) throw new ApiError(409, `${table.name} is not seating right now.`);
+
+  const key = `${table.restaurantId}:${table.id}`;
+  const existing = base.sessions[key];
+  if (existing && Date.parse(existing.expiresAt) > Date.now())
+    throw new ApiError(409, `${table.name} already has an open visit.`);
+
+  const session: DiningSession = {
+    id: uid('ses'),
+    restaurantId: table.restaurantId,
+    tableId: table.id,
+    anonymousSessionToken: newSessionToken(),
+    startedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
+    endedAt: null,
+  };
+
+  writeStore(
+    record(
+      { ...base, sessions: { ...base.sessions, [key]: session } },
+      actor,
+      'table_session_started',
+      table.name,
+      'Seated by staff — no QR scan',
+    ),
+  );
+  return { ...table, currentSessionId: session.id, currentSessionToken: session.anonymousSessionToken };
 }
 
 /**
