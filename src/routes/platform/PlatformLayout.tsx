@@ -42,7 +42,7 @@ export function PlatformLayout() {
       <header className={cx('sticky top-0 z-40 border-b border-hairline', GLASS)}>
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 pb-3 pt-[calc(10px+var(--safe-t))] sm:px-6 lg:px-8">
           <div className="min-w-0">
-            <div className={cx(DISPLAY, 'truncate text-[22px] sm:text-[24px]')}>myfood</div>
+            <div className={cx(DISPLAY, 'truncate text-[22px] sm:text-[24px]')}>letsDine</div>
             <div className="text-[12px] text-ink-4">Platform admin</div>
           </div>
           <div className="flex shrink-0 items-center gap-2">

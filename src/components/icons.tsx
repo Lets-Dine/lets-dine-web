@@ -175,6 +175,14 @@ export const Table = ({ size = 16, className }: IconProps) => (
   </svg>
 );
 
+export const Layers = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 3l8 4.5-8 4.5-8-4.5z" />
+    <path d="M4 12l8 4.5 8-4.5" />
+    <path d="M4 16.5l8 4.5 8-4.5" />
+  </svg>
+);
+
 export const TrendUp = ({ size = 16, className }: IconProps) => (
   <svg {...base(size)} className={className}>
     <path d="M4 16l5-5 4 3 7-9" />
@@ -223,5 +231,16 @@ export const Cash = ({ size = 16, className }: IconProps) => (
   <svg {...base(size)} className={className}>
     <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
     <circle cx="12" cy="12" r="2.4" />
+  </svg>
+);
+
+export const Move = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <polyline points="5 9 2 12 5 15" />
+    <polyline points="9 5 12 2 15 5" />
+    <polyline points="15 19 12 22 9 19" />
+    <polyline points="19 9 22 12 19 15" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <line x1="12" y1="2" x2="12" y2="22" />
   </svg>
 );

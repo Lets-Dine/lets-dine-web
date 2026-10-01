@@ -1,10 +1,10 @@
-import type { CreateOrderInput, DeliverySessionResult, ReviewDraft, StartDeliverySessionInput } from './client';
+import type { CreateOrderInput, DeliverySessionResult, FloorSessionResult, ReviewDraft, StartDeliverySessionInput } from './client';
 import type { DiningSession, Dish, Menu, Order, Payment, Restaurant, Review } from '../domain/types';
 import * as mock from './client';
 import { IS_LIVE_API } from './http';
 import * as live from './live';
 
-export type { DeliverySessionResult, StartDeliverySessionInput } from './client';
+export type { DeliverySessionResult, FloorSessionResult, StartDeliverySessionInput } from './client';
 
 /**
  * The public diner reads and ordering, from whichever source is configured:
@@ -43,6 +43,20 @@ export function joinTableSession(restaurantSlug: string, tableToken: string, joi
   return IS_LIVE_API
     ? live.joinTableSession(restaurantSlug, tableToken, joinToken)
     : mock.resolveQr(restaurantSlug, tableToken, joinToken);
+}
+
+/** A page reload has no name to re-ask for — resumes a session already stored on this device, or `null`. */
+export function resumeFloorSession(restaurantSlug: string, floorToken: string): Promise<FloorSessionResult | null> {
+  return IS_LIVE_API
+    ? live.resumeFloorSession(restaurantSlug, floorToken)
+    : mock.resumeFloorSession(restaurantSlug, floorToken);
+}
+
+/** §16b — one QR for a whole floor; every scan that isn't resumed opens its own fresh session under the given name. */
+export function startFloorSession(restaurantSlug: string, floorToken: string, visitorName: string): Promise<FloorSessionResult> {
+  return IS_LIVE_API
+    ? live.startFloorSession(restaurantSlug, floorToken, visitorName)
+    : mock.startFloorSession(restaurantSlug, floorToken, visitorName);
 }
 
 /** The delivery equivalent of `resolveQr` — phone number in, session (with `table: null`) and customer out. */

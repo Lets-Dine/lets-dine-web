@@ -12,7 +12,7 @@ import { usePageTitle } from '../state/usePageTitle';
 import { useSessionOrders } from '../state/SessionOrdersContext';
 import { useToast } from '../state/ToastContext';
 import { BillLines, PAGE, SPLIT, addOnLabels, lineUnitPrice, useBill, variantLabel } from './Cart';
-import { useRestaurant, visitLabel } from './RestaurantLayout';
+import { useRestaurant } from './RestaurantLayout';
 import { TopBar } from './Shell';
 
 const PAYMENT_METHODS_DINE_IN = [
@@ -26,8 +26,10 @@ const PAYMENT_METHODS_DELIVERY = [
 ] as const;
 
 export function Checkout() {
-  const { menu, table, customer, session, base } = useRestaurant();
-  const isDelivery = table === null;
+  const { menu, customer, identityLabel, session, base } = useRestaurant();
+  // §22/§16b — `customer` is the one field exclusive to a delivery session (a floor
+  // session also has a null `table`, so that alone can't be the delivery check).
+  const isDelivery = customer !== null;
   usePageTitle(`Checkout · ${menu.restaurant.name}`);
   const cart = useCart();
   const { rememberOrder } = useSessionOrders();
@@ -85,7 +87,7 @@ export function Checkout() {
 
   return (
     <main className={SHELL}>
-      <TopBar title="Confirm your order" subtitle={visitLabel(table)} fallbackTo={`${base}/cart`} width={PAGE} />
+      <TopBar title="Confirm your order" subtitle={identityLabel} fallbackTo={`${base}/cart`} width={PAGE} />
 
       <div className={cx(PAGE, SPLIT, 'pt-5')}>
         <div className="flex flex-col gap-7">
@@ -125,7 +127,7 @@ export function Checkout() {
             <section className="animate-rise">
               <div className="flex flex-col gap-1 rounded-3xl bg-surface bg-flame-dim p-4.5 ring-1 ring-flame-2/35 ring-inset">
                 <span className={cx(EYEBROW, 'text-flame-1/80')}>Serving to</span>
-                <b className={cx(DISPLAY, 'text-[27px]')}>{table.name}</b>
+                <b className={cx(DISPLAY, 'text-[27px]')}>{identityLabel}</b>
                 <span className="text-[13px] text-ink-3">{menu.restaurant.name} · dine in</span>
               </div>
             </section>

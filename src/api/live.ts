@@ -1,6 +1,6 @@
 import type { CreateOrderInput, DeliverySessionResult, StartDeliverySessionInput } from './client';
 import type { ReviewDraft } from './client';
-import type { AddOn, CartLine, Customer, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Menu, MenuCategory, Order, Payment, PaymentMethod, Restaurant, Review } from '../domain/types';
+import type { AddOn, CartLine, Customer, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Floor, Menu, MenuCategory, Order, Payment, PaymentMethod, Restaurant, Review } from '../domain/types';
 import { apiRequest } from './http';
 import type { Paginated } from './http';
 import { getSocket, joinRoom } from './socket';
@@ -61,6 +61,8 @@ interface ApiSession {
   expiresAt: string;
   endedAt: string | null;
   customerId?: string | null;
+  floorId?: string | null;
+  floorVisitorName?: string | null;
 }
 
 interface ApiCustomer {
@@ -83,10 +85,33 @@ function toCustomer(api: ApiCustomer): Customer {
   };
 }
 
+interface ApiFloor {
+  id: string;
+  restaurantId: string;
+  name: string;
+  qrToken: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+function toFloor(api: ApiFloor): Floor {
+  return {
+    id: api.id,
+    restaurantId: api.restaurantId,
+    name: api.name,
+    qrToken: api.qrToken,
+    isActive: api.isActive,
+    sortOrder: api.sortOrder,
+    createdAt: api.createdAt,
+  };
+}
+
 interface ApiResolvedSession {
   session: ApiSession;
   table: ApiTable | null;
   customer?: ApiCustomer | null;
+  floor?: ApiFloor | null;
 }
 
 /** Only ever called for a dine-in resolution (`resolveQr`/`joinTableSession`) — `table` is never null there. */
@@ -218,6 +243,7 @@ interface ApiOrder {
   deliveryPhone?: string | null;
   deliveryCustomerName?: string | null;
   deliveryNote?: string | null;
+  floorVisitorName?: string | null;
 }
 
 /* ── Mappers ───────────────────────────────────────────────────── */
@@ -266,6 +292,8 @@ function toSession(api: ApiSession): DiningSession {
     expiresAt: api.expiresAt,
     endedAt: api.endedAt,
     customerId: api.customerId ?? null,
+    floorId: api.floorId ?? null,
+    floorVisitorName: api.floorVisitorName ?? null,
   };
 }
 
@@ -389,6 +417,7 @@ function toOrder(api: ApiOrder): Order {
     deliveryPhone: api.deliveryPhone ?? null,
     deliveryCustomerName: api.deliveryCustomerName ?? null,
     deliveryNote: api.deliveryNote ?? null,
+    floorVisitorName: api.floorVisitorName ?? null,
   };
 }
 
@@ -449,7 +478,7 @@ function toPayment(api: ApiPayment): Payment {
    restaurant+table: reopening the tab mid-meal resumes the same visit
    instead of opening a second one.                                    */
 
-const sessionKey = (slug: string, tableToken: string) => `myfood.session.${slug}.${tableToken}`;
+const sessionKey = (slug: string, tableToken: string) => `letsDine.session.${slug}.${tableToken}`;
 
 interface StoredSession {
   token: string;
@@ -556,11 +585,62 @@ export async function joinTableSession(
   return toResolvedSession(joined);
 }
 
+/* ── Floor session ─────────────────────────────────────────────────
+   §16b — no table to identify a visit by, so instead of a table-style
+   auto-resolve this splits into a resume (quiet, read-only) and a start
+   (asks for a name first) — the same shape as the delivery session below,
+   just keyed by the floor token already in the URL rather than the slug alone. */
+
+export interface FloorSessionResult {
+  table: null;
+  floor: Floor;
+  session: DiningSession;
+}
+
+function toFloorSession(api: ApiResolvedSession): FloorSessionResult {
+  if (!api.floor) throw new ApiError(500, 'This floor could not be resolved.');
+  return {
+    table: null,
+    floor: toFloor(api.floor),
+    session: toSession(api.session),
+  };
+}
+
+/**
+ * A page reload has no name to re-ask for, only whatever token this device
+ * already stored — resumes silently, or returns `null` so the landing screen
+ * falls back to asking for a name again.
+ */
+export async function resumeFloorSession(restaurantSlug: string, floorToken: string): Promise<FloorSessionResult | null> {
+  const existing = readStoredToken(restaurantSlug, floorToken);
+  if (!existing) return null;
+  try {
+    const resumed = await apiRequest<ApiResolvedSession>('/public/sessions/current', {
+      headers: { [SESSION_TOKEN_HEADER]: existing },
+    });
+    return toFloorSession(resumed);
+  } catch {
+    forgetToken(restaurantSlug, floorToken);
+    return null;
+  }
+}
+
+export async function startFloorSession(restaurantSlug: string, floorToken: string, visitorName: string): Promise<FloorSessionResult> {
+  const opened = await apiRequest<ApiResolvedSession>('/public/sessions/floor', {
+    method: 'POST',
+    body: JSON.stringify({ restaurantSlug, floorToken, visitorName: visitorName.trim() }),
+  });
+
+  storeToken(restaurantSlug, floorToken, opened.session);
+
+  return toFloorSession(opened);
+}
+
 /* ── Delivery session ──────────────────────────────────────────────
    No table token in the URL, so the resume key is the slug alone —
    one open delivery session per restaurant per browser at a time. */
 
-const deliverySessionKey = (slug: string) => `myfood.session.delivery.${slug}`;
+const deliverySessionKey = (slug: string) => `letsDine.session.delivery.${slug}`;
 
 function readStoredDeliveryToken(slug: string): string | null {
   try {
@@ -687,13 +767,7 @@ export async function submitReviews(orderId: string, sessionToken: string, draft
 
 /* ── Orders ────────────────────────────────────────────────────── */
 
-export async function createOrder({
-  session,
-  lines,
-  idempotencyKey,
-  deliveryAddress,
-  deliveryNote,
-}: CreateOrderInput): Promise<Order> {
+export async function createOrder({ session, lines, idempotencyKey, deliveryAddress, deliveryNote }: CreateOrderInput): Promise<Order> {
   const order = await apiRequest<ApiOrder>('/orders', {
     method: 'POST',
     headers: {

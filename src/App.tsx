@@ -7,6 +7,7 @@ import { Cart } from './routes/Cart';
 import { Checkout } from './routes/Checkout';
 import { DishDetail } from './routes/DishDetail';
 import { Entry } from './routes/Entry';
+import { GetStarted } from './routes/GetStarted';
 import { Landing } from './routes/Landing';
 import { Menu } from './routes/Menu';
 import { NotFound } from './routes/NotFound';
@@ -29,6 +30,7 @@ import { Settings } from './routes/admin/Settings';
 import { SignIn } from './routes/admin/SignIn';
 import { Staff } from './routes/admin/Staff';
 import { Tables } from './routes/admin/Tables';
+import { Floors } from './routes/admin/Floors';
 import { TableDetail } from './routes/admin/TableDetail';
 import { PlatformLayout } from './routes/platform/PlatformLayout';
 import { PlatformSignIn } from './routes/platform/PlatformSignIn';
@@ -92,10 +94,23 @@ export default function App() {
           <AdminThemeProvider>
             <Routes>
               <Route path="/" element={<Landing />} />
+              {/* The public, self-serve restaurant sign-up — what the landing page's "Get started" CTA points at. */}
+              <Route path="/get-started" element={<GetStarted />} />
               {/* Stands in for the physical QR code on the table — the live product starts at /r/:slug/t/:token. */}
               <Route path="/demo" element={<Entry />} />
               {/* The QR encodes only the restaurant slug and an opaque table token. */}
-              <Route path="/r/:slug/t/:token" element={<RestaurantLayout />}>
+              <Route path="/r/:slug/t/:token" element={<RestaurantLayout kind="table" />}>
+                <Route index element={<Menu />} />
+                <Route path="d/:dishId" element={<DishDetail />} />
+                <Route path="cart" element={<Cart />} />
+                <Route path="checkout" element={<Checkout />} />
+                <Route path="orders" element={<OrderHistory />} />
+                <Route path="order/:orderId" element={<OrderStatus />} />
+                <Route path="order/:orderId/review" element={<ReviewFlow />} />
+              </Route>
+
+              {/* §16b — one QR for a whole floor; no single table, so a room is picked right after landing. */}
+              <Route path="/r/:slug/f/:token" element={<RestaurantLayout kind="floor" />}>
                 <Route index element={<Menu />} />
                 <Route path="d/:dishId" element={<DishDetail />} />
                 <Route path="cart" element={<Cart />} />
@@ -106,7 +121,7 @@ export default function App() {
               </Route>
 
               {/* Delivery: no QR, no table — same layout, session starts from a phone number instead. */}
-              <Route path="/r/:slug/delivery" element={<RestaurantLayout />}>
+              <Route path="/r/:slug/delivery" element={<RestaurantLayout kind="delivery" />}>
                 <Route index element={<Menu />} />
                 <Route path="d/:dishId" element={<DishDetail />} />
                 <Route path="cart" element={<Cart />} />
@@ -127,6 +142,7 @@ export default function App() {
                 <Route path="categories" element={<Categories />} />
                 <Route path="tables" element={<Tables />} />
                 <Route path="tables/:tableId" element={<TableDetail />} />
+                <Route path="floors" element={<Floors />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="reviews" element={<Reviews />} />
                 <Route path="analytics" element={<Analytics />} />

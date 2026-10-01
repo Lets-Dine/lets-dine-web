@@ -16,7 +16,7 @@ import { useToast } from './ToastContext';
  * *render*; `api/admin.ts` decides what actually happens.
  */
 
-const KEY = 'myfood.staff.v1';
+const KEY = 'letsDine.staff.v1';
 
 interface AuthValue {
   staff: StaffMember | null;

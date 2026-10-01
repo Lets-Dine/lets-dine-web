@@ -22,7 +22,7 @@ import { useSessionOrders } from '../state/SessionOrdersContext';
 import { usePageTitle } from '../state/usePageTitle';
 import { useToast } from '../state/ToastContext';
 import { PAGE, SPLIT } from './Cart';
-import { useRestaurant, visitLabel } from './RestaurantLayout';
+import { useRestaurant } from './RestaurantLayout';
 import { ErrorScreen, TopBar } from './Shell';
 
 const ITEM_PILL_STYLE: Record<OrderItem['status'], string> = {
@@ -35,7 +35,7 @@ const ITEM_PILL_STYLE: Record<OrderItem['status'], string> = {
 
 export function OrderStatus() {
   const { orderId = '' } = useParams();
-  const { menu, table, session, base } = useRestaurant();
+  const { menu, identityLabel, session, base } = useRestaurant();
   usePageTitle(`Order status · ${menu.restaurant.name}`);
   const navigate = useNavigate();
   const toast = useToast();
@@ -63,7 +63,7 @@ export function OrderStatus() {
   if (!order) {
     return (
       <main className={SHELL}>
-        <TopBar title="Your order" subtitle={visitLabel(table)} fallbackTo={base} width={PAGE} />
+        <TopBar title="Your order" subtitle={identityLabel} fallbackTo={base} width={PAGE} />
         <div className={cx(PAGE, 'flex flex-col gap-3.5 pt-4')}>
           <Skeleton className="h-52 rounded-3xl" />
           <Skeleton className="h-36 rounded-3xl" />
@@ -94,7 +94,7 @@ export function OrderStatus() {
     <main className={SHELL}>
       <TopBar
         title={`Order ${order.reference}`}
-        subtitle={`${visitLabel(table)} · ${clockTime(order.createdAt)}`}
+        subtitle={`${identityLabel} · ${clockTime(order.createdAt)}`}
         fallbackTo={base}
         width={PAGE}
       />

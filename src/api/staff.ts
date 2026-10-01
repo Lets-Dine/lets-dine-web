@@ -1,11 +1,23 @@
 import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
-import type { AuditEntry, DiningTable, ItemStatus, Menu, MenuCategory, Order, Payment, PaymentMethod, Restaurant, StaffMember } from '../domain/types';
+import type {
+  AuditEntry,
+  DiningTable,
+  Floor,
+  ItemStatus,
+  Menu,
+  MenuCategory,
+  Order,
+  Payment,
+  PaymentMethod,
+  Restaurant,
+  StaffMember,
+} from '../domain/types';
 import * as mock from './admin';
-import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft } from './admin';
+import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import { IS_LIVE_API } from './http';
 import * as live from './live-admin';
 
-export type { StaffDraft } from './admin';
+export type { StaffDraft, UploadTarget } from './admin';
 
 /**
  * The manager-facing reads/writes that have a real backend behind them so
@@ -39,6 +51,11 @@ export function updateSettings(actor: StaffMember, patch: SettingsPatch): Promis
 
 export function createCategory(actor: StaffMember, name: string, emoji: string): Promise<MenuCategory> {
   return IS_LIVE_API ? live.createCategory(name, emoji) : mock.createCategory(actor, name, emoji);
+}
+
+/** A signed slip the UI trades for a direct-to-Cloudinary upload. Mock mode has no backend to sign one. */
+export function getUploadSignature(target: UploadTarget): Promise<UploadSignature> {
+  return IS_LIVE_API ? live.getUploadSignature(target) : mock.getUploadSignature();
 }
 
 export function renameCategory(actor: StaffMember, categoryId: string, name: string, emoji: string): Promise<MenuCategory> {
@@ -119,6 +136,26 @@ export function setTableActive(actor: StaffMember, tableId: string, active: bool
 
 export function regenerateQr(actor: StaffMember, tableId: string): Promise<DiningTable> {
   return IS_LIVE_API ? live.regenerateQr(tableId) : mock.regenerateQr(actor, tableId);
+}
+
+export function listFloors(actor: StaffMember): Promise<Floor[]> {
+  return IS_LIVE_API ? live.listFloors() : mock.listFloors(actor);
+}
+
+export function createFloor(actor: StaffMember, name: string): Promise<Floor> {
+  return IS_LIVE_API ? live.createFloor(name) : mock.createFloor(actor, name);
+}
+
+export function updateFloor(actor: StaffMember, floorId: string, patch: { name?: string }): Promise<Floor> {
+  return IS_LIVE_API ? live.updateFloor(floorId, patch) : mock.updateFloor(actor, floorId, patch);
+}
+
+export function setFloorActive(actor: StaffMember, floorId: string, active: boolean): Promise<Floor> {
+  return IS_LIVE_API ? live.setFloorActive(floorId, active) : mock.setFloorActive(actor, floorId, active);
+}
+
+export function regenerateFloorQr(actor: StaffMember, floorId: string): Promise<Floor> {
+  return IS_LIVE_API ? live.regenerateFloorQr(floorId) : mock.regenerateFloorQr(actor, floorId);
 }
 
 /** Seats a table on a diner's behalf — for a guest who can't or won't scan the QR themselves. */

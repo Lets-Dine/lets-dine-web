@@ -11,7 +11,7 @@ import { clockTime, relativeTime } from '../components/time';
 import { useSessionOrders } from '../state/SessionOrdersContext';
 import { usePageTitle } from '../state/usePageTitle';
 import { PAGE } from './Cart';
-import { useRestaurant, visitLabel } from './RestaurantLayout';
+import { useRestaurant } from './RestaurantLayout';
 import { EmptyState, TopBar } from './Shell';
 
 /**
@@ -31,7 +31,7 @@ const STATUS_TONE: Record<OrderStatus, string> = {
 };
 
 export function OrderHistory() {
-  const { menu, table, session, base } = useRestaurant();
+  const { menu, identityLabel, session, base } = useRestaurant();
   usePageTitle(`Your orders · ${menu.restaurant.name}`);
   const { orders, ready } = useSessionOrders();
   const [payment, setPayment] = useState<Payment | null>(null);
@@ -44,7 +44,7 @@ export function OrderHistory() {
 
   return (
     <main className={SHELL}>
-      <TopBar title="Your orders" subtitle={`${visitLabel(table)} · this visit`} fallbackTo={base} width={PAGE} />
+      <TopBar title="Your orders" subtitle={`${identityLabel} · this visit`} fallbackTo={base} width={PAGE} />
 
       <div className={cx(PAGE, 'flex flex-col gap-3 pt-4')}>
         {payment && (

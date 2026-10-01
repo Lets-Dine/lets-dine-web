@@ -130,8 +130,13 @@ export function PassCard({
                   Delivery
                 </span>
               )}
+              {!isDelivery && order.floorVisitorName && (
+                <span className="shrink-0 rounded-full bg-gold/14 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-gold-ink">
+                  Floor
+                </span>
+              )}
               <span className="truncate text-[13px] font-semibold text-ink-2">
-                {isDelivery ? order.deliveryCustomerName || 'Guest' : order.tableName}
+                {isDelivery ? order.deliveryCustomerName || 'Guest' : (order.tableName ?? order.floorVisitorName ?? 'Floor order')}
               </span>
             </div>
             {isDelivery ? (

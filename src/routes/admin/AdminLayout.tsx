@@ -11,7 +11,7 @@ import { AdminThemeToggle } from '../../state/AdminTheme';
 import { usePageTitle } from '../../state/usePageTitle';
 import { Loading } from '../../components/admin/kit';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Cash, Folder, Grid, History, Plate, Receipt, Sliders, Sparkle, Table, Users } from '../../components/icons';
+import { Cash, Folder, Grid, History, Layers, Plate, Receipt, Sliders, Sparkle, Table, Users } from '../../components/icons';
 import { playNewOrderSound } from '../../platform/sound';
 
 /**
@@ -60,6 +60,7 @@ const NAV: NavItem[] = [
   { to: '/admin/add-ons', label: 'Add-ons', icon: Sparkle, permission: 'menu:edit' },
   { to: '/admin/categories', label: 'Categories', icon: Folder, permission: 'menu:edit' },
   { to: '/admin/tables', label: 'Tables', icon: Table, permission: 'tables:view' },
+  { to: '/admin/floors', label: 'Floors', icon: Layers, permission: 'tables:view' },
   { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view' },
   // { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view' },
   // { to: '/admin/analytics', label: 'Analytics', icon: TrendUp, permission: 'analytics:view' },

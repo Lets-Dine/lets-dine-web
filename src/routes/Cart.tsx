@@ -11,7 +11,7 @@ import { Plus } from '../components/icons';
 import { useCart } from '../state/CartContext';
 import { usePageTitle } from '../state/usePageTitle';
 import { useToast } from '../state/ToastContext';
-import { useRestaurant, visitLabel } from './RestaurantLayout';
+import { useRestaurant } from './RestaurantLayout';
 import { EmptyState, TopBar } from './Shell';
 
 /** One column on phones; items beside a sticky bill once there is room. */
@@ -105,7 +105,7 @@ export function BillLines({
 }
 
 export function Cart() {
-  const { menu, table, base, session } = useRestaurant();
+  const { menu, customer, identityLabel, base, session } = useRestaurant();
   usePageTitle(`Your order · ${menu.restaurant.name}`);
   const cart = useCart();
   const navigate = useNavigate();
@@ -120,14 +120,14 @@ export function Cart() {
   };
 
   const byId = new Map(menu.dishes.map((d) => [d.id, d]));
-  const deliveryFee = table ? 0 : (menu.restaurant.deliveryFeeAmount ?? 0);
+  const deliveryFee = customer ? (menu.restaurant.deliveryFeeAmount ?? 0) : 0;
   const bill = useBill(cart.lines, menu.dishes, deliveryFee);
   const currency = menu.restaurant.currency;
 
   if (cart.lines.length === 0) {
     return (
       <main className={SHELL}>
-        <TopBar title="Your order" subtitle={visitLabel(table)} fallbackTo={base} width={PAGE} />
+        <TopBar title="Your order" subtitle={identityLabel} fallbackTo={base} width={PAGE} />
         <div className={cx(PAGE, 'pt-6 lg:max-w-2xl')}>
           <EmptyState
             emoji="🍽️"
@@ -156,7 +156,7 @@ export function Cart() {
     <main className={SHELL}>
       <TopBar
         title="Your order"
-        subtitle={`${visitLabel(table)} · ${cart.count} ${cart.count === 1 ? 'item' : 'items'}`}
+        subtitle={`${identityLabel} · ${cart.count} ${cart.count === 1 ? 'item' : 'items'}`}
         fallbackTo={base}
         width={PAGE}
       />

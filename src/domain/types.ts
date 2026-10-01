@@ -53,10 +53,23 @@ export interface DiningTable {
   createdAt: string;
 }
 
+/** §16b: one QR for a whole floor — any scan starts its own independent session, with no
+ *  `currentSessionId` singleton to join or lock against, unlike `DiningTable`. */
+export interface Floor {
+  id: string;
+  restaurantId: string;
+  name: string;
+  /** Opaque, printed on the floor's shared QR. Rotating it invalidates every printed code. */
+  qrToken: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
 export interface DiningSession {
   id: string;
   restaurantId: string;
-  /** Null for a delivery session — there is no table. */
+  /** Null for a delivery or floor session — there is no single table. */
   tableId: string | null;
   anonymousSessionToken: string;
   startedAt: string;
@@ -65,6 +78,10 @@ export interface DiningSession {
   endedAt: string | null;
   /** Set for a delivery session, upserted server-side by phone. */
   customerId: string | null;
+  /** §16b: set for a floor session — the shared floor QR it was scanned from. */
+  floorId: string | null;
+  /** §16b: floor sessions only — the free-text room/cabin/name the diner gave when opening the floor QR. */
+  floorVisitorName: string | null;
 }
 
 /** A lightweight, per-restaurant repeat-customer record, keyed by phone — delivery only. */
@@ -280,6 +297,8 @@ export interface Order {
   deliveryPhone: string | null;
   deliveryCustomerName: string | null;
   deliveryNote: string | null;
+  /** §16b: floor orders only — snapshotted from `DiningSession.floorVisitorName` at order time. */
+  floorVisitorName: string | null;
 }
 
 export interface Menu {
@@ -349,6 +368,10 @@ export type AuditAction =
   | 'table_session_started'
   | 'table_session_ended'
   | 'qr_regenerated'
+  | 'floor_created'
+  | 'floor_renamed'
+  | 'floor_disabled'
+  | 'floor_enabled'
   | 'order_status_changed'
   | 'order_cancelled'
   | 'order_item_added'

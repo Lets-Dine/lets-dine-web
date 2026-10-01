@@ -20,7 +20,7 @@ interface CartValue {
 }
 
 const CartContext = createContext<CartValue | null>(null);
-const key = (sessionId: string) => `myfood.cart.${sessionId}`;
+const key = (sessionId: string) => `letsDine.cart.${sessionId}`;
 
 /** A line's real identity: the dish plus which add-ons it carries — a differently-customized order of the same dish is a different line. */
 function addOnKey(addOnIds: string[]): string {

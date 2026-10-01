@@ -13,7 +13,7 @@ import { SessionCode } from '../components/Bits';
 import { RatingPill } from '../components/Rating';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, EYEBROW, GLASS, ICON_BTN, RAIL, SHELL, WIDE, cx } from '../components/ui';
 import { Clock, Plate, Plus, Receipt, Search, X } from '../components/icons';
-import { useRestaurant, visitLabel } from './RestaurantLayout';
+import { useRestaurant } from './RestaurantLayout';
 import { EmptyState } from './Shell';
 
 /** Diner never sees this twice — dismissing it (or adding a first dish) retires it for good. */
@@ -46,7 +46,7 @@ function GuideStep({ icon, step, title, text }: { icon: ReactNode; step: string;
 }
 
 export function Menu() {
-  const { menu, table, session, ctx, base } = useRestaurant();
+  const { menu, table, identityLabel, session, ctx, base } = useRestaurant();
   usePageTitle(`${menu.restaurant.name} · Menu`, menu.restaurant.tagline);
   const cart = useCart();
   const [query, setQuery] = useState('');
@@ -168,7 +168,7 @@ export function Menu() {
           <div className="flex flex-col gap-2.5 lg:max-w-3xl">
             <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-bg/60 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.09em] text-ink-2 ring-1 ring-hairline-strong ring-inset backdrop-blur-md">
               <span className="size-1.5 rounded-full bg-mint shadow-[0_0_0_3px_rgb(78_203_143/0.2)]" aria-hidden />
-              {visitLabel(table)}
+              {identityLabel}
             </span>
             <h1 className={cx(DISPLAY, 'text-[clamp(30px,9vw,38px)] lg:text-5xl')}>{menu.restaurant.name}</h1>
             <div className="flex flex-wrap items-center gap-2">

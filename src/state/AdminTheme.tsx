@@ -12,7 +12,7 @@ import { cx } from '../components/ui';
 
 export type AdminTheme = 'light' | 'dark';
 
-const KEY = 'myfood.admin-theme.v1';
+const KEY = 'letsDine.admin-theme.v1';
 const DINER_THEME_COLOR = '#12100e';
 const ADMIN_THEME_COLOR: Record<AdminTheme, string> = {
   light: '#f3ebe1',

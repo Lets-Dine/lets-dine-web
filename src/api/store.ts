@@ -7,6 +7,7 @@ import type {
   DiningSession,
   DiningTable,
   Dish,
+  Floor,
   MenuCategory,
   Order,
   Payment,
@@ -38,7 +39,7 @@ export class ApiError extends Error {
 }
 
 /** Exported so tests can reach in and age an order without a time machine. */
-export const STORE_KEY = 'myfood.store.v4';
+export const STORE_KEY = 'letsDine.store.v4';
 
 export interface MenuState {
   categories: MenuCategory[];
@@ -57,6 +58,8 @@ export interface Store {
   /** Null until someone edits: the seed menu materialises into the store then. */
   menu: MenuState | null;
   tables: DiningTable[] | null;
+  /** §16b: one QR per floor — null until a manager adds one; the demo seed has none. */
+  floors: Floor[] | null;
   /** Null until an owner adds someone: the seed roster materialises into the store then. */
   staff: StaffMember[] | null;
   restaurantPatch: Partial<Restaurant> | null;
@@ -83,6 +86,7 @@ export function emptyStore(): Store {
     customers: [],
     menu: null,
     tables: null,
+    floors: null,
     staff: null,
     restaurantPatch: null,
     audit: [],
@@ -152,6 +156,10 @@ export function tablesOf(store: Store): DiningTable[] {
   return store.tables ?? TABLES;
 }
 
+export function floorsOf(store: Store): Floor[] {
+  return store.floors ?? [];
+}
+
 export function staffOf(store: Store): StaffMember[] {
   return store.staff ?? STAFF;
 }
@@ -181,6 +189,11 @@ export function withEditableMenu(store: Store): Store & { menu: MenuState } {
 export function withEditableTables(store: Store): Store & { tables: DiningTable[] } {
   if (store.tables) return store as Store & { tables: DiningTable[] };
   return { ...store, tables: TABLES.map((t) => ({ ...t })) };
+}
+
+export function withEditableFloors(store: Store): Store & { floors: Floor[] } {
+  if (store.floors) return store as Store & { floors: Floor[] };
+  return { ...store, floors: [] };
 }
 
 export function withEditableStaff(store: Store): Store & { staff: StaffMember[] } {

@@ -34,7 +34,7 @@ const DINER = '#12100e';
  */
 export function Landing() {
   usePageTitle(
-    'myfood · A smarter way to dine, a smarter way to run a restaurant',
+    'letsDine · A smarter way to dine, a smarter way to run a restaurant',
     'Digital menus, QR table ordering and dish level ratings, built from real orders. See what your customers actually think about every dish.',
   );
 

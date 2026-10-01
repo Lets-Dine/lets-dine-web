@@ -14,6 +14,7 @@ import { formatMoney } from '../../domain/money';
 import type { DietaryType, DishVariant } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { DietMarks, DishImage } from '../../components/Bits';
+import { ImageUpload } from '../../components/admin/ImageUpload';
 import { RatingBreakdown } from '../../components/Rating';
 import {
   ADMIN_GHOST,
@@ -253,7 +254,10 @@ export function DishEditor() {
                 monogram="text-2xl"
               />
               <div className="min-w-45 flex-1">
-                <Field label="Image URL">
+                <Field label="Photo" hint="Upload a photo, or paste an image URL below.">
+                  <ImageUpload target="dish" aspect={1} label="Upload photo" onUploaded={(url) => patch('imageUrl', url)} />
+                </Field>
+                <Field label="Image URL" className="mt-3">
                   <TextInput
                     value={draft.imageUrl ?? ''}
                     onChange={(v) => patch('imageUrl', v.trim() || null)}

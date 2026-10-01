@@ -7,6 +7,7 @@ import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../../components/time';
 import { ADMIN_PRIMARY, Field, MoneyInput, PageTitle, Panel, PercentInput, TextArea, TextInput, useCommand } from '../../components/admin/kit';
+import { ImageUpload } from '../../components/admin/ImageUpload';
 import { History } from '../../components/icons';
 import { useDashboard } from './AdminLayout';
 
@@ -98,7 +99,10 @@ export function Settings() {
                 )}
               </div>
               <fieldset disabled={!canEdit} className="min-w-0 flex-1 disabled:opacity-60">
-                <Field label="Image URL" hint="A full https:// link to a wide, landscape photo.">
+                <Field label="Photo" hint="Upload a wide, landscape photo, or paste a URL below.">
+                  <ImageUpload target="restaurant-cover" aspect={16 / 9} label="Upload photo" onUploaded={setCoverImageUrl} />
+                </Field>
+                <Field label="Image URL" className="mt-3">
                   <TextInput value={coverImageUrl} onChange={setCoverImageUrl} placeholder="https://…/cover.jpg" maxLength={500} />
                 </Field>
               </fieldset>

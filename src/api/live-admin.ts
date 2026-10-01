@@ -1,4 +1,4 @@
-import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft } from './admin';
+import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
 import type {
@@ -10,6 +10,7 @@ import type {
   Dish,
   DishStats,
   DishVariant,
+  Floor,
   ItemStatus,
   Menu,
   MenuCategory,
@@ -42,7 +43,7 @@ import { getSocket, joinRoom } from './socket';
  * rather than reconstructing a `Dish` with stats they don't have.
  */
 
-const TOKEN_KEY = 'myfood.staff.token.v1';
+const TOKEN_KEY = 'letsDine.staff.token.v1';
 
 function storeToken(token: string): void {
   try {
@@ -239,6 +240,7 @@ interface ApiOrder {
   deliveryPhone?: string | null;
   deliveryCustomerName?: string | null;
   deliveryNote?: string | null;
+  floorVisitorName?: string | null;
 }
 
 interface ApiPaymentItem {
@@ -434,6 +436,7 @@ function toOrder(api: ApiOrder): Order {
     deliveryPhone: api.deliveryPhone ?? null,
     deliveryCustomerName: api.deliveryCustomerName ?? null,
     deliveryNote: api.deliveryNote ?? null,
+    floorVisitorName: api.floorVisitorName ?? null,
   };
 }
 
@@ -543,6 +546,15 @@ export async function updateSettings(patch: SettingsPatch): Promise<Restaurant> 
     body: JSON.stringify(patch),
   });
   return toRestaurant(restaurant);
+}
+
+/** A signed, time-boxed permission slip for the UI to upload straight to Cloudinary — no file ever touches our server. */
+export async function getUploadSignature(target: UploadTarget): Promise<UploadSignature> {
+  return apiRequest<UploadSignature>('/restaurant/uploads/signature', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ target }),
+  });
 }
 
 export async function createCategory(name: string, emoji: string): Promise<MenuCategory> {
@@ -800,6 +812,72 @@ export async function endTableSession(tableId: string): Promise<DiningTable> {
     headers: authHeaders(),
   });
   return toTable(table);
+}
+
+/* ── Floors ────────────────────────────────────────────────────── */
+
+interface ApiFloor {
+  id: string;
+  restaurantId: string;
+  name: string;
+  qrToken: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+function toFloor(api: ApiFloor): Floor {
+  return {
+    id: api.id,
+    restaurantId: api.restaurantId,
+    name: api.name,
+    qrToken: api.qrToken,
+    isActive: api.isActive,
+    sortOrder: api.sortOrder,
+    createdAt: api.createdAt,
+  };
+}
+
+export async function listFloors(): Promise<Floor[]> {
+  const page = await apiRequest<Paginated<ApiFloor>>('/restaurant/floors?limit=0', {
+    headers: authHeaders(),
+  });
+  return page.rows.map(toFloor).sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export async function createFloor(name: string): Promise<Floor> {
+  const floor = await apiRequest<ApiFloor>('/restaurant/floors', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ name: name.trim() }),
+  });
+  return toFloor(floor);
+}
+
+export async function updateFloor(floorId: string, patch: { name?: string }): Promise<Floor> {
+  const floor = await apiRequest<ApiFloor>(`/restaurant/floors/${encodeURIComponent(floorId)}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  return toFloor(floor);
+}
+
+export async function setFloorActive(floorId: string, active: boolean): Promise<Floor> {
+  const floor = await apiRequest<ApiFloor>(`/restaurant/floors/${encodeURIComponent(floorId)}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ isActive: active }),
+  });
+  return toFloor(floor);
+}
+
+export async function regenerateFloorQr(floorId: string): Promise<Floor> {
+  const floor = await apiRequest<ApiFloor>(`/restaurant/floors/${encodeURIComponent(floorId)}/qr`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  return toFloor(floor);
 }
 
 /* ── Orders ────────────────────────────────────────────────────── */

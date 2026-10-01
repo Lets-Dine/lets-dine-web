@@ -24,6 +24,7 @@ import type {
   DiningTable,
   Dish,
   DishVariant,
+  Floor,
   ItemStatus,
   Menu,
   MenuCategory,
@@ -41,6 +42,7 @@ import type {
 import type { Store } from './store';
 import {
   ApiError,
+  floorsOf,
   latency,
   menuOf,
   newQrToken,
@@ -51,6 +53,7 @@ import {
   tablesOf,
   takeReference,
   uid,
+  withEditableFloors,
   withEditableMenu,
   withEditableStaff,
   withEditableTables,
@@ -275,6 +278,7 @@ function seedQueue(store: Store): Store {
       deliveryPhone: null,
       deliveryCustomerName: null,
       deliveryNote: null,
+      floorVisitorName: null,
     };
   });
 
@@ -749,6 +753,7 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
       deliveryPhone: null,
       deliveryCustomerName: null,
       deliveryNote: null,
+      floorVisitorName: null,
     };
     base = { ...numbered, orders: [...numbered.orders, order] };
   }
@@ -1533,6 +1538,102 @@ export async function regenerateQr(actor: StaffMember, tableId: string): Promise
   return { ...after, currentSessionId: null };
 }
 
+/* ── Floors ────────────────────────────────────────────────────────────
+   §16b: one QR per floor rather than per room — any scan starts its own
+   independent session, so unlike a table there is no occupied/free state
+   or session to manage here, just the floor itself and its printed code. */
+
+export async function listFloors(actor: StaffMember): Promise<Floor[]> {
+  authorize(actor, 'tables:view');
+  const store = readStore();
+  return [...floorsOf(store)].sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export async function createFloor(actor: StaffMember, name: string): Promise<Floor> {
+  authorize(actor, 'tables:edit');
+  await latency();
+  const base = withEditableFloors(readStore());
+  if (name.trim().length < 1) throw new ApiError(400, 'A floor needs a name.');
+  if (base.floors.some((f) => f.name.toLowerCase() === name.trim().toLowerCase()))
+    throw new ApiError(409, `There is already a ${name.trim()}.`);
+
+  const floor: Floor = {
+    id: uid('flr'),
+    restaurantId: actor.restaurantId,
+    name: name.trim(),
+    qrToken: newQrToken(),
+    isActive: true,
+    sortOrder: Math.max(0, ...base.floors.map((f) => f.sortOrder)) + 1,
+    createdAt: new Date().toISOString(),
+  };
+
+  writeStore(record({ ...base, floors: [...base.floors, floor] }, actor, 'floor_created', floor.name, ''));
+  return floor;
+}
+
+export async function updateFloor(actor: StaffMember, floorId: string, patch: { name?: string }): Promise<Floor> {
+  authorize(actor, 'tables:edit');
+  await latency();
+  const base = withEditableFloors(readStore());
+  const before = base.floors.find((f) => f.id === floorId);
+  if (!before) throw new ApiError(404, 'That floor no longer exists.');
+
+  const name = (patch.name ?? before.name).trim();
+  if (name.length < 1) throw new ApiError(400, 'A floor needs a name.');
+
+  const after: Floor = { ...before, name };
+  writeStore(
+    record(
+      { ...base, floors: base.floors.map((f) => (f.id === floorId ? after : f)) },
+      actor,
+      'floor_renamed',
+      after.name,
+      `Renamed from ${before.name}`,
+    ),
+  );
+  return after;
+}
+
+export async function setFloorActive(actor: StaffMember, floorId: string, active: boolean): Promise<Floor> {
+  authorize(actor, 'tables:edit');
+  await latency();
+  const base = withEditableFloors(readStore());
+  const before = base.floors.find((f) => f.id === floorId);
+  if (!before) throw new ApiError(404, 'That floor no longer exists.');
+
+  const after: Floor = { ...before, isActive: active };
+  writeStore(
+    record(
+      { ...base, floors: base.floors.map((f) => (f.id === floorId ? after : f)) },
+      actor,
+      active ? 'floor_enabled' : 'floor_disabled',
+      after.name,
+      active ? 'Taking orders again' : 'Disabled — its QR stops resolving',
+    ),
+  );
+  return after;
+}
+
+export async function regenerateFloorQr(actor: StaffMember, floorId: string): Promise<Floor> {
+  authorize(actor, 'tables:edit');
+  await latency();
+  const base = withEditableFloors(readStore());
+  const before = base.floors.find((f) => f.id === floorId);
+  if (!before) throw new ApiError(404, 'That floor no longer exists.');
+
+  const after: Floor = { ...before, qrToken: newQrToken() };
+  writeStore(
+    record(
+      { ...base, floors: base.floors.map((f) => (f.id === floorId ? after : f)) },
+      actor,
+      'qr_regenerated',
+      after.name,
+      'New token issued — the old printed code no longer works',
+    ),
+  );
+  return after;
+}
+
 /**
  * §20/§27 — ending a visit does not un-cook food, so this is not a blanket
  * "mark completed": a line the kitchen never started is dropped — and never
@@ -1590,6 +1691,8 @@ export async function startTableSession(actor: StaffMember, tableId: string): Pr
     restaurantId: table.restaurantId,
     tableId: table.id,
     customerId: null,
+    floorId: null,
+    floorVisitorName: null,
     anonymousSessionToken: newSessionToken(),
     startedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
@@ -1754,4 +1857,21 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
 
 function percent(rate: number): string {
   return `${(rate * 100).toFixed((rate * 100) % 1 === 0 ? 0 : 1)}%`;
+}
+
+/* ── Uploads ───────────────────────────────────────────────────────── */
+
+export type UploadTarget = 'dish' | 'restaurant-cover';
+
+export interface UploadSignature {
+  cloudName: string;
+  apiKey: string;
+  timestamp: number;
+  signature: string;
+  folder: string;
+}
+
+/** The mock store has nowhere to put an uploaded file — paste a URL instead. */
+export async function getUploadSignature(): Promise<UploadSignature> {
+  throw new ApiError(400, 'Image upload needs a live backend. Paste an image URL instead.');
 }

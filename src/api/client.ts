@@ -11,6 +11,7 @@ import type {
   Dish,
   DishStats,
   DishVariant,
+  Floor,
   ItemStatus,
   Menu,
   Order,
@@ -22,6 +23,7 @@ import type {
 import type { Store } from './store';
 import {
   ApiError,
+  floorsOf,
   latency,
   menuOf,
   newSessionToken,
@@ -182,7 +184,7 @@ export async function resolveQr(
   const key = `${restaurant.id}:${table.id}`;
   const existing = store.sessions[key];
   const stillValid = existing && new Date(existing.expiresAt).getTime() > Date.now();
-  const localKey = `myfood.mock-session.${restaurantSlug}.${tableToken}`;
+  const localKey = `letsDine.mock-session.${restaurantSlug}.${tableToken}`;
   const storedToken = localStorage.getItem(localKey);
 
   if (stillValid) {
@@ -209,6 +211,8 @@ export async function resolveQr(
     restaurantId: restaurant.id,
     tableId: table.id,
     customerId: null,
+    floorId: null,
+    floorVisitorName: null,
     anonymousSessionToken: newSessionToken(),
     startedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
@@ -218,6 +222,69 @@ export async function resolveQr(
   writeStore({ ...store, sessions: { ...store.sessions, [key]: session } });
   localStorage.setItem(localKey, session.anonymousSessionToken);
   return { restaurant, table, session };
+}
+
+export interface FloorSessionResult {
+  table: null;
+  floor: Floor;
+  session: DiningSession;
+}
+
+const floorSessionLocalKey = (slug: string, floorToken: string) => `letsDine.mock-session.floor.${slug}.${floorToken}`;
+
+/**
+ * A page reload has no name to re-ask for, only whatever session id this
+ * device already stored — resumes silently, or returns `null` so the landing
+ * screen falls back to asking for a name again, mirroring `resumeDeliverySession`.
+ */
+export async function resumeFloorSession(restaurantSlug: string, floorToken: string): Promise<FloorSessionResult | null> {
+  const store = readStore();
+  const restaurant = restaurantOf(store);
+  if (restaurantSlug !== restaurant.slug) return null;
+  const floor = floorsOf(store).find((f) => f.qrToken === floorToken);
+  if (!floor) return null;
+  const storedId = localStorage.getItem(floorSessionLocalKey(restaurantSlug, floorToken));
+  if (!storedId) return null;
+  const session = Object.values(store.sessions).find((s) => s.id === storedId);
+  if (!session || Date.parse(session.expiresAt) <= Date.now() || session.endedAt) return null;
+  return { table: null, floor, session };
+}
+
+/**
+ * §16b — the floor counterpart of `startDeliverySession`: no table, no QR
+ * singleton to join or lock against (`Floor` has no `currentSessionId`), so
+ * every scan that isn't resumed opens its own fresh session, identified by
+ * the free-text name the diner gives instead of a table.
+ */
+export async function startFloorSession(restaurantSlug: string, floorToken: string, visitorName: string): Promise<FloorSessionResult> {
+  await latency();
+  const store = readStore();
+  const restaurant = restaurantOf(store);
+  if (restaurantSlug !== restaurant.slug) throw new ApiError(404, 'That restaurant does not exist.');
+
+  const floor = floorsOf(store).find((f) => f.qrToken === floorToken);
+  if (!floor) throw new ApiError(404, 'This QR code is not valid for any floor.');
+  if (!floor.isActive) throw new ApiError(409, `${floor.name} is not taking orders right now. Please ask a manager.`);
+
+  const name = visitorName.trim();
+  if (!name) throw new ApiError(400, 'Enter a name so the kitchen knows who this is for.');
+
+  const session: DiningSession = {
+    id: uid('ses'),
+    restaurantId: restaurant.id,
+    tableId: null,
+    customerId: null,
+    floorId: floor.id,
+    floorVisitorName: name,
+    anonymousSessionToken: newSessionToken(),
+    startedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
+    endedAt: null,
+  };
+
+  writeStore({ ...store, sessions: { ...store.sessions, [session.id]: session } });
+  localStorage.setItem(floorSessionLocalKey(restaurantSlug, floorToken), session.id);
+  return { table: null, floor, session };
 }
 
 export interface StartDeliverySessionInput {
@@ -277,6 +344,8 @@ export async function startDeliverySession({
     restaurantId: restaurant.id,
     tableId: null,
     customerId: customer.id,
+    floorId: null,
+    floorVisitorName: null,
     anonymousSessionToken: newSessionToken(),
     startedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
@@ -292,7 +361,7 @@ export async function startDeliverySession({
   return { table: null, session, customer };
 }
 
-const deliverySessionLocalKey = (slug: string) => `myfood.mock-session.delivery.${slug}`;
+const deliverySessionLocalKey = (slug: string) => `letsDine.mock-session.delivery.${slug}`;
 
 /**
  * A page reload has no phone number to re-key on, only whatever session id
@@ -397,7 +466,9 @@ export async function createOrder({ session, lines, idempotencyKey, deliveryAddr
 
   // Prices and availability are read from the server's own menu, never the client's.
   const restaurant = restaurantOf(store);
-  const isDelivery = session.tableId === null;
+  // §22/§16b — `customerId` is the one field exclusive to a delivery session (a floor
+  // session also has a null `tableId`, so that alone can't be the delivery check).
+  const isDelivery = session.customerId !== null;
   const table = session.tableId ? tablesOf(store).find((t) => t.id === session.tableId) : null;
   const customer = isDelivery ? store.customers.find((c) => c.id === session.customerId) : undefined;
   const menu = menuOf(store);
@@ -483,6 +554,8 @@ export async function createOrder({ session, lines, idempotencyKey, deliveryAddr
     deliveryPhone: isDelivery ? (customer?.phone ?? null) : null,
     deliveryCustomerName: isDelivery ? (customer?.name ?? null) : null,
     deliveryNote: isDelivery ? deliveryNote?.trim() || null : null,
+    // §16b — snapshotted at order time, same reasoning as the delivery snapshots above.
+    floorVisitorName: session.floorId ? session.floorVisitorName : null,
   };
 
   writeStore({
@@ -609,7 +682,7 @@ export async function submitReviews(orderId: string, drafts: ReviewDraft[]): Pro
 
 /** Clears every namespaced key: orders, reviews, sessions, carts and analytics. */
 export function resetDemoData(): void {
-  const doomed = Object.keys(localStorage).filter((k) => k.startsWith('myfood.'));
+  const doomed = Object.keys(localStorage).filter((k) => k.startsWith('letsDine.'));
   for (const key of doomed) localStorage.removeItem(key);
 }
 

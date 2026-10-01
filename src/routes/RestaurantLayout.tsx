@@ -7,15 +7,17 @@ import {
   joinTableSession,
   resolveQr,
   resumeDeliverySession,
+  resumeFloorSession,
   startDeliverySession,
+  startFloorSession,
   subscribeToSessionEnd,
 } from '../api/diner';
-import type { DeliverySessionResult } from '../api/diner';
+import type { DeliverySessionResult, FloorSessionResult } from '../api/diner';
 import { IS_LIVE_API } from '../api/http';
 import { ApiError } from '../api/store';
 import { buildRankContext } from '../domain/metrics';
 import type { RankContext } from '../domain/metrics';
-import type { Customer, DiningSession, DiningTable, Menu } from '../domain/types';
+import type { Customer, DiningSession, DiningTable, Floor, Menu } from '../domain/types';
 import { CartProvider } from '../state/CartContext';
 import { SessionOrdersProvider } from '../state/SessionOrdersContext';
 import { useAsync } from '../state/useAsync';
@@ -30,12 +32,24 @@ const TABLE_OCCUPIED_KEY = 'DINING_SESSION_TABLE_OCCUPIED';
 /** How often the mock stand-in polls for a session it has no socket to push from. */
 const SESSION_POLL_MS = 4000;
 
+/** Which of the three ways a diner can land here — distinguishes `/r/:slug/t/:token` from `/r/:slug/f/:token`, since both carry a `:token` param. */
+export type RestaurantEntryKind = 'table' | 'delivery' | 'floor';
+
 interface RestaurantValue {
   menu: Menu;
-  /** Null for a delivery session — there is no table. */
+  /** Null for a delivery session, and for a floor session — neither has a single table. */
   table: DiningTable | null;
-  /** Set for a delivery session, upserted server-side by phone — null for dine-in. */
+  /** Set for a delivery session, upserted server-side by phone — null otherwise. */
   customer: Customer | null;
+  /** §16b — set only for a floor session; the shared QR this visit started from. */
+  floor: Floor | null;
+  /**
+   * Ready-to-display "where/who this is for": the table's name, the free-text
+   * name the diner gave when opening the floor QR, or "Delivery". Every
+   * screen that shows "where this is going" reads this rather than deriving
+   * it itself from `table`/`floor`/`customer`.
+   */
+  identityLabel: string;
   session: DiningSession;
   ctx: RankContext;
   base: string;
@@ -50,48 +64,63 @@ export function useRestaurant(): RestaurantValue {
   return ctx;
 }
 
-/** A table's name for dine-in, a plain "Delivery" label otherwise — every screen that shows "where this is going" reads through here rather than assuming `table` is set. */
-export function visitLabel(table: DiningTable | null): string {
-  return table ? table.name : 'Delivery';
+function identityLabelFor(table: DiningTable | null, floor: Floor | null, floorVisitorName: string | null): string {
+  if (table) return table.name;
+  if (floor) return floorVisitorName || floor.name;
+  return 'Delivery';
 }
 
 interface Resolved {
   table: DiningTable | null;
   session: DiningSession;
   customer?: Customer | null;
+  floor?: Floor | null;
 }
 
-export function RestaurantLayout() {
+export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
   const { slug = '', token } = useParams();
-  // `/r/:slug/delivery` matches this same layout with no `:token` param — that
-  // absence, not a separate route component, is what tells the two flows apart.
-  const isDelivery = token === undefined;
+  const isDelivery = kind === 'delivery';
+  const isFloor = kind === 'floor';
 
   const [joined, setJoined] = useState<Awaited<ReturnType<typeof joinTableSession>> | null>(null);
   const [delivery, setDelivery] = useState<DeliverySessionResult | null>(null);
+  const [floorSession, setFloorSession] = useState<FloorSessionResult | null>(null);
   const [endedAt, setEndedAt] = useState<string | null>(null);
 
-  const qr = useAsync(() => (isDelivery ? Promise.resolve(null) : resolveQr(slug, token ?? '')), [slug, token, isDelivery]);
+  const qr = useAsync(() => (kind === 'table' ? resolveQr(slug, token ?? '') : Promise.resolve(null)), [slug, token, kind]);
   const deliveryResume = useAsync(
     () => (isDelivery ? resumeDeliverySession(slug) : Promise.resolve(null)),
     [slug, isDelivery],
   );
+  const floorResume = useAsync(
+    () => (isFloor ? resumeFloorSession(slug, token ?? '') : Promise.resolve(null)),
+    [slug, token, isFloor],
+  );
   const menu = useAsync(() => getMenu(slug), [slug]);
 
-  const resolved: Resolved | null = isDelivery ? (delivery ?? deliveryResume.data ?? null) : (joined ?? qr.data ?? null);
+  const resolved: Resolved | null = isDelivery
+    ? (delivery ?? deliveryResume.data ?? null)
+    : isFloor
+      ? (floorSession ?? floorResume.data ?? null)
+      : (joined ?? qr.data ?? null);
 
   const value = useMemo<RestaurantValue | null>(() => {
     if (!resolved || !menu.data) return null;
+    const table = resolved.table;
+    const floor = resolved.floor ?? null;
+    const session = endedAt ? { ...resolved.session, endedAt } : resolved.session;
     return {
       menu: menu.data,
-      table: resolved.table,
+      table,
       customer: resolved.customer ?? null,
-      session: endedAt ? { ...resolved.session, endedAt } : resolved.session,
+      floor,
+      identityLabel: identityLabelFor(table, floor, session.floorVisitorName),
+      session,
       ctx: buildRankContext(menu.data.dishes),
-      base: isDelivery ? `/r/${slug}/delivery` : `/r/${slug}/t/${token}`,
+      base: isDelivery ? `/r/${slug}/delivery` : isFloor ? `/r/${slug}/f/${token}` : `/r/${slug}/t/${token}`,
       reload: menu.reload,
     };
-  }, [resolved, menu.data, slug, token, menu.reload, endedAt, isDelivery]);
+  }, [resolved, menu.data, slug, token, menu.reload, endedAt, isDelivery, isFloor]);
 
   /**
    * §22/§38 — a table closed out mid-visit (staff clearing it, or a payment
@@ -129,9 +158,30 @@ export function RestaurantLayout() {
     return <DeliveryEntryScreen restaurantSlug={slug} onStarted={setDelivery} />;
   }
 
-  const error = isDelivery ? menu.error : (joined ? menu.error : (qr.error ?? menu.error));
+  // A floor session has no table of its own — once a scan isn't resumed, ask
+  // for a name before anything else renders.
+  if (isFloor && !resolved) {
+    if (floorResume.loading) return <BootScreen />;
+    if (floorResume.error) {
+      return <ErrorScreen title="We couldn't open this floor" message={floorResume.error.message} />;
+    }
+    return <FloorEntryScreen restaurantSlug={slug} floorToken={token ?? ''} onStarted={setFloorSession} />;
+  }
+
+  const error = isDelivery
+    ? menu.error
+    : isFloor
+      ? menu.error
+      : joined
+        ? menu.error
+        : (qr.error ?? menu.error);
   if (error) {
-    return <ErrorScreen title={isDelivery ? "We couldn't load the menu" : "We couldn't open this table"} message={error.message} />;
+    return (
+      <ErrorScreen
+        title={isDelivery ? "We couldn't load the menu" : isFloor ? "We couldn't open this floor" : "We couldn't open this table"}
+        message={error.message}
+      />
+    );
   }
   if (!value) return <BootScreen />;
 
@@ -167,7 +217,7 @@ function SessionEndedBanner({ isDelivery }: { isDelivery: boolean }) {
         <span className="text-[13px] font-semibold leading-snug text-ink-2">
           {isDelivery
             ? "This order has been closed out — thanks for ordering with us. New orders can't be placed on it, but you can still view what you ordered and rate it."
-            : "This table has been closed out — thanks for dining with us. New orders can't be placed, but you can still view what you ordered and rate it."}
+            : "This visit has been closed out — thanks for dining with us. New orders can't be placed, but you can still view what you ordered and rate it."}
         </span>
       </span>
     </div>
@@ -225,6 +275,69 @@ function OccupiedTableScreen({
         {error && <p className="text-[13.5px] text-flame-1">{error}</p>}
         <button className={BTN_FLAME} type="submit" disabled={joining || !sessionCode.trim()}>
           {joining ? 'Joining…' : 'Join this table'}
+        </button>
+      </form>
+    </main>
+  );
+}
+
+/**
+ * §16b — a floor QR has no single table to seat, so the first thing a floor
+ * session does is ask who/where this order is for: a room/cabin name, or just
+ * a person's own name. Typed once per visit (the session remembers it, and
+ * this device's stored token resumes the same visit on a reload), not
+ * re-asked per order.
+ */
+function FloorEntryScreen({
+  restaurantSlug,
+  floorToken,
+  onStarted,
+}: {
+  restaurantSlug: string;
+  floorToken: string;
+  onStarted: (result: FloorSessionResult) => void;
+}) {
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      onStarted(await startFloorSession(restaurantSlug, floorToken, name.trim()));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not start your order.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <main className={cx(SHELL, 'grid place-content-center px-5 py-10')}>
+      <form className={cx(CARD, 'mx-auto grid w-full max-w-md gap-5 p-6 sm:p-8')} onSubmit={submit}>
+        <div className="grid gap-2">
+          <p className={cx(EYEBROW, 'text-flame-1')}>Order for this floor</p>
+          <h1 className={cx(DISPLAY, 'text-3xl')}>Who's this order for?</h1>
+          <p className="text-[14.5px] leading-relaxed text-ink-3">
+            A room/cabin name or your own name — whatever tells the kitchen where to send it.
+          </p>
+        </div>
+        <label className="grid gap-2 text-[13px] font-semibold text-ink-2">
+          Name
+          <input
+            className={cx(INPUT, 'h-13')}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Cabin A, Reception, or your name"
+            autoComplete="off"
+            required
+          />
+        </label>
+        {error && <p className="text-[13.5px] text-flame-1">{error}</p>}
+        <button className={BTN_FLAME} type="submit" disabled={submitting || !name.trim()}>
+          {submitting ? 'Starting…' : 'Start my order'}
         </button>
       </form>
     </main>

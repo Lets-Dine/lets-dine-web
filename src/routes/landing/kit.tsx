@@ -129,7 +129,18 @@ const ACTION =
   'group inline-flex items-center justify-center gap-2 rounded-full font-semibold tracking-tight select-none ' +
   'transition-move active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40';
 
-export function PrimaryCta({ to, children, size = 'md' }: { to: string; children: ReactNode; size?: 'md' | 'lg' }) {
+export function PrimaryCta({
+  to,
+  children,
+  size = 'md',
+  icon,
+}: {
+  to: string;
+  children: ReactNode;
+  size?: 'md' | 'lg';
+  /** Overrides the default "→" glyph — pass a drawn icon where one already governs the surface's icon system. */
+  icon?: ReactNode;
+}) {
   return (
     <Link
       to={to}
@@ -141,7 +152,7 @@ export function PrimaryCta({ to, children, size = 'md' }: { to: string; children
     >
       {children}
       <span className="transition-move group-hover:translate-x-0.5" aria-hidden>
-        →
+        {icon ?? '→'}
       </span>
     </Link>
   );
@@ -159,6 +170,98 @@ export function SecondaryCta({ to, children, size = 'md' }: { to: string; childr
     >
       {children}
     </Link>
+  );
+}
+
+/** `PrimaryCta`'s body as an in-page `<button>` — for an action that advances a flow rather than navigating to it. */
+export function PrimaryButton({
+  children,
+  onClick,
+  disabled,
+  size = 'md',
+  type = 'button',
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  size?: 'md' | 'lg';
+  type?: 'button' | 'submit';
+}) {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={cx(
+        ACTION,
+        size === 'lg' ? 'h-13 w-full px-7 text-[16px] sm:h-14 sm:w-auto sm:px-8 sm:text-[16.5px]' : 'h-12.5 px-6.5 text-[15.5px]',
+        'bg-flame text-white shadow-flame hover:shadow-flame-lg',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** `SecondaryCta`'s body as an in-page `<button>`. */
+export function GhostButton({
+  children,
+  onClick,
+  disabled,
+  size = 'md',
+  type = 'button',
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  size?: 'md' | 'lg';
+  type?: 'button' | 'submit';
+}) {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={cx(
+        ACTION,
+        size === 'lg' ? 'h-13 w-full px-7 text-[16px] sm:h-14 sm:w-auto sm:px-8 sm:text-[16.5px]' : 'h-12.5 px-6.5 text-[15.5px]',
+        'bg-transparent text-ink ring-1 ring-hairline-strong ring-inset hover:bg-surface-2',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** A circular icon-only action — the one-question-per-screen flow's advance/retreat control, sitting beside the field it answers rather than labeled below it. */
+export function CircleButton({
+  children,
+  onClick,
+  disabled,
+  variant = 'flame',
+  'aria-label': ariaLabel,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: 'flame' | 'ghost';
+  'aria-label': string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className={cx(
+        'grid size-12 shrink-0 place-items-center rounded-full transition-move active:scale-[0.93] disabled:pointer-events-none disabled:opacity-40 sm:size-14',
+        variant === 'flame'
+          ? 'bg-flame text-white shadow-flame hover:shadow-flame-lg'
+          : 'bg-transparent text-ink ring-1 ring-hairline-strong ring-inset hover:bg-surface-2',
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

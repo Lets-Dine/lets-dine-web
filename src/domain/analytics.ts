@@ -13,7 +13,7 @@ export type AnalyticsEvent =
   | 'order_completed'
   | 'review_submitted';
 
-const KEY = 'myfood.analytics.v1';
+const KEY = 'letsDine.analytics.v1';
 
 type Counts = Partial<Record<AnalyticsEvent, number>>;
 

@@ -187,6 +187,7 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       deliveryPhone: null,
       deliveryCustomerName: null,
       deliveryNote: null,
+      floorVisitorName: null,
     });
   }
   return orders;

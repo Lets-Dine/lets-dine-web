@@ -53,7 +53,7 @@ export function LandingFooter() {
         <div className="mt-14 grid gap-10 border-t border-hairline pt-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
           <div>
             <span className="font-display text-[19px] font-semibold tracking-[-0.03em] text-ink">
-              myfood<span className="text-flame-1">.</span>
+              letsDine<span className="text-flame-1">.</span>
             </span>
             <p className="mt-3 max-w-[32ch] text-[13.5px] leading-relaxed text-ink-3">
               A dining experience platform: digital menus, QR table ordering, verified reviews and dish-level
@@ -91,7 +91,7 @@ export function LandingFooter() {
         </div>
 
         <div className="mt-14 flex flex-col gap-3 border-t border-hairline pt-6 text-[12.5px] text-ink-4 sm:flex-row sm:items-center sm:justify-between">
-          <span>© {new Date().getFullYear()} myfood. Built for dining rooms.</span>
+          <span>© {new Date().getFullYear()} letsDine. Built for dining rooms.</span>
           <span>
             Dishes, ratings and figures throughout this page come from Sekuwa Ghar, the demo restaurant you can open
             at <Link to="/demo" className="font-medium text-ink-3 underline underline-offset-2 hover:text-flame-1">/demo</Link>.
