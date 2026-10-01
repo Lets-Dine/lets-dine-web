@@ -69,7 +69,7 @@ export function PlatformSignIn() {
         </form>
 
         <p className="mt-6 text-center text-[13px] text-ink-4">
-          <Link to="/" className="font-semibold text-ink-3 hover:text-ink">
+          <Link to="/demo" className="font-semibold text-ink-3 hover:text-ink">
             ← Back to the diner app
           </Link>
         </p>

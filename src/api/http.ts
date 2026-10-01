@@ -16,6 +16,14 @@ export const API_BASE_URL = RAW_BASE_URL.replace(/\/+$/, '');
  */
 export const IS_LIVE_API = API_BASE_URL.length > 0;
 
+/**
+ * Fired on any 401 response, regardless of which credential sent it (staff
+ * bearer token or platform key) — `apiRequest` doesn't know which. Whoever
+ * holds that credential listens for this and clears it, which is what turns
+ * the existing sign-in guards (`AdminLayout`, `PlatformLayout`) into a redirect.
+ */
+export const AUTH_EXPIRED_EVENT = 'lets-dine:auth-expired';
+
 /** `{ data, message }` on success — the envelope every endpoint answers with. */
 interface SuccessEnvelope<T> {
   data: T;
@@ -54,6 +62,10 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
+
     const error = (body as ErrorEnvelope | null)?.error;
     throw new ApiError(
       response.status,

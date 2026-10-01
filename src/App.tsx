@@ -7,6 +7,7 @@ import { Cart } from './routes/Cart';
 import { Checkout } from './routes/Checkout';
 import { DishDetail } from './routes/DishDetail';
 import { Entry } from './routes/Entry';
+import { Landing } from './routes/Landing';
 import { Menu } from './routes/Menu';
 import { NotFound } from './routes/NotFound';
 import { OrderHistory } from './routes/OrderHistory';
@@ -90,7 +91,9 @@ export default function App() {
         <AuthProvider>
           <AdminThemeProvider>
             <Routes>
-              <Route path="/" element={<Entry />} />
+              <Route path="/" element={<Landing />} />
+              {/* Stands in for the physical QR code on the table — the live product starts at /r/:slug/t/:token. */}
+              <Route path="/demo" element={<Entry />} />
               {/* The QR encodes only the restaurant slug and an opaque table token. */}
               <Route path="/r/:slug/t/:token" element={<RestaurantLayout />}>
                 <Route index element={<Menu />} />

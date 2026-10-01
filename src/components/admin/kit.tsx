@@ -97,7 +97,7 @@ export function CollapsiblePanel({
         <ChevronRight size={14} className="shrink-0 text-ink-4 transition-transform duration-150 group-open:rotate-90" />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-[15px] font-semibold tracking-tight">{title}</h2>
-          {hint && <p className="mt-0.5 truncate text-[12.5px] text-ink-3">{hint}</p>}
+          {hint && <p className="mt-0.5 text-wrap text-[12.5px] text-ink-3">{hint}</p>}
         </div>
         {action && (
           <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>

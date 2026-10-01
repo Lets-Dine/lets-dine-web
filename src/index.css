@@ -153,6 +153,7 @@
 
 :root {
   --radius: 0.875rem;
+  --flame: oklch(53.9% .163 36);
 
   /* Brasserie docket palette */
   --board: oklch(0.185 0.014 62);
@@ -279,9 +280,11 @@
   background-size: 240% 100%;
 }
 
-/* The signature saffron → chili gradient, used for every primary action. */
+/* The signature chilli red behind every primary action. Themed through a
+   variable so the marketing page can run a deeper, more printed red without
+   the product app shifting underneath it. */
 @utility bg-flame {
-  background-color: oklch(53.9% .163 36);
+  background-color: var(--flame);
 }
 
 @utility bg-paper {
@@ -372,6 +375,22 @@
    cross-fades and the small press-scale that tells you a tap landed
    stay, because those are what explain the change.                  */
 
+/* Lenis drives the scroll position itself on the marketing page; native
+   smooth scrolling fights it for the same property. Anchor links are handled
+   through Lenis instead (see routes/landing/motion.ts). */
+html[data-page='landing'] {
+  scroll-behavior: auto;
+}
+
+html[data-page='landing'].lenis-stopped {
+  overflow: hidden;
+}
+
+@keyframes marquee-x {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
 @keyframes fade-in-only {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -459,6 +478,157 @@ html[data-admin-theme='light'] .bg-room {
   background-image:
     radial-gradient(1100px 760px at 50% -12%, rgb(255 180 90 / 0.18), transparent 62%),
     radial-gradient(760px 520px at 88% 100%, rgb(255 140 80 / 0.1), transparent 60%);
+}
+
+/* ── Marketing page: the paper theme ──────────────────────────────
+   The product runs on a dark table all day. The homepage is a printed
+   thing — a menu card, a food quarterly — so it inverts to cream stock
+   and near-black ink for the length of that one route.
+
+   It does this by re-pointing the *same* token names rather than
+   inventing a parallel set, so every shared component (Rating, icons,
+   the button atoms in components/ui.ts) walks onto paper unchanged and
+   still reads correctly. `data-page` is set by the Landing route the
+   same way `data-admin-theme` is set by the dashboard.                */
+
+html[data-page='landing'] {
+  color-scheme: light;
+
+  --font-sans: 'Inter Tight', ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: #f6f1e7;
+  --color-bg-deep: #ece4d5;
+  --color-surface: #fffcf6;
+  --color-surface-2: #f1eadc;
+  --color-surface-3: #e4dacb;
+  --color-hairline: rgb(38 26 14 / 0.13);
+  --color-hairline-strong: rgb(38 26 14 / 0.26);
+
+  --color-ink: #171310;
+  --color-ink-2: #4a4038;
+  --color-ink-3: #756757;
+  --color-ink-4: #948575;
+
+  /* A printed chilli red, not a screen orange — it has to survive being
+     inked onto cream next to a photograph without shouting over it. */
+  --flame: #bc3b22;
+  --color-flame-1: #a4321c;
+  --color-flame-2: #bc3b22;
+  --color-flame-3: #8b2715;
+  --color-ember: #fdf4e9;
+
+  --color-gold: #b8862f;
+  --color-gold-ink: #8a6316;
+  --color-mint: #2f7a52;
+  --color-mint-ink: #1f6340;
+  --color-berry: #b3294a;
+  --color-berry-ink: #96203e;
+  --color-leaf: #2f7a52;
+  --color-pass: #35508f;
+  --color-pending-ink: #a8481f;
+
+  --shadow-lift: 0 10px 26px -14px rgb(66 44 18 / 0.28);
+  --shadow-deep: 0 30px 64px -28px rgb(66 44 18 / 0.36);
+  --shadow-flame: 0 14px 30px -14px rgb(150 50 25 / 0.42);
+  --shadow-flame-lg: 0 20px 42px -16px rgb(150 50 25 / 0.5);
+}
+
+/* An inverted spread — the dining room after dark. Used for the two
+   sections that have to land as a visual surprise against the cream.
+   Same token names again, so the product mockups inside need no variant. */
+html[data-page='landing'] .night {
+  color-scheme: dark;
+
+  --color-bg: #14100d;
+  --color-bg-deep: #0d0a08;
+  --color-surface: #1e1813;
+  --color-surface-2: #261f19;
+  --color-surface-3: #332a22;
+  --color-hairline: rgb(255 235 212 / 0.12);
+  --color-hairline-strong: rgb(255 235 212 / 0.22);
+
+  --color-ink: #fbf5ec;
+  --color-ink-2: #c9bcae;
+  --color-ink-3: #a29485;
+  --color-ink-4: #83766a;
+
+  --flame: #d4472a;
+  --color-flame-1: #ff9e6b;
+  --color-flame-2: #f2703f;
+  --color-flame-3: #d4472a;
+  --color-ember: #20100a;
+
+  --color-gold: #e8b44a;
+  --color-gold-ink: #f0c368;
+  --color-mint: #4ecb8f;
+  --color-mint-ink: #6fd7a4;
+  --color-berry: #ff5e7a;
+  --color-berry-ink: #ff8098;
+
+  --shadow-lift: 0 10px 30px -12px rgb(0 0 0 / 0.7);
+  --shadow-deep: 0 34px 70px -28px rgb(0 0 0 / 0.85);
+
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+}
+
+/* ── Marketing page utilities ─────────────────────────────────────── */
+
+/* Uncoated-stock tooth. Cheap texture that keeps a flat cream field from
+   reading as a blank div, and stops large ink areas looking like vector fill. */
+@utility bg-stock {
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(circle at 1px 1px, rgb(70 48 22 / 0.055) 1px, transparent 0),
+    radial-gradient(760px 420px at 82% -6%, rgb(188 59 34 / 0.05), transparent 66%);
+  background-size: 4px 4px, 100% 100%;
+}
+
+/* The hairline rule that separates every band on the page — a printed
+   rule, so it sits at the very top of the section rather than around it. */
+@utility rule-t {
+  border-top: 1px solid var(--color-hairline);
+}
+
+/* Section numerals, data labels, every figure in a product mockup. */
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Fades the ends of an edge-to-edge scroller so rows read as continuing
+   past the viewport instead of being clipped by it. */
+@utility edge-fade {
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+
+/* Hero photography and the two night spreads sit on a warm ink wash that
+   keeps white UI panels from floating unanchored over a photograph. */
+@utility wash-ink {
+  background-image: linear-gradient(to top, rgb(12 8 5 / 0.82), rgb(12 8 5 / 0.14) 58%, transparent);
+}
+
+/* GSAP owns every entrance on this page, and it hides elements itself at
+   runtime. Nothing is hidden in CSS, so the whole page is readable with
+   JavaScript unavailable — which is also why there is no `[data-reveal]`
+   opacity rule here. This only guarantees the end state can never be
+   stranded mid-animation under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-page='landing'] [data-reveal],
+  html[data-page='landing'] [data-reveal-word] {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: none !important;
+    clip-path: none !important;
+  }
+
+  html[data-page='landing'] .marquee-track {
+    animation: none !important;
+    transform: none !important;
+  }
 }
 
 @media (prefers-reduced-transparency: reduce) {

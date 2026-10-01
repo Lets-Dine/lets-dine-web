@@ -173,8 +173,8 @@ export function DishEditor() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr] lg:items-start">
-        <div className="grid gap-4">
+      <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
+        <div className="grid gap-2">
           <Panel title="Details">
             <div className="grid gap-4">
               <Field label="Name">
@@ -199,46 +199,49 @@ export function DishEditor() {
                     options={menu.categories.map((c) => ({ value: c.id, label: `${c.emoji} ${c.name}` }))}
                   />
                 </Field>
-                <Field
-                  label="Price"
-                  hint={
-                    variantCount > 0
-                      ? `Not charged — priced off its ${variantCount} variant${variantCount === 1 ? '' : 's'} below instead`
-                      : allows('menu:price')
-                        ? 'Changing this is written to the audit log.'
-                        : undefined
-                  }
-                >
-                  <MoneyInput value={draft.price} onChange={(v) => patch('price', v)} currency={menu.restaurant.currency} />
-                </Field>
+                {variantCount === 0 && (
+                  <Field label="Price" hint={allows('menu:price') ? 'Changing this is written to the audit log.' : undefined}>
+                    <MoneyInput value={draft.price} onChange={(v) => patch('price', v)} currency={menu.restaurant.currency} />
+                  </Field>
+                )}
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Spice level">
-                  <Select
-                    value={String(draft.spiceLevel) as '0' | '1' | '2' | '3'}
-                    onChange={(v) => patch('spiceLevel', Number(v) as 0 | 1 | 2 | 3)}
-                    options={[
-                      { value: '0', label: 'Not spicy' },
-                      { value: '1', label: '🌶 Mild' },
-                      { value: '2', label: '🌶🌶 Hot' },
-                      { value: '3', label: '🌶🌶🌶 Very hot' },
-                    ]}
-                  />
-                </Field>
-                <Field label="Dietary type">
-                  <Select
-                    value={draft.dietaryType}
-                    onChange={(v) => patch('dietaryType', v)}
-                    options={[
-                      { value: 'NON_VEG', label: 'Non-veg' },
-                      { value: 'VEG', label: 'Vegetarian' },
-                      { value: 'VEGAN', label: 'Vegan' },
-                      { value: 'HALAL', label: 'Halal' },
-                    ]}
-                  />
-                </Field>
-              </div>
+              {/* Once a dish has a variant, its price/spice level/dietary type come from the
+                  variant chosen at order time — the dish's own values are unused, so they're
+                  hidden here rather than left editable and misleading. */}
+              {variantCount > 0 ? (
+                <p className="text-[13px] text-ink-3">
+                  Price, spice level, and dietary type are set per variant, below — this dish has{' '}
+                  {variantCount} of them.
+                </p>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Spice level">
+                    <Select
+                      value={String(draft.spiceLevel) as '0' | '1' | '2' | '3'}
+                      onChange={(v) => patch('spiceLevel', Number(v) as 0 | 1 | 2 | 3)}
+                      options={[
+                        { value: '0', label: 'Not spicy' },
+                        { value: '1', label: '🌶 Mild' },
+                        { value: '2', label: '🌶🌶 Hot' },
+                        { value: '3', label: '🌶🌶🌶 Very hot' },
+                      ]}
+                    />
+                  </Field>
+                  <Field label="Dietary type">
+                    <Select
+                      value={draft.dietaryType}
+                      onChange={(v) => patch('dietaryType', v)}
+                      options={[
+                        { value: 'NON_VEG', label: 'Non-veg' },
+                        { value: 'VEG', label: 'Vegetarian' },
+                        { value: 'VEGAN', label: 'Vegan' },
+                        { value: 'HALAL', label: 'Halal' },
+                      ]}
+                    />
+                  </Field>
+                </div>
+              )}
             </div>
           </Panel>
 
@@ -279,7 +282,6 @@ export function DishEditor() {
 
           <CollapsiblePanel
             title="Variants"
-            defaultOpen
             hint={
               isNew
                 ? 'Optional — sizes, styles, anything with its own price. Created together with the dish.'
@@ -632,7 +634,7 @@ export function DishEditor() {
       </div>
 
       {canEdit && (
-        <div className="sticky bottom-0 z-30 -mx-4 mt-5 flex items-center justify-between gap-3 border-t border-hairline bg-bg/85 px-4 py-3 backdrop-blur-lg sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="sticky bottom-0 z-30 -mx-4 mt-5 flex items-center justify-between gap-3 border-t border-hairline bg-transparent px-4 py-3 backdrop-blur-lg sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <span className="text-[13px] text-ink-4">
             {isNew
               ? 'Not saved yet'

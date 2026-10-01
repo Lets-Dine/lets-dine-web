@@ -1,6 +1,9 @@
+import { useEffect } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clearPlatformKey, readPlatformKey } from '../../api/platform';
+import { AUTH_EXPIRED_EVENT } from '../../api/http';
 import { AdminThemeToggle } from '../../state/AdminTheme';
+import { useToast } from '../../state/ToastContext';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
 
 /**
@@ -10,14 +13,29 @@ import { DISPLAY, GLASS, cx } from '../../components/ui';
 export function PlatformLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  if (!readPlatformKey()) {
-    return <Navigate to="/platform/signin" replace state={{ from: location.pathname }} />;
-  }
+  const toast = useToast();
 
   const signOut = () => {
     clearPlatformKey();
     navigate('/platform/signin', { replace: true });
   };
+
+  // The backend rejected the stored key as expired/invalid — same event `AuthContext`
+  // watches for a staff token, handled here instead since the key isn't React state.
+  useEffect(() => {
+    function onExpired() {
+      if (!readPlatformKey()) return;
+      clearPlatformKey();
+      toast('Your session has ended. Please sign in again.', '🔒');
+      navigate('/platform/signin', { replace: true, state: { from: location.pathname } });
+    }
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, [navigate, location.pathname, toast]);
+
+  if (!readPlatformKey()) {
+    return <Navigate to="/platform/signin" replace state={{ from: location.pathname }} />;
+  }
 
   return (
     <div className="min-h-dvh bg-bg lg:bg-room">

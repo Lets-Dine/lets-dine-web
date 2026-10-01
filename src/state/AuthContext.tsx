@@ -1,9 +1,11 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { signIn as apiSignIn, signOut as apiSignOut } from '../api/staff';
+import { AUTH_EXPIRED_EVENT } from '../api/http';
 import { can } from '../domain/permissions';
 import type { Permission } from '../domain/permissions';
 import type { StaffMember } from '../domain/types';
+import { useToast } from './ToastContext';
 
 /**
  * Who is at the terminal. A demo stand-in for §23: the real thing is a signed
@@ -36,6 +38,9 @@ function restore(): StaffMember | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [staff, setStaff] = useState<StaffMember | null>(restore);
+  const toast = useToast();
+  const staffRef = useRef(staff);
+  staffRef.current = staff;
 
   const signIn = useCallback(async (email: string, pin: string) => {
     const member = await apiSignIn(email, pin);
@@ -57,6 +62,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     apiSignOut();
     setStaff(null);
   }, []);
+
+  /**
+   * The backend rejected the stored token as expired. Only relevant if a
+   * member was actually signed in — the same 401 fires for a platform-key
+   * request too, and `PlatformLayout` handles that half on its own.
+   */
+  useEffect(() => {
+    function onExpired() {
+      if (!staffRef.current) return;
+      signOut();
+      toast('Your session has ended. Please sign in again.', '🔒');
+    }
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, [signOut, toast]);
 
   const value = useMemo<AuthValue>(
     () => ({
