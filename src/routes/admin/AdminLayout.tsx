@@ -72,9 +72,14 @@ const NAV: NavItem[] = [
 /** How often the queue re-reads itself. A pass cannot wait a minute for a ticket. */
 const POLL_MS = 8000;
 
-/** Only Dashboard, Orders and Tables (including one table's own detail page) render anything from the queue — no reason for the rest to poll or hold a socket open for it. */
+/** Only Dashboard, Orders, Tables and Floors (including one table's or floor's own detail page) render anything from the queue — no reason for the rest to poll or hold a socket open for it. */
 function routeNeedsOrders(pathname: string): boolean {
-  return pathname === '/admin' || pathname === '/admin/orders' || pathname.startsWith('/admin/tables');
+  return (
+    pathname === '/admin' ||
+    pathname === '/admin/orders' ||
+    pathname.startsWith('/admin/tables') ||
+    pathname.startsWith('/admin/floors')
+  );
 }
 
 export function AdminLayout() {

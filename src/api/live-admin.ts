@@ -1,5 +1,5 @@
 import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
-import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
+import type { OrderComparison, Period, RevenueComparison, TopSellingDish } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
 import type {
   AddOn,
@@ -224,6 +224,7 @@ interface ApiOrder {
   status: OrderStatus;
   acceptedAt: string | null;
   cancelledAt: string | null;
+  paidAt?: string | null;
   items: ApiOrderItem[];
   subtotal: number;
   serviceCharge: number;
@@ -241,6 +242,7 @@ interface ApiOrder {
   deliveryCustomerName?: string | null;
   deliveryNote?: string | null;
   floorVisitorName?: string | null;
+  floorName?: string | null;
 }
 
 interface ApiPaymentItem {
@@ -406,6 +408,7 @@ function toOrder(api: ApiOrder): Order {
     status: api.status,
     acceptedAt: api.acceptedAt,
     cancelledAt: api.cancelledAt,
+    paidAt: api.paidAt ?? null,
     items: api.items.map((item) => ({
       id: item.id,
       dishId: item.dishId,
@@ -437,6 +440,7 @@ function toOrder(api: ApiOrder): Order {
     deliveryCustomerName: api.deliveryCustomerName ?? null,
     deliveryNote: api.deliveryNote ?? null,
     floorVisitorName: api.floorVisitorName ?? null,
+    floorName: api.floorName ?? null,
   };
 }
 
@@ -935,6 +939,10 @@ export async function settleTable(tableId: string): Promise<Order[]> {
  * and closes those orders out — optionally ending the visit in the same
  * motion, which also cancels anything on the session that never made it into
  * this charge.
+ *
+ * `orderId` scopes the charge to one floor order's own bill (§16b) instead of the whole
+ * session's tab — only that order is marked paid, and `endSession` is ignored server-side
+ * when it's set (see the backend's `CompletePaymentUsecase`).
  */
 export async function completePayment(
   sessionId: string,
@@ -942,11 +950,12 @@ export async function completePayment(
   method: PaymentMethod,
   discount: number,
   endSession: boolean,
+  orderId?: string,
 ): Promise<Payment> {
   const payment = await apiRequest<ApiPayment>('/restaurant/payments', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ sessionId, items, method, discount, endSession }),
+    body: JSON.stringify({ sessionId, orderId, items, method, discount, endSession }),
   });
   return toPayment(payment);
 }
@@ -1117,6 +1126,17 @@ export async function fetchRevenueComparison(period: Period): Promise<RevenueCom
 /** §31 — order count for the period against the whole of the one before it. */
 export async function fetchOrderComparison(period: Period): Promise<OrderComparison> {
   return apiRequest<OrderComparison>(`/restaurant/analytics/orders?period=${period}`, {
+    headers: authHeaders(),
+  });
+}
+
+/** §31 — dishes actually paid for, ranked by units sold. No dates: everything to date. */
+export async function fetchTopSellingDishes(startDate?: string, endDate?: string): Promise<TopSellingDish[]> {
+  const params = new URLSearchParams();
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  const qs = params.toString();
+  return apiRequest<TopSellingDish[]>(`/restaurant/analytics/top-dishes${qs ? `?${qs}` : ''}`, {
     headers: authHeaders(),
   });
 }

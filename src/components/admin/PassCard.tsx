@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { acceptOrder, advanceDeliveryOrder, advanceOrderItem, rejectOrder, settleDeliveryOrder } from '../../api/staff';
+import { formatMoney } from '../../domain/money';
 import {
   ADVANCE_LABEL,
   DELIVERY_ADVANCE_LABEL,
@@ -14,7 +15,7 @@ import type { ItemStatus, Menu, Order, OrderItem, OrderStatus } from '../../doma
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { relativeTime } from '../time';
 import { cx } from '../ui';
-import { ChevronRight } from '../icons';
+import { ChevronRight, Receipt } from '../icons';
 import { ADMIN_TINY, Confirm, StatusPill, useCommand } from './kit';
 import { BULK_DONE, FocusRibbon, ItemRow, Progress, nextBulkStage } from './OrderLines';
 
@@ -29,6 +30,7 @@ const ACCENT_BORDER: Record<OrderStatus, string> = {
   PREPARING: 'border-pass',
   READY: 'border-mint',
   OUT_FOR_DELIVERY: 'border-mint',
+  UNPAID: 'border-flame-2',
   COMPLETED: 'border-ink-4',
   CANCELLED: 'border-berry',
 };
@@ -39,6 +41,7 @@ const ACCENT_BUTTON: Record<OrderStatus, string> = {
   PREPARING: 'bg-pass',
   READY: 'bg-mint',
   OUT_FOR_DELIVERY: 'bg-mint',
+  UNPAID: 'bg-flame-2',
   COMPLETED: 'bg-ink-4',
   CANCELLED: 'bg-berry',
 };
@@ -59,6 +62,7 @@ export function PassCard({
   now,
   onApply,
   onResync,
+  onTakePayment,
 }: {
   order: Order;
   index: number;
@@ -69,6 +73,9 @@ export function PassCard({
   now: number;
   onApply: (order: Order) => void;
   onResync: () => void;
+  /** A floor order (§16b) sits at `UNPAID` once every dish is served — omitted by callers (the
+   *  kitchen dashboard, the full pass) that have nowhere for a payment to go. */
+  onTakePayment?: (order: Order) => void;
 }) {
   const staff = useStaff();
   const { allows } = useAuth();
@@ -126,13 +133,13 @@ export function PassCard({
             <div className="flex items-baseline gap-2">
               <span className="text-[14px] font-bold tnum">{order.reference}</span>
               {isDelivery && (
-                <span className="shrink-0 rounded-full bg-mint/14 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-mint-ink">
+                <span className="shrink-0 rounded-full bg-mint/14 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-mint-ink">
                   Delivery
                 </span>
               )}
               {!isDelivery && order.floorVisitorName && (
-                <span className="shrink-0 rounded-full bg-gold/14 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-gold-ink">
-                  Floor
+                <span className="shrink-0 rounded-full bg-gold/14 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gold-ink">
+                  {order.floorName || 'Floor'}
                 </span>
               )}
               <span className="truncate text-[13px] font-semibold text-ink-2">
@@ -232,6 +239,15 @@ export function PassCard({
             onClick={() => apply(order.id, () => settleDeliveryOrder(staff, order.id), `${order.reference} delivered`)}
           >
             {pending === order.id ? 'Working…' : DELIVERY_ADVANCE_LABEL.OUT_FOR_DELIVERY}
+          </button>
+        ) : order.status === 'UNPAID' && onTakePayment && live ? (
+          <button
+            type="button"
+            disabled={pending !== null}
+            className={cx(ADMIN_TINY, 'flex-1 justify-center gap-1.5 text-white', ACCENT_BUTTON[order.status])}
+            onClick={() => onTakePayment(order)}
+          >
+            <Receipt size={13} /> Take payment · {formatMoney(order.total, order.currency)}
           </button>
         ) : (
           <span className="flex-1 text-[12px] text-ink-4">{open ? 'Move each dish above' : 'Nothing to press'}</span>

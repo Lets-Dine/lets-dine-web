@@ -227,6 +227,7 @@ interface ApiOrder {
   status: Order['status'];
   acceptedAt: string | null;
   cancelledAt: string | null;
+  paidAt?: string | null;
   items: ApiOrderItem[];
   subtotal: number;
   serviceCharge: number;
@@ -244,6 +245,7 @@ interface ApiOrder {
   deliveryCustomerName?: string | null;
   deliveryNote?: string | null;
   floorVisitorName?: string | null;
+  floorName?: string | null;
 }
 
 /* ── Mappers ───────────────────────────────────────────────────── */
@@ -387,6 +389,7 @@ function toOrder(api: ApiOrder): Order {
     status: api.status,
     acceptedAt: api.acceptedAt,
     cancelledAt: api.cancelledAt,
+    paidAt: api.paidAt ?? null,
     items: api.items.map((item) => ({
       id: item.id,
       dishId: item.dishId,
@@ -418,6 +421,7 @@ function toOrder(api: ApiOrder): Order {
     deliveryCustomerName: api.deliveryCustomerName ?? null,
     deliveryNote: api.deliveryNote ?? null,
     floorVisitorName: api.floorVisitorName ?? null,
+    floorName: api.floorName ?? null,
   };
 }
 
@@ -625,10 +629,10 @@ export async function resumeFloorSession(restaurantSlug: string, floorToken: str
   }
 }
 
-export async function startFloorSession(restaurantSlug: string, floorToken: string, visitorName: string): Promise<FloorSessionResult> {
+export async function startFloorSession(restaurantSlug: string, floorToken: string): Promise<FloorSessionResult> {
   const opened = await apiRequest<ApiResolvedSession>('/public/sessions/floor', {
     method: 'POST',
-    body: JSON.stringify({ restaurantSlug, floorToken, visitorName: visitorName.trim() }),
+    body: JSON.stringify({ restaurantSlug, floorToken }),
   });
 
   storeToken(restaurantSlug, floorToken, opened.session);
@@ -767,7 +771,15 @@ export async function submitReviews(orderId: string, sessionToken: string, draft
 
 /* ── Orders ────────────────────────────────────────────────────── */
 
-export async function createOrder({ session, lines, idempotencyKey, deliveryAddress, deliveryNote }: CreateOrderInput): Promise<Order> {
+export async function createOrder({
+  session,
+  lines,
+  idempotencyKey,
+  deliveryAddress,
+  deliveryNote,
+  customer,
+  floorVisitorName,
+}: CreateOrderInput): Promise<Order> {
   const order = await apiRequest<ApiOrder>('/orders', {
     method: 'POST',
     headers: {
@@ -784,6 +796,8 @@ export async function createOrder({ session, lines, idempotencyKey, deliveryAddr
       })),
       deliveryAddress: deliveryAddress || undefined,
       deliveryNote: deliveryNote || undefined,
+      customer: customer ? { phone: customer.phone.trim(), name: customer.name.trim() } : undefined,
+      floorVisitorName: floorVisitorName?.trim() || undefined,
     }),
   });
   return toOrder(order);

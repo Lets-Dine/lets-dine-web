@@ -30,9 +30,9 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number):
 
 /** WebP first for the smaller file; a browser that can't encode it falls back to JPEG. */
 async function compress(canvas: HTMLCanvasElement): Promise<Blob> {
-  const webp = await canvasToBlob(canvas, 'image/webp', 0.32);
+  const webp = await canvasToBlob(canvas, 'image/webp', 0.62);
   if (webp) return webp;
-  const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.35);
+  const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.65);
   if (jpeg) return jpeg;
   throw new ApiError(0, 'This browser could not prepare the image. Try a different one.');
 }

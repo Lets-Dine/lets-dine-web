@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
-import { byUrgencyThenAge, focusMap, newestOrderPerTable } from '../../domain/orderStatus';
+import { completeOrderPayment } from '../../api/staff';
+import { byUrgencyThenAge, floorBillSubject, focusMap, newestOrderPerTable } from '../../domain/orderStatus';
 import type { Order, OrderStatus } from '../../domain/types';
+import { useStaff } from '../../state/AuthContext';
 import { useNow } from '../../state/useNow';
-import { Empty, PageTitle, Panel, Segmented } from '../../components/admin/kit';
+import { Empty, PageTitle, Panel, Segmented, useCommand } from '../../components/admin/kit';
 import { PassCard } from '../../components/admin/PassCard';
+import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { useDashboard } from './AdminLayout';
 
 /**
@@ -28,7 +31,7 @@ import { useDashboard } from './AdminLayout';
  * one-line reason, and the same clock again on the row that caused it.
  */
 
-type Lane = 'focus' | 'new' | 'kitchen' | 'ready' | 'done';
+type Lane = 'focus' | 'new' | 'kitchen' | 'ready' | 'unpaid' | 'done';
 
 const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = [
   { value: 'focus', label: 'Needs you', statuses: null },
@@ -36,6 +39,8 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
   { value: 'kitchen', label: 'In the kitchen', statuses: ['ACCEPTED', 'PREPARING'] },
   // Covers a delivery ticket already dispatched too, or it would fall out of every lane once it leaves READY.
   { value: 'ready', label: 'Ready to serve', statuses: ['READY', 'OUT_FOR_DELIVERY'] },
+  // Dine-in only — every dish is out, the table just hasn't paid yet (`TableDetail`/`FloorDetail`).
+  { value: 'unpaid', label: 'Awaiting payment', statuses: ['UNPAID'] },
   { value: 'done', label: 'Finished', statuses: ['COMPLETED', 'CANCELLED'] },
 ];
 
@@ -44,8 +49,13 @@ const TICK_MS = 15_000;
 
 export function Orders() {
   const { menu, orders, reloadOrders, applyOrder } = useDashboard();
+  const staff = useStaff();
   const now = useNow(TICK_MS);
   const [lane, setLane] = useState<Lane>('new');
+  const { pending, run } = useCommand();
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const payingOrder = orders.find((o) => o.id === payingId) ?? null;
+  const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
 
   /** One pass over the queue per tick — every lane, count and card reads its flag from here. */
   const flags = useMemo(() => focusMap(orders, now), [orders, now]);
@@ -148,10 +158,36 @@ export function Orders() {
               now={now}
               onApply={applyOrder}
               onResync={reloadOrders}
+              onTakePayment={(o) => setPayingId(o.id)}
             />
           ))}
         </div>
       )}
+
+      <PaymentSheet
+        table={payingOrder ? floorBillSubject(payingOrder) : null}
+        orders={payingOrder ? [payingOrder] : []}
+        dishes={menuDishes}
+        restaurantName={menu.restaurant.name}
+        serviceChargeRate={menu.restaurant.serviceChargeRate}
+        taxRate={menu.restaurant.taxRate}
+        pending={pending}
+        onClose={() => setPayingId(null)}
+        onSettle={(changes) => {
+          if (!payingOrder) return Promise.resolve(false);
+          const order = payingOrder;
+          return run(
+            order.id,
+            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount),
+            `${order.reference} paid up`,
+          ).then((ok) => {
+            if (ok) reloadOrders();
+            return ok;
+          });
+        }}
+        onEndSession={() => setPayingId(null)}
+        onShowQr={() => setPayingId(null)}
+      />
     </>
   );
 }

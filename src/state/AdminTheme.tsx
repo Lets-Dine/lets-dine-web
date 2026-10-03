@@ -15,7 +15,7 @@ export type AdminTheme = 'light' | 'dark';
 const KEY = 'letsDine.admin-theme.v1';
 const DINER_THEME_COLOR = '#12100e';
 const ADMIN_THEME_COLOR: Record<AdminTheme, string> = {
-  light: '#f3ebe1',
+  light: '#f6f1e7', // Same cream as the landing/get-started page's PAPER constant.
   dark: '#100d0b',
 };
 

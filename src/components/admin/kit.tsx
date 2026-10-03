@@ -281,6 +281,7 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
   PREPARING: 'bg-pass/16 text-pass',
   READY: 'bg-mint/16 text-mint-ink',
   OUT_FOR_DELIVERY: 'bg-mint/16 text-mint-ink',
+  UNPAID: 'bg-flame-2/18 text-flame-1',
   COMPLETED: 'bg-ink/8 text-ink-3',
   CANCELLED: 'bg-berry/14 text-berry-ink',
 };

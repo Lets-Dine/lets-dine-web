@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { isTableOpen } from '../../api/admin';
 import { STATUS_LABEL } from '../../domain/orderStatus';
-import type { DiningTable, Dish, Order, OrderStatus, PaymentMethod } from '../../domain/types';
+import type { Dish, Order, OrderStatus, PaymentMethod } from '../../domain/types';
 import { formatMoney, percentOf, symbolFor } from '../../domain/money';
 import { can } from '../../domain/permissions';
 import { useStaff } from '../../state/AuthContext';
@@ -13,9 +13,19 @@ import type { ReceiptLine, ReceiptTotals } from './receipt';
 
 /**
  * The bill for one table's visit — read, add, remove, take payment — shared
- * by the floor plan's quick-look modal (`Tables.tsx`) and the table detail
- * page, so a cashier gets the exact same screen wherever they opened it from.
+ * by the floor plan's quick-look modal (`Tables.tsx`), the table detail page,
+ * and a single floor order's own bill (`FloorDetail`), so a cashier gets the
+ * exact same screen wherever they opened it from.
  */
+
+/** Everything this sheet actually needs from whatever it's billing — a `DiningTable` satisfies
+ *  this structurally, and a floor order gets its own lightweight stand-in (see `FloorDetail`). */
+export interface BillSubject {
+  id: string;
+  name: string;
+  qrToken: string;
+  capacity?: number;
+}
 
 /** How long the QR step waits before it settles on its own — a cashier who'd rather not wait can always skip it. */
 const QR_AUTO_MS = 8000;
@@ -26,9 +36,9 @@ const QR_AUTO_MS = 8000;
  * matters for the till: a fresh reference baked in per attempt, so the code
  * on screen changes every time a payment is started, the way a real one would.
  */
-function paymentQrPayload(table: DiningTable, amount: number, currency: string): string {
-  const ref = `${table.qrToken.slice(0, 6)}${Date.now().toString(36)}`.toUpperCase();
-  return `letsdine-pay://charge?table=${encodeURIComponent(table.name)}&amount=${amount}&currency=${currency}&ref=${ref}`;
+function paymentQrPayload(subject: BillSubject, amount: number, currency: string): string {
+  const ref = `${subject.qrToken.slice(0, 6)}${Date.now().toString(36)}`.toUpperCase();
+  return `letsdine-pay://charge?table=${encodeURIComponent(subject.name)}&amount=${amount}&currency=${currency}&ref=${ref}`;
 }
 
 /** One underlying order item a displayed bill line is backed by — a served line can merge several of these. */
@@ -85,7 +95,7 @@ export function PaymentSheet({
   onSettle,
   onEndSession,
 }: {
-  table: DiningTable | null;
+  table: BillSubject | null;
   orders: Order[];
   dishes: Dish[];
   restaurantName: string;
@@ -343,9 +353,11 @@ export function PaymentSheet({
             </p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] tracking-wide text-[oklch(0.463_0.031_74)] uppercase">
-              {table.capacity} seat{table.capacity === 1 ? '' : 's'}
-            </p>
+            {table.capacity !== undefined && (
+              <p className="text-[10px] tracking-wide text-[oklch(0.463_0.031_74)] uppercase">
+                {table.capacity} seat{table.capacity === 1 ? '' : 's'}
+              </p>
+            )}
             <p className="mt-0.5 text-[11px] font-bold text-[oklch(0.539_0.163_36)]">{elapsedMinutes}m elapsed</p>
           </div>
         </div>
@@ -412,7 +424,7 @@ export function PaymentSheet({
               onClick={onEndSession}
               className="rounded-full bg-[oklch(0.879_0.033_85)] px-4 py-2 text-[11px] font-bold tracking-wide text-[oklch(0.232_0.019_70)] uppercase active:translate-y-px disabled:opacity-40"
             >
-              End table session
+              {table.capacity !== undefined ? 'End table session' : 'Close'}
             </button>
           </div>
         )}

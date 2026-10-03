@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { cx } from '../../components/ui';
 import { Check, Star } from '../../components/icons';
-import { DISPLAY_XL, Figure, LEAD, PhoneFrame, PrimaryCta, RAIL, SecondaryCta } from './kit';
+import { DISPLAY_XL, Figure, LEAD, PhoneFrame, PrimaryCta, RAIL } from './kit';
 import { gsap, prefersReducedMotion, useCountUp } from './motion';
 import { HERO_DISH, MENU_DISHES, RESTAURANT_NAME } from './data';
 
@@ -109,12 +109,12 @@ export function Hero() {
           </p>
 
           <div data-hero-rise className="mt-7 flex flex-wrap items-center gap-3">
-            <PrimaryCta to="/platform" size="lg">
+            <PrimaryCta to="/get-started" size="lg">
               Get started
             </PrimaryCta>
-            <SecondaryCta to="/demo" size="lg">
+            {/* <SecondaryCta to="/demo" size="lg">
               See how it works
-            </SecondaryCta>
+            </SecondaryCta> */}
           </div>
 
           <div data-hero-rise className="mt-9 grid max-w-lg grid-cols-3 gap-6 border-t border-hairline pt-5">
@@ -122,10 +122,10 @@ export function Hero() {
             <Figure refCb={repeatRef} value={`${repeat}%`} label="Orders that reorder a dish" />
             <Figure refCb={countRef} value={Number(count).toLocaleString('en-US')} label="Ratings left by diners" />
           </div>
-          <p data-hero-rise className="mt-3 max-w-lg text-[12px] leading-relaxed text-ink-4">
+          {/* <p data-hero-rise className="mt-3 max-w-lg text-[12px] leading-relaxed text-ink-4">
             Figures from Sekuwa Ghar, the live demo restaurant you can open at{' '}
             <span className="font-mono">/demo</span>.
-          </p>
+          </p> */}
         </div>
 
         {/* ── The product ──────────────────────────────────────── */}

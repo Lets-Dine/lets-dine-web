@@ -6,7 +6,6 @@ import { ToastProvider } from './state/ToastContext';
 import { Cart } from './routes/Cart';
 import { Checkout } from './routes/Checkout';
 import { DishDetail } from './routes/DishDetail';
-import { Entry } from './routes/Entry';
 import { GetStarted } from './routes/GetStarted';
 import { Landing } from './routes/Landing';
 import { Menu } from './routes/Menu';
@@ -31,6 +30,7 @@ import { SignIn } from './routes/admin/SignIn';
 import { Staff } from './routes/admin/Staff';
 import { Tables } from './routes/admin/Tables';
 import { Floors } from './routes/admin/Floors';
+import { FloorDetail } from './routes/admin/FloorDetail';
 import { TableDetail } from './routes/admin/TableDetail';
 import { PlatformLayout } from './routes/platform/PlatformLayout';
 import { PlatformSignIn } from './routes/platform/PlatformSignIn';
@@ -97,7 +97,7 @@ export default function App() {
               {/* The public, self-serve restaurant sign-up — what the landing page's "Get started" CTA points at. */}
               <Route path="/get-started" element={<GetStarted />} />
               {/* Stands in for the physical QR code on the table — the live product starts at /r/:slug/t/:token. */}
-              <Route path="/demo" element={<Entry />} />
+              {/* <Route path="/demo" element={<Entry />} /> */}
               {/* The QR encodes only the restaurant slug and an opaque table token. */}
               <Route path="/r/:slug/t/:token" element={<RestaurantLayout kind="table" />}>
                 <Route index element={<Menu />} />
@@ -143,6 +143,7 @@ export default function App() {
                 <Route path="tables" element={<Tables />} />
                 <Route path="tables/:tableId" element={<TableDetail />} />
                 <Route path="floors" element={<Floors />} />
+                <Route path="floors/:floorId" element={<FloorDetail />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="reviews" element={<Reviews />} />
                 <Route path="analytics" element={<Analytics />} />

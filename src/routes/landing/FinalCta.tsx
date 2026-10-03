@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { cx } from '../../components/ui';
 import { Star } from '../../components/icons';
-import { Band, DISPLAY_XL, LEAD, PrimaryCta, RAIL, SecondaryCta, SplitHeading } from './kit';
+import { Band, DISPLAY_XL, LEAD, PrimaryCta, RAIL, SplitHeading } from './kit';
 import { gsap, prefersReducedMotion, useReveal } from './motion';
 import { MENU_DISHES } from './data';
 
@@ -94,9 +94,9 @@ export function FinalCta() {
           <PrimaryCta to="/platform" size="lg">
             Get started
           </PrimaryCta>
-          <SecondaryCta to="/demo" size="lg">
+          {/* <SecondaryCta to="/" size="lg">
             Book a demo
-          </SecondaryCta>
+          </SecondaryCta> */}
         </div>
         <p data-reveal className="mt-6 text-[13px] text-ink-4">
           No card to set up. Bring your existing menu and we’ll have the first table scanning today.

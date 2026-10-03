@@ -7,6 +7,8 @@ export type OrderStatus =
   | 'PREPARING'
   | 'READY'
   | 'OUT_FOR_DELIVERY'
+  /** §16b, floor orders only: every live item is served but nobody has paid yet — see `Order.paidAt`. */
+  | 'UNPAID'
   | 'COMPLETED'
   | 'CANCELLED';
 
@@ -76,15 +78,15 @@ export interface DiningSession {
   expiresAt: string;
   /** Set once staff clears the table (or a payment settles it) — null while the visit is still open. */
   endedAt: string | null;
-  /** Set for a delivery session, upserted server-side by phone. */
+  /** Set for a delivery session, upserted server-side by phone. A floor order's own `Customer` is attached to the order instead, captured at order time. */
   customerId: string | null;
   /** §16b: set for a floor session — the shared floor QR it was scanned from. */
   floorId: string | null;
-  /** §16b: floor sessions only — the free-text room/cabin/name the diner gave when opening the floor QR. */
+  /** Legacy — floor sessions used to collect this up front; identity is now captured per order instead (see `Order.floorVisitorName`). */
   floorVisitorName: string | null;
 }
 
-/** A lightweight, per-restaurant repeat-customer record, keyed by phone — delivery only. */
+/** A lightweight, per-restaurant repeat-customer record, keyed by phone — upserted for delivery or a floor order (§16b). */
 export interface Customer {
   id: string;
   restaurantId: string;
@@ -271,7 +273,7 @@ export interface Order {
   /** Null for a delivery order. */
   tableName: string | null;
   sessionId: string;
-  /** Set for a delivery order — the repeat-customer record it was placed under, if any. */
+  /** The repeat-customer record it was placed under, if any — a delivery order's own, or a dine-in order's (table or floor, §16b, given at order time). */
   customerId: string | null;
   /** Computed from `items` (plus `acceptedAt`/`cancelledAt`) — never assigned directly. See `domain/orderStatus.ts`. */
   status: OrderStatus;
@@ -279,6 +281,10 @@ export interface Order {
   acceptedAt: string | null;
   /** Set only by a whole-order cancel (staff, and only while every item is still PENDING). */
   cancelledAt: string | null;
+  /** §16b: floor orders only — set once that order's own bill is settled, the one thing that
+   *  turns a fully-served ticket from `UNPAID` into `COMPLETED`. Always null for a table or
+   *  delivery order, neither of which pass through `UNPAID` on the way to `COMPLETED`. */
+  paidAt: string | null;
   items: OrderItem[];
   subtotal: Minor;
   serviceCharge: Minor;
@@ -297,8 +303,10 @@ export interface Order {
   deliveryPhone: string | null;
   deliveryCustomerName: string | null;
   deliveryNote: string | null;
-  /** §16b: floor orders only — snapshotted from `DiningSession.floorVisitorName` at order time. */
+  /** §16b: floor orders only — which cabin/room/spot on the floor to bring this order to, typed in at checkout and snapshotted here. */
   floorVisitorName: string | null;
+  /** §16b: floor orders only — the floor's own name (e.g. "3rd Floor"), joined in read-side from the session; not stored on the order itself. */
+  floorName: string | null;
 }
 
 export interface Menu {

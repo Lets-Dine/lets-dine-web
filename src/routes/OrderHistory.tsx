@@ -26,6 +26,7 @@ const STATUS_TONE: Record<OrderStatus, string> = {
   PREPARING: 'bg-flame-2/14 text-flame-1',
   READY: 'bg-gold/16 text-gold',
   OUT_FOR_DELIVERY: 'bg-gold/16 text-gold',
+  UNPAID: 'bg-mint/14 text-mint',
   COMPLETED: 'bg-mint/14 text-mint',
   CANCELLED: 'bg-berry/13 text-[#ff90a4]',
 };

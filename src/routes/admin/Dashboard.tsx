@@ -1,22 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { allOrders } from '../../api/admin';
-import { fetchOrderComparison, fetchRevenueComparison } from '../../api/staff';
+import { completeOrderPayment, fetchOrderComparison, fetchRevenueComparison, fetchTopSellingDishes } from '../../api/staff';
 import { funnel } from '../../domain/analytics';
-import { byUrgencyThenAge, focusMap, newestOrderPerTable } from '../../domain/orderStatus';
-import {
-  dishPerformance,
-  feedbackSummary,
-  periodReport,
-  windowFor,
-} from '../../domain/adminMetrics';
+import { byUrgencyThenAge, floorBillSubject, focusMap, newestOrderPerTable } from '../../domain/orderStatus';
+import { feedbackSummary, periodReport } from '../../domain/adminMetrics';
 import { formatMoney } from '../../domain/money';
 import type { Order, OrderStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useNow } from '../../state/useNow';
-import { Empty, Loading, PageTitle, Panel, Row, Segmented, StatTile } from '../../components/admin/kit';
+import { Empty, Loading, PageTitle, Panel, Row, Segmented, StatTile, useCommand } from '../../components/admin/kit';
 import { PassCard } from '../../components/admin/PassCard';
+import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
@@ -55,19 +51,15 @@ export function Dashboard() {
   const history = useAsync(() => allOrders(staff), [staff]);
   const revenue = useAsync(() => fetchRevenueComparison(staff, 'today'), [staff]);
   const orderComparison = useAsync(() => fetchOrderComparison(staff, 'today'), [staff]);
+  const topDishes = useAsync(() => fetchTopSellingDishes(staff, new Date().toISOString()), [staff]);
   const now = useNow(TICK_MS);
   const [lane, setLane] = useState<Lane>('all');
+  const { pending, run } = useCommand();
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   const orders = history.data;
   const today = useMemo(() => (orders ? periodReport(orders, 'today') : null), [orders]);
-  const bestSellers = useMemo(() => {
-    if (!orders) return [];
-    const w = windowFor('today');
-    return dishPerformance(orders, menu.dishes, w.from, w.to)
-      .filter((d) => d.units > 0)
-      .sort((a, b) => b.units - a.units)
-      .slice(0, 5);
-  }, [orders, menu.dishes]);
+  const bestSellers = useMemo(() => (topDishes.data ?? []).slice(0, 5), [topDishes.data]);
 
   const feedback = useMemo(() => feedbackSummary(menu.dishes), [menu.dishes]);
   const { dishDecisionRate } = funnel();
@@ -77,6 +69,8 @@ export function Dashboard() {
     [queue],
   );
   const waiting = working.filter((o) => o.status === 'PENDING');
+  const payingOrder = working.find((o) => o.id === payingId) ?? null;
+  const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
 
   /** The same clocks the full pass runs on — one sweep per tick, read by every lane and card. */
   const flags = useMemo(() => focusMap(working, now), [working, now]);
@@ -200,6 +194,7 @@ export function Dashboard() {
                   now={now}
                   onApply={applyOrder}
                   onResync={reloadOrders}
+                  onTakePayment={(o) => setPayingId(o.id)}
                 />
               ))}
               {hiddenCount > 0 && (
@@ -241,18 +236,18 @@ export function Dashboard() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Panel title="Selling today" hint="By dishes served" bare>
-          {history.loading ? (
+          {topDishes.loading ? (
             <Loading label="Counting today…" />
           ) : bestSellers.length === 0 ? (
             <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">Nothing has sold yet today.</p>
           ) : (
             bestSellers.map((dish) => (
               <Row key={dish.dishId}>
-                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{dish.name}</span>
+                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{dish.dishName}</span>
                 <span className="shrink-0 text-[13.5px] tnum text-ink-3">
-                  {formatMoney(dish.revenue, menu.restaurant.currency)}
+                  {formatMoney(dish.totalAmount, menu.restaurant.currency)}
                 </span>
-                <span className="w-12 shrink-0 text-right text-[14px] font-bold tnum text-flame-1">×{dish.units}</span>
+                <span className="w-12 shrink-0 text-right text-[14px] font-bold tnum text-flame-1">×{dish.orderCount}</span>
               </Row>
             ))
           )}
@@ -324,6 +319,31 @@ export function Dashboard() {
           variant="subtle"
         />
       </div>
+
+      <PaymentSheet
+        table={payingOrder ? floorBillSubject(payingOrder) : null}
+        orders={payingOrder ? [payingOrder] : []}
+        dishes={menuDishes}
+        restaurantName={menu.restaurant.name}
+        serviceChargeRate={menu.restaurant.serviceChargeRate}
+        taxRate={menu.restaurant.taxRate}
+        pending={pending}
+        onClose={() => setPayingId(null)}
+        onSettle={(changes) => {
+          if (!payingOrder) return Promise.resolve(false);
+          const order = payingOrder;
+          return run(
+            order.id,
+            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount),
+            `${order.reference} paid up`,
+          ).then((ok) => {
+            if (ok) reloadOrders();
+            return ok;
+          });
+        }}
+        onEndSession={() => setPayingId(null)}
+        onShowQr={() => setPayingId(null)}
+      />
     </>
   );
 }

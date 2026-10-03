@@ -136,7 +136,10 @@ export function OrderStatus() {
                   hint={order.acceptedAt ? DINER_STATUS_HINT.ACCEPTED : DINER_STATUS_HINT.PENDING}
                   hasNext
                 />
-                {order.acceptedAt && order.status !== 'COMPLETED' && order.status !== 'OUT_FOR_DELIVERY' && (
+                {order.acceptedAt &&
+                  order.status !== 'COMPLETED' &&
+                  order.status !== 'UNPAID' &&
+                  order.status !== 'OUT_FOR_DELIVERY' && (
                   <Headline
                     done={false}
                     active
@@ -155,7 +158,7 @@ export function OrderStatus() {
                   />
                 )}
                 <Headline
-                  done={order.status === 'COMPLETED'}
+                  done={order.status === 'COMPLETED' || order.status === 'UNPAID'}
                   active={false}
                   label="Completed"
                   hint={DINER_STATUS_HINT.COMPLETED}
@@ -165,7 +168,7 @@ export function OrderStatus() {
             )}
           </div>
 
-          {!cancelled && order.status !== 'COMPLETED' && (
+          {!cancelled && order.status !== 'COMPLETED' && order.status !== 'UNPAID' && (
             <p className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-3">
               <Clock size={14} />
               {order.status === 'OUT_FOR_DELIVERY'

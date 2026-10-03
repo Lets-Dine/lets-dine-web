@@ -16,6 +16,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   PREPARING: 'Preparing',
   READY: 'Ready',
   OUT_FOR_DELIVERY: 'Out for delivery',
+  UNPAID: 'Unpaid',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
 };
@@ -52,7 +53,7 @@ export function canCancelOrder(order: Pick<Order, 'status' | 'items'>): boolean 
   return order.items.every((i) => i.status === 'PENDING' || i.status === 'CANCELLED');
 }
 
-export const STATUS_ORDER: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'COMPLETED'];
+export const STATUS_ORDER: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'UNPAID', 'COMPLETED'];
 
 export function statusIndex(status: OrderStatus): number {
   return STATUS_ORDER.indexOf(status);
@@ -102,32 +103,59 @@ export function billableItems(items: OrderItem[]): OrderItem[] {
 }
 
 /**
- * `Order.status` is computed from its items (plus `acceptedAt`/`cancelledAt`),
+ * A floor order's own `PaymentSheet` subject (§16b) — just enough for the sheet's bill header and
+ * its (non-real) payment QR, since wherever a ticket shows up (dashboard hero, full pass, floor
+ * detail) rarely has the floor record itself loaded alongside it. The order's own id stands in for
+ * a `qrToken`: that field only ever seeds a demo reference string, never a real charge link.
+ */
+export function floorBillSubject(order: Pick<Order, 'id' | 'floorName' | 'floorVisitorName'>): {
+  id: string;
+  name: string;
+  qrToken: string;
+} {
+  return { id: order.id, name: order.floorVisitorName || order.floorName || 'Floor order', qrToken: order.id };
+}
+
+/**
+ * `Order.status` is computed from its items (plus `acceptedAt`/`cancelledAt`/`paidAt`),
  * never assigned directly — every mutation that touches an order or one of
  * its items must finish by calling this and persisting the result. Mirrors
  * the server-side derivation exactly (`lets-dine-backend`'s
  * `order-status.util.ts`) so the two never drift.
+ *
+ * A floor order (§16b) doesn't jump straight to `COMPLETED` once every item is served — it sits
+ * at `UNPAID` until `paidAt` is set, so staff always has a moment where that order can still be
+ * paid, instead of the bill window closing itself the instant the last dish goes out. A table
+ * order has no such gap: its tab is settled as a whole (`PaymentSheet`), independent of any one
+ * order's own status, so it goes straight to `COMPLETED` the way it always has.
  */
-export function deriveOrderStatus(order: Pick<Order, 'acceptedAt' | 'cancelledAt' | 'items'>): OrderStatus {
+export function deriveOrderStatus(
+  order: Pick<Order, 'acceptedAt' | 'cancelledAt' | 'paidAt' | 'floorName' | 'items'>,
+): OrderStatus {
   if (order.cancelledAt) return 'CANCELLED';
   if (!order.acceptedAt) return 'PENDING';
 
   const live = billableItems(order.items);
   if (live.length === 0) return 'CANCELLED';
-  if (live.every((i) => i.status === 'SERVED')) return 'COMPLETED';
+  if (live.every((i) => i.status === 'SERVED')) {
+    if (!order.floorName) return 'COMPLETED';
+    return order.paidAt ? 'COMPLETED' : 'UNPAID';
+  }
   if (live.every((i) => i.status === 'READY' || i.status === 'SERVED')) return 'READY';
   if (live.some((i) => i.status !== 'PENDING')) return 'PREPARING';
   return 'ACCEPTED';
 }
 
 /**
- * Same derivation, capped at `READY` for a delivery order — `OUT_FOR_DELIVERY`
- * and `COMPLETED` only ever advance manually (mirrors the server's
- * `deriveOrderStatus` cap in `order-status.util.ts`, so the mock kitchen never
- * auto-completes a delivery ticket just because every dish got plated).
+ * Same derivation, capped at `READY` for a delivery order — `OUT_FOR_DELIVERY` and `COMPLETED`
+ * only ever apply to dine-in; a delivery order's own `READY → OUT_FOR_DELIVERY → COMPLETED` is
+ * entirely manual (mirrors the server's `deriveOrderStatus` cap in `order-status.util.ts`, so the
+ * mock kitchen never auto-completes a delivery ticket just because every dish got plated). `UNPAID`
+ * never reaches this cap in the first place — it's floor-only (§16b), and a delivery order never
+ * has a `floorName` to begin with.
  */
 export function deriveOrderStatusForType(
-  order: Pick<Order, 'acceptedAt' | 'cancelledAt' | 'items'>,
+  order: Pick<Order, 'acceptedAt' | 'cancelledAt' | 'paidAt' | 'floorName' | 'items'>,
   orderType: OrderType,
 ): OrderStatus {
   const derived = deriveOrderStatus(order);
@@ -156,6 +184,9 @@ export const DINER_STATUS_LABEL: Record<OrderStatus, string> = {
   PREPARING: 'Preparing',
   READY: 'Ready',
   OUT_FOR_DELIVERY: 'Out for delivery',
+  // Whether the bill has actually been paid is a staff/till concern — a diner who was served
+  // every dish has nothing left to track, so this reads identically to `COMPLETED`.
+  UNPAID: 'Completed',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
 };
@@ -166,6 +197,7 @@ export const DINER_STATUS_HINT: Record<OrderStatus, string> = {
   PREPARING: 'On the grill',
   READY: 'Coming to your table',
   OUT_FOR_DELIVERY: 'On its way to you',
+  UNPAID: 'Enjoy your meal',
   COMPLETED: 'Enjoy your meal',
   CANCELLED: 'Nothing was sent to the kitchen',
 };
@@ -180,6 +212,8 @@ export function dinerStatusToast(status: OrderStatus): { message: string; icon: 
       return { message: 'Your order is ready', icon: '🔔' };
     case 'OUT_FOR_DELIVERY':
       return { message: 'Your order is on its way', icon: '🛵' };
+    case 'UNPAID':
+      return { message: 'All served — enjoy!', icon: '🍽️' };
     case 'COMPLETED':
       return { message: 'Enjoy your meal', icon: '✓' };
     case 'CANCELLED':
@@ -308,7 +342,7 @@ export function itemFocus(item: OrderItem, order: Pick<Order, 'acceptedAt'>, now
  * spoiling and the second is only late.
  */
 export function orderFocus(order: Order, now: number = Date.now()): Focus | null {
-  if (order.status === 'COMPLETED' || order.status === 'CANCELLED') return null;
+  if (order.status === 'COMPLETED' || order.status === 'CANCELLED' || order.status === 'UNPAID') return null;
 
   const live = billableItems(order.items);
   const candidates: (Focus | null)[] = [];

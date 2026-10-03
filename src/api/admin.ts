@@ -1,8 +1,8 @@
 import { HISTORY_REF_CEILING, orderHistory } from '../data/history';
 import { SEED_REVIEWS } from '../data/reviews';
 import { DEMO_PIN } from '../data/staff';
-import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
-import { periodReport } from '../domain/adminMetrics';
+import type { OrderComparison, Period, RevenueComparison, TopSellingDish } from '../domain/adminMetrics';
+import { dishPerformance, periodReport } from '../domain/adminMetrics';
 import { formatMoney, percentOf, recomputeTotals, sumLines } from '../domain/money';
 import {
   ITEM_STATUS_LABEL,
@@ -188,6 +188,7 @@ function seedItemStatus(orderStatus: OrderStatus, index: number, count: number):
       return index === 0 ? 'PREPARING' : 'PENDING';
     case 'READY':
       return index === count - 1 && count > 1 ? 'READY' : 'SERVED';
+    case 'UNPAID':
     case 'COMPLETED':
       return 'SERVED';
     default:
@@ -242,10 +243,11 @@ function seedQueue(store: Store): Store {
 
     const acceptedAt = status === 'PENDING' ? null : placed.toISOString();
     const cancelledAt = status === 'CANCELLED' ? new Date(placed.getTime() + 3 * 60_000).toISOString() : null;
+    const paidAt = status === 'COMPLETED' ? new Date(placed.getTime() + 22 * 60_000).toISOString() : null;
     const subtotal = sumLines(billableItems(items));
     const serviceCharge = percentOf(subtotal, restaurant.serviceChargeRate);
     const tax = percentOf(subtotal + serviceCharge, restaurant.taxRate);
-    const derived = deriveOrderStatus({ acceptedAt, cancelledAt, items });
+    const derived = deriveOrderStatus({ acceptedAt, cancelledAt, paidAt, floorName: null, items });
 
     return {
       id: `ord_seed${i}`,
@@ -262,6 +264,7 @@ function seedQueue(store: Store): Store {
       status: derived,
       acceptedAt,
       cancelledAt,
+      paidAt,
       items,
       subtotal,
       serviceCharge,
@@ -272,13 +275,14 @@ function seedQueue(store: Store): Store {
       currency: restaurant.currency,
       createdAt: placed.toISOString(),
       updatedAt: placed.toISOString(),
-      completedAt: derived === 'COMPLETED' ? new Date(placed.getTime() + 22 * 60_000).toISOString() : null,
+      completedAt: paidAt,
       reviewedDishIds: [],
       deliveryAddress: null,
       deliveryPhone: null,
       deliveryCustomerName: null,
       deliveryNote: null,
       floorVisitorName: null,
+      floorName: null,
     };
   });
 
@@ -328,6 +332,22 @@ export async function fetchOrderComparison(actor: StaffMember, period: Period): 
   return { current: report.current.orders, previous: report.previous.orders, differencePercentage };
 }
 
+const DAY_MS = 86_400_000;
+
+/** §31 — the same paid-dishes ranking `GET /restaurant/analytics/top-dishes` answers live. */
+export async function fetchTopSellingDishes(actor: StaffMember, startDate?: string, endDate?: string): Promise<TopSellingDish[]> {
+  authorize(actor, 'analytics:view');
+  const store = seedQueue(readStore());
+  const orders = [...orderHistory(), ...store.orders];
+  const from = startDate ? Date.parse(startDate) : 0;
+  const to = startDate ? Date.parse(endDate ?? startDate) + DAY_MS : Date.now();
+
+  return dishPerformance(orders, menuOf(store).dishes, from, to)
+    .filter((d) => d.units > 0)
+    .sort((a, b) => b.units - a.units)
+    .map((d) => ({ dishId: d.dishId, dishName: d.name, orderCount: d.units, totalAmount: d.revenue }));
+}
+
 /** The one remaining whole-order transition: accept. Everything after that follows the items. */
 export async function acceptOrder(actor: StaffMember, orderId: string, expected: 'PENDING'): Promise<Order> {
   authorize(actor, 'orders:advance');
@@ -344,7 +364,10 @@ export async function acceptOrder(actor: StaffMember, orderId: string, expected:
   const acceptedAt = now;
   const updated: Order = {
     ...order,
-    status: deriveOrderStatusForType({ acceptedAt, cancelledAt: order.cancelledAt, items: order.items }, order.orderType),
+    status: deriveOrderStatusForType(
+      { acceptedAt, cancelledAt: order.cancelledAt, paidAt: order.paidAt, floorName: order.floorName, items: order.items },
+      order.orderType,
+    ),
     acceptedAt,
     updatedAt: now,
   };
@@ -385,7 +408,10 @@ export async function advanceOrderItem(
 
   const now = new Date().toISOString();
   const items = order.items.map((i) => (i.id === itemId ? { ...i, status: to, statusUpdatedAt: now } : i));
-  const derivedStatus = deriveOrderStatusForType({ acceptedAt: order.acceptedAt, cancelledAt: order.cancelledAt, items }, order.orderType);
+  const derivedStatus = deriveOrderStatusForType(
+    { acceptedAt: order.acceptedAt, cancelledAt: order.cancelledAt, paidAt: order.paidAt, floorName: order.floorName, items },
+    order.orderType,
+  );
   const updated: Order = {
     ...order,
     items,
@@ -451,7 +477,7 @@ export async function settleDeliveryOrder(actor: StaffMember, orderId: string, m
   // The driver takes every plated line at once — no item goes SERVED on its own
   // for a delivery order (see `nextItemStatus`), so this is where they catch up.
   const items = order.items.map((i) => (i.status === 'READY' ? { ...i, status: 'SERVED' as ItemStatus, statusUpdatedAt: now } : i));
-  const updated: Order = { ...order, items, status: 'COMPLETED', updatedAt: now, completedAt: now };
+  const updated: Order = { ...order, items, status: 'COMPLETED', paidAt: now, updatedAt: now, completedAt: now };
   const restaurant = restaurantOf(store);
   const payment: Payment = {
     id: uid('pay'),
@@ -514,8 +540,9 @@ export async function rejectOrder(actor: StaffMember, orderId: string, reason: s
   return updated;
 }
 
-/** A table is "in use" while any of its orders are still open. */
-const OPEN_STATUSES: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'];
+/** A table is "in use" while any of its orders are still open — including one that's fully
+ *  served and just waiting on the till, since the table isn't free until that's settled too. */
+const OPEN_STATUSES: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'UNPAID'];
 
 export function isTableOpen(status: OrderStatus): boolean {
   return OPEN_STATUSES.includes(status);
@@ -639,6 +666,92 @@ export async function completePayment(
   return payment;
 }
 
+/**
+ * A floor order's own bill, settled on its own (§16b — see `FloorDetail`). Unlike `completePayment`,
+ * this never touches another order on the same session: a floor session can carry more than one
+ * round before anyone pays, and paying for one of them must not silently fast-forward the others
+ * to paid-and-complete too. Which dishes and how many is the cashier's call, same as a table's tab
+ * (read off the bill after any corrections) rather than re-derived from whatever the order's own
+ * items currently say — prices still always come from the menu, never the client.
+ */
+export async function completeOrderPayment(
+  actor: StaffMember,
+  orderId: string,
+  items: { dishId: string; quantity: number }[],
+  method: PaymentMethod,
+  discount: number,
+): Promise<Payment> {
+  authorize(actor, 'orders:advance');
+  if (discount > 0) authorize(actor, 'payments:discount');
+  await latency();
+  const store = seedQueue(readStore());
+  const order = store.orders.find((o) => o.id === orderId);
+  if (!order) throw new ApiError(404, 'That order is no longer on the queue.');
+  if (!order.floorName) throw new ApiError(409, 'Only a floor order can be paid on its own like this.');
+  if (order.status === 'CANCELLED') throw new ApiError(409, 'That order was cancelled — there is nothing to charge.');
+  if (order.paidAt) throw new ApiError(409, `${order.reference} is already paid.`);
+  if (items.length === 0) throw new ApiError(400, 'Add at least one item to charge for.');
+
+  const dishes = menuOf(store).dishes;
+  const restaurant = restaurantOf(store);
+  const paymentItems = items.map(({ dishId, quantity }) => {
+    const dish = dishes.find((d) => d.id === dishId);
+    if (!dish) throw new ApiError(404, 'One of these dishes is no longer on the menu.');
+    return { dishId: dish.id, dishNameSnapshot: dish.name, unitPrice: dish.price, quantity };
+  });
+  const subtotal = sumLines(paymentItems);
+  const discountedSubtotal = subtotal - discount;
+  const serviceCharge = percentOf(discountedSubtotal, restaurant.serviceChargeRate);
+  const tax = percentOf(discountedSubtotal + serviceCharge, restaurant.taxRate);
+  const total = discountedSubtotal + serviceCharge + tax;
+  if (total < 0) throw new ApiError(409, "The discount can't be more than the bill.");
+
+  const now = new Date().toISOString();
+  const payment: Payment = {
+    id: uid('pay'),
+    restaurantId: order.restaurantId,
+    sessionId: order.sessionId,
+    tableId: order.tableId,
+    subtotal,
+    serviceCharge,
+    tax,
+    discount,
+    total,
+    method,
+    currency: restaurant.currency,
+    createdAt: now,
+    createdBy: actor.id,
+    createdByName: actor.name,
+    items: paymentItems.map((item) => ({ id: uid('payi'), ...item })),
+  };
+
+  const status = deriveOrderStatus({
+    acceptedAt: order.acceptedAt,
+    cancelledAt: order.cancelledAt,
+    paidAt: now,
+    floorName: order.floorName,
+    items: order.items,
+  });
+  const updated: Order = {
+    ...order,
+    paidAt: now,
+    updatedAt: now,
+    status,
+    completedAt: status === 'COMPLETED' ? now : order.completedAt,
+  };
+
+  writeStore(
+    record(
+      { ...store, orders: store.orders.map((o) => (o.id === orderId ? updated : o)), payments: [payment, ...store.payments] },
+      actor,
+      'payment_completed',
+      `Order ${order.reference}`,
+      `Charged ${formatMoney(total, restaurant.currency)} via ${method.toLowerCase()}${discount > 0 ? ` (${formatMoney(discount, restaurant.currency)} discount)` : ''}`,
+    ),
+  );
+  return payment;
+}
+
 /** Every payment this restaurant has taken, most recent first — what the Payments screen lists. */
 export async function listPayments(
   actor: StaffMember,
@@ -678,11 +791,13 @@ export async function getPayment(actor: StaffMember, paymentId: string): Promise
 function forceCompleteOrder(order: Order, now: string): Order {
   const acceptedAt = order.acceptedAt ?? now;
   const items = order.items.map((i) => (i.status === 'CANCELLED' ? i : { ...i, status: 'SERVED' as ItemStatus, statusUpdatedAt: now }));
+  const paidAt = order.paidAt ?? now;
   return {
     ...order,
     acceptedAt,
     items,
-    status: deriveOrderStatus({ acceptedAt, cancelledAt: order.cancelledAt, items }),
+    paidAt,
+    status: deriveOrderStatus({ acceptedAt, cancelledAt: order.cancelledAt, paidAt, floorName: order.floorName, items }),
     updatedAt: now,
     completedAt: now,
   };
@@ -737,6 +852,7 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
       status: 'PENDING',
       acceptedAt: null,
       cancelledAt: null,
+      paidAt: null,
       items: [],
       subtotal: 0,
       serviceCharge: 0,
@@ -754,6 +870,7 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
       deliveryCustomerName: null,
       deliveryNote: null,
       floorVisitorName: null,
+      floorName: null,
     };
     base = { ...numbered, orders: [...numbered.orders, order] };
   }
@@ -1643,6 +1760,10 @@ export async function regenerateFloorQr(actor: StaffMember, floorId: string): Pr
  * `acceptedAt` for `deriveOrderStatus` to key off, so this is the one place
  * that sets `cancelledAt` by hand rather than leaving it to read as still
  * PENDING forever. Mirrors the live backend's own `DiningSessionService.endSession`.
+ *
+ * Table orders only — ending a table's visit settles its tab as a whole regardless of any one
+ * order's status, so a fully-served ticket here still lands on `COMPLETED` the way it always has.
+ * `UNPAID` is floor-only (§16b) and never applies to what this closes.
  */
 function closeOrderForSessionEnd(order: Order, restaurant: Restaurant, now: string): Order {
   const items: OrderItem[] = order.items.map((item) => {
@@ -1652,7 +1773,7 @@ function closeOrderForSessionEnd(order: Order, restaurant: Restaurant, now: stri
   });
 
   const cancelledAt = order.acceptedAt ? order.cancelledAt : now;
-  const status = deriveOrderStatus({ acceptedAt: order.acceptedAt, cancelledAt, items });
+  const status = deriveOrderStatus({ acceptedAt: order.acceptedAt, cancelledAt, paidAt: order.paidAt, floorName: order.floorName, items });
   const settled = recomputeTotals({ ...order, items, cancelledAt, updatedAt: now }, restaurant);
   return { ...settled, status, completedAt: status === 'COMPLETED' ? now : null };
 }

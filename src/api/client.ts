@@ -135,7 +135,10 @@ function projectItemStatuses(order: Order): Order {
   });
 
   if (!changed) return order;
-  const status = deriveOrderStatusForType({ acceptedAt, cancelledAt: order.cancelledAt, items }, order.orderType);
+  const status = deriveOrderStatusForType(
+    { acceptedAt, cancelledAt: order.cancelledAt, paidAt: order.paidAt, floorName: order.floorName, items },
+    order.orderType,
+  );
   return {
     ...order,
     acceptedAt,
@@ -253,10 +256,10 @@ export async function resumeFloorSession(restaurantSlug: string, floorToken: str
 /**
  * §16b — the floor counterpart of `startDeliverySession`: no table, no QR
  * singleton to join or lock against (`Floor` has no `currentSessionId`), so
- * every scan that isn't resumed opens its own fresh session, identified by
- * the free-text name the diner gives instead of a table.
+ * every scan that isn't resumed opens its own fresh session. Identity is
+ * captured at order time (`createOrder`'s `customer`), not here.
  */
-export async function startFloorSession(restaurantSlug: string, floorToken: string, visitorName: string): Promise<FloorSessionResult> {
+export async function startFloorSession(restaurantSlug: string, floorToken: string): Promise<FloorSessionResult> {
   await latency();
   const store = readStore();
   const restaurant = restaurantOf(store);
@@ -266,16 +269,13 @@ export async function startFloorSession(restaurantSlug: string, floorToken: stri
   if (!floor) throw new ApiError(404, 'This QR code is not valid for any floor.');
   if (!floor.isActive) throw new ApiError(409, `${floor.name} is not taking orders right now. Please ask a manager.`);
 
-  const name = visitorName.trim();
-  if (!name) throw new ApiError(400, 'Enter a name so the kitchen knows who this is for.');
-
   const session: DiningSession = {
     id: uid('ses'),
     restaurantId: restaurant.id,
     tableId: null,
     customerId: null,
     floorId: floor.id,
-    floorVisitorName: name,
+    floorVisitorName: null,
     anonymousSessionToken: newSessionToken(),
     startedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 6 * 3600_000).toISOString(),
@@ -443,9 +443,21 @@ export interface CreateOrderInput {
   /** Delivery only — editable per order, prefilled from the customer's saved defaults. */
   deliveryAddress?: string;
   deliveryNote?: string;
+  /** Dine-in only (table or floor, §16b) — identity captured at checkout, upserted into a `Customer` by phone. */
+  customer?: { phone: string; name: string };
+  /** Floor orders only (§16b) — which cabin/room/spot on the floor to bring this order to, typed in at checkout. Distinct from `customer`: this is where the order goes, not who it's for. */
+  floorVisitorName?: string;
 }
 
-export async function createOrder({ session, lines, idempotencyKey, deliveryAddress, deliveryNote }: CreateOrderInput): Promise<Order> {
+export async function createOrder({
+  session,
+  lines,
+  idempotencyKey,
+  deliveryAddress,
+  deliveryNote,
+  customer: dinerIdentity,
+  floorVisitorName: floorPlace,
+}: CreateOrderInput): Promise<Order> {
   await latency();
   const store = readStore();
 
@@ -471,7 +483,24 @@ export async function createOrder({ session, lines, idempotencyKey, deliveryAddr
   const isDelivery = session.customerId !== null;
   const table = session.tableId ? tablesOf(store).find((t) => t.id === session.tableId) : null;
   const customer = isDelivery ? store.customers.find((c) => c.id === session.customerId) : undefined;
+  const floor = session.floorId ? floorsOf(store).find((f) => f.id === session.floorId) : null;
   const menu = menuOf(store);
+
+  // §16b — a dine-in diner's identity (table or floor) is given at order time, not session
+  // start; upserted the same way a delivery customer is, by `(restaurantId, phone)`.
+  let dineInCustomer: Customer | undefined;
+  let customersNext = store.customers;
+  if (!isDelivery && dinerIdentity) {
+    const cleanPhone = dinerIdentity.phone.trim();
+    const cleanName = dinerIdentity.name.trim();
+    const existingCustomer = store.customers.find((c) => c.restaurantId === restaurant.id && c.phone === cleanPhone);
+    dineInCustomer = existingCustomer
+      ? { ...existingCustomer, name: cleanName || existingCustomer.name }
+      : { id: uid('cus'), restaurantId: restaurant.id, phone: cleanPhone, name: cleanName, defaultAddress: null, defaultNote: null };
+    customersNext = existingCustomer
+      ? store.customers.map((c) => (c === existingCustomer ? dineInCustomer! : c))
+      : [...store.customers, dineInCustomer];
+  }
 
   const addOnById = new Map(menu.addOns.map((a) => [a.id, a]));
   const now = new Date().toISOString();
@@ -534,10 +563,11 @@ export async function createOrder({ session, lines, idempotencyKey, deliveryAddr
     tableId: session.tableId,
     tableName: table?.name ?? null,
     sessionId: session.id,
-    customerId: isDelivery ? session.customerId : null,
+    customerId: isDelivery ? session.customerId : (dineInCustomer?.id ?? null),
     status: 'PENDING',
     acceptedAt: null,
     cancelledAt: null,
+    paidAt: null,
     items,
     subtotal,
     serviceCharge,
@@ -555,11 +585,13 @@ export async function createOrder({ session, lines, idempotencyKey, deliveryAddr
     deliveryCustomerName: isDelivery ? (customer?.name ?? null) : null,
     deliveryNote: isDelivery ? deliveryNote?.trim() || null : null,
     // §16b — snapshotted at order time, same reasoning as the delivery snapshots above.
-    floorVisitorName: session.floorId ? session.floorVisitorName : null,
+    floorVisitorName: session.floorId ? (floorPlace?.trim() || session.floorVisitorName) : null,
+    floorName: session.floorId ? (floor?.name ?? null) : null,
   };
 
   writeStore({
     ...numbered,
+    customers: customersNext,
     orders: [...numbered.orders, order],
     idempotency: { ...numbered.idempotency, [idempotencyKey]: order.id },
   });

@@ -92,10 +92,10 @@ export function LandingFooter() {
 
         <div className="mt-14 flex flex-col gap-3 border-t border-hairline pt-6 text-[12.5px] text-ink-4 sm:flex-row sm:items-center sm:justify-between">
           <span>© {new Date().getFullYear()} letsDine. Built for dining rooms.</span>
-          <span>
+          {/* <span>
             Dishes, ratings and figures throughout this page come from Sekuwa Ghar, the demo restaurant you can open
             at <Link to="/demo" className="font-medium text-ink-3 underline underline-offset-2 hover:text-flame-1">/demo</Link>.
-          </span>
+          </span> */}
         </div>
       </div>
     </footer>

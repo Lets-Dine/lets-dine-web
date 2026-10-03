@@ -39,6 +39,18 @@ export interface OrderComparison {
   differencePercentage: number;
 }
 
+/**
+ * `GET /restaurant/analytics/top-dishes?startDate=...&endDate=...` — dishes
+ * actually paid for, ranked by units sold. No dates: everything to date.
+ * `startDate` only: that one day. Both: that inclusive range.
+ */
+export interface TopSellingDish {
+  dishId: string;
+  dishName: string;
+  orderCount: number;
+  totalAmount: Minor;
+}
+
 const DAY_MS = 86_400_000;
 
 function startOfDay(ms: number): number {

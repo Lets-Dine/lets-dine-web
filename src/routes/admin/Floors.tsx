@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { createFloor, listFloors, regenerateFloorQr, setFloorActive, updateFloor } from '../../api/staff';
 import type { Floor } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
@@ -158,9 +159,16 @@ function FloorCard({ floor, editable, pending, renaming, ...on }: CardProps) {
   return (
     <article className={cx(PANEL, 'flex flex-col gap-2.5 p-3 transition-move', busy && 'opacity-50', disabled && 'opacity-60')}>
       <div className="flex items-start justify-between gap-2">
-        <p className={cx(DISPLAY, 'truncate text-[26px] leading-none font-black', disabled ? 'text-ink-2' : 'text-ink')}>
+        <Link
+          to={`/admin/floors/${floor.id}`}
+          className={cx(
+            DISPLAY,
+            'truncate text-[26px] leading-none font-black transition-colors hover:text-flame-2',
+            disabled ? 'text-ink-2' : 'text-ink',
+          )}
+        >
           {floor.name}
-        </p>
+        </Link>
         <span className="mt-1 flex shrink-0 items-center gap-1.5">
           <span className={cx('size-2 rounded-full', disabled ? 'bg-ink-4/40' : 'bg-mint')} />
           <span className={cx('text-[10px] font-bold tracking-wide uppercase', disabled ? 'text-ink-4' : 'text-mint')}>
@@ -171,7 +179,13 @@ function FloorCard({ floor, editable, pending, renaming, ...on }: CardProps) {
 
       <p className="text-[12px] text-ink-4">One shared QR — any room on this floor orders through it.</p>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-1">
+        <Link
+          to={`/admin/floors/${floor.id}`}
+          className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-ink-4 uppercase ring-1 ring-hairline ring-inset transition-colors hover:text-flame-1 hover:ring-flame-2/40"
+        >
+          Orders
+        </Link>
         <button
           type="button"
           className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-ink-4 uppercase ring-1 ring-hairline ring-inset transition-colors hover:text-flame-1 hover:ring-flame-2/40"

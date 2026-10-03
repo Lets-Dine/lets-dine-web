@@ -1,4 +1,4 @@
-import type { OrderComparison, Period, RevenueComparison } from '../domain/adminMetrics';
+import type { OrderComparison, Period, RevenueComparison, TopSellingDish } from '../domain/adminMetrics';
 import type {
   AuditEntry,
   DiningTable,
@@ -200,6 +200,24 @@ export function completePayment(
     : mock.completePayment(actor, sessionId, items, method, discount, endSession);
 }
 
+/**
+ * A floor order's own bill — paid on its own, never as part of a shared tab (§16b, see
+ * `FloorDetail`). Same cashier-editable bill a table's tab gets (add/remove lines, discount),
+ * just scoped to one order instead of a session's worth of them — `endSession` is never passed
+ * through, live or mock, so settling one round can never fast-forward another on the same session.
+ */
+export function completeOrderPayment(
+  actor: StaffMember,
+  order: Order,
+  items: { dishId: string; quantity: number }[],
+  method: PaymentMethod,
+  discount: number,
+): Promise<Payment> {
+  return IS_LIVE_API
+    ? live.completePayment(order.sessionId, items, method, discount, false, order.id)
+    : mock.completeOrderPayment(actor, order.id, items, method, discount);
+}
+
 export function listPayments(
   actor: StaffMember,
   offset?: number,
@@ -262,6 +280,13 @@ export function fetchRevenueComparison(actor: StaffMember, period: Period): Prom
 /** §31 — order count for the period against the whole of the one before it. */
 export function fetchOrderComparison(actor: StaffMember, period: Period): Promise<OrderComparison> {
   return IS_LIVE_API ? live.fetchOrderComparison(period) : mock.fetchOrderComparison(actor, period);
+}
+
+/** §31 — dishes actually paid for, ranked by units sold. No dates: everything to date. */
+export function fetchTopSellingDishes(actor: StaffMember, startDate?: string, endDate?: string): Promise<TopSellingDish[]> {
+  return IS_LIVE_API
+    ? live.fetchTopSellingDishes(startDate, endDate)
+    : mock.fetchTopSellingDishes(actor, startDate, endDate);
 }
 
 /** §50 — the team roster, owner and manager down to whoever works the pass. */

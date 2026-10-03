@@ -171,6 +171,8 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       status: cancelled ? 'CANCELLED' : 'COMPLETED',
       acceptedAt: cancelled ? null : placed.toISOString(),
       cancelledAt: cancelled ? placed.toISOString() : null,
+      // History is always closed one way or the other — a surviving visit was paid, not just served.
+      paidAt: cancelled ? null : completedAt.toISOString(),
       items,
       subtotal,
       serviceCharge,
@@ -188,6 +190,7 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       deliveryCustomerName: null,
       deliveryNote: null,
       floorVisitorName: null,
+      floorName: null,
     });
   }
   return orders;

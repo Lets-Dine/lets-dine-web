@@ -110,14 +110,14 @@ export function SignIn() {
         )}
 
         <p className="mt-6 text-center text-[13px] text-ink-4">
-          <Link to="/demo" className="font-semibold text-ink-3 hover:text-ink">
+          {/* <Link to="/demo" className="font-semibold text-ink-3 hover:text-ink">
             ← Back to the diner app
-          </Link>
-          <span className="mx-2" aria-hidden>
+          </Link> */}
+          {/* <span className="mx-2" aria-hidden>
             ·
-          </span>
-          <Link to="/platform" className="font-semibold text-ink-3 hover:text-ink">
-            Platform admin
+          </span> */}
+          <Link to="/get-started" className="font-semibold text-ink-3 hover:text-ink">
+            Create a restaurant
           </Link>
         </p>
       </div>

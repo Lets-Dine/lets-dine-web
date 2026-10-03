@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../../api/store';
 import { IS_LIVE_API } from '../../api/http';
 import { readPlatformKey, unlockPlatform } from '../../api/platform';
@@ -68,11 +68,11 @@ export function PlatformSignIn() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-[13px] text-ink-4">
+        {/* <p className="mt-6 text-center text-[13px] text-ink-4">
           <Link to="/demo" className="font-semibold text-ink-3 hover:text-ink">
             ← Back to the diner app
           </Link>
-        </p>
+        </p> */}
       </div>
     </main>
   );

@@ -52,11 +52,19 @@ export function resumeFloorSession(restaurantSlug: string, floorToken: string): 
     : mock.resumeFloorSession(restaurantSlug, floorToken);
 }
 
-/** §16b — one QR for a whole floor; every scan that isn't resumed opens its own fresh session under the given name. */
-export function startFloorSession(restaurantSlug: string, floorToken: string, visitorName: string): Promise<FloorSessionResult> {
-  return IS_LIVE_API
-    ? live.startFloorSession(restaurantSlug, floorToken, visitorName)
-    : mock.startFloorSession(restaurantSlug, floorToken, visitorName);
+/** §16b — one QR for a whole floor; every scan that isn't resumed opens its own fresh session. */
+export function startFloorSession(restaurantSlug: string, floorToken: string): Promise<FloorSessionResult> {
+  return IS_LIVE_API ? live.startFloorSession(restaurantSlug, floorToken) : mock.startFloorSession(restaurantSlug, floorToken);
+}
+
+/**
+ * §16b — a floor QR has no identity question to ask up front any more
+ * (that's captured at checkout instead): resume a session already open on
+ * this device, or open a fresh one, with nothing in between to block on.
+ */
+export async function openFloorSession(restaurantSlug: string, floorToken: string): Promise<FloorSessionResult> {
+  const resumed = await resumeFloorSession(restaurantSlug, floorToken);
+  return resumed ?? startFloorSession(restaurantSlug, floorToken);
 }
 
 /** The delivery equivalent of `resolveQr` — phone number in, session (with `table: null`) and customer out. */

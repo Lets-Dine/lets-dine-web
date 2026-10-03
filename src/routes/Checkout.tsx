@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { createOrder } from '../api/diner';
 import { track } from '../domain/analytics';
@@ -26,10 +27,15 @@ const PAYMENT_METHODS_DELIVERY = [
 ] as const;
 
 export function Checkout() {
-  const { menu, customer, identityLabel, session, base } = useRestaurant();
+  const { menu, customer, floor, dinerIdentity, setDinerIdentity, floorPlace, setFloorPlace, identityLabel, session, base } =
+    useRestaurant();
   // §22/§16b — `customer` is the one field exclusive to a delivery session (a floor
   // session also has a null `table`, so that alone can't be the delivery check).
   const isDelivery = customer !== null;
+  const isFloor = floor !== null;
+  // §16b — every dine-in order (table or floor) captures who it's for; only delivery
+  // already has an identity, tied to the session by phone from the start.
+  const isDineIn = !isDelivery;
   usePageTitle(`Checkout · ${menu.restaurant.name}`);
   const cart = useCart();
   const { rememberOrder } = useSessionOrders();
@@ -42,6 +48,11 @@ export function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // §16b — a dine-in order's identity is captured here rather than up front; a
+  // device that already has one defaults to it, with a way to change it.
+  const [editingIdentity, setEditingIdentity] = useState(isDineIn && !dinerIdentity);
+  const [identityName, setIdentityName] = useState(dinerIdentity?.name ?? '');
+  const [identityPhone, setIdentityPhone] = useState(dinerIdentity?.phone ?? '');
   const sessionEnded = Boolean(session.endedAt);
   const paymentMethods = isDelivery ? PAYMENT_METHODS_DELIVERY : PAYMENT_METHODS_DINE_IN;
 
@@ -49,7 +60,18 @@ export function Checkout() {
   const deliveryFee = isDelivery ? (menu.restaurant.deliveryFeeAmount ?? 0) : 0;
   const bill = useBill(cart.lines, menu.dishes, deliveryFee);
   const currency = menu.restaurant.currency;
-  const canSubmit = !submitting && !sessionEnded && (!isDelivery || address.trim().length > 0);
+  const identityReady = !isDineIn || (Boolean(dinerIdentity) && !editingIdentity);
+  const placeReady = !isFloor || floorPlace.trim().length > 0;
+  const canSubmit = !submitting && !sessionEnded && (!isDelivery || address.trim().length > 0) && identityReady && placeReady;
+
+  const saveIdentity = (event: FormEvent) => {
+    event.preventDefault();
+    const name = identityName.trim();
+    const phone = identityPhone.trim();
+    if (!name || !phone) return;
+    setDinerIdentity({ name, phone });
+    setEditingIdentity(false);
+  };
 
   // Emptying the cart on success must not trip this guard and bounce the diner
   // back to an empty cart instead of their new order.
@@ -68,6 +90,8 @@ export function Checkout() {
         idempotencyKey: cart.idempotencyKey,
         deliveryAddress: isDelivery ? address.trim() : undefined,
         deliveryNote: isDelivery ? note.trim() || undefined : undefined,
+        customer: isDineIn && dinerIdentity ? dinerIdentity : undefined,
+        floorVisitorName: isFloor ? floorPlace.trim() : undefined,
       });
       track('order_placed', { orderId: order.id, total: order.total, items: cart.count });
       setPlaced(true);
@@ -125,10 +149,84 @@ export function Checkout() {
             </section>
           ) : (
             <section className="animate-rise">
-              <div className="flex flex-col gap-1 rounded-3xl bg-surface bg-flame-dim p-4.5 ring-1 ring-flame-2/35 ring-inset">
-                <span className={cx(EYEBROW, 'text-flame-1/80')}>Serving to</span>
-                <b className={cx(DISPLAY, 'text-[27px]')}>{identityLabel}</b>
-                <span className="text-[13px] text-ink-3">{menu.restaurant.name} · dine in</span>
+              <div className="flex flex-col gap-3 rounded-3xl bg-surface bg-flame-dim p-4.5 ring-1 ring-flame-2/35 ring-inset">
+                {editingIdentity ? (
+                  <form className="flex flex-col gap-3" onSubmit={saveIdentity}>
+                    <div className="flex flex-col gap-1">
+                      <span className={cx(EYEBROW, 'text-flame-1/80')}>Who's this order for?</span>
+                      <span className="text-[13px] text-ink-3">So we can recognise you next time you order.</span>
+                    </div>
+                    <label className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
+                      Name
+                      <input
+                        className={cx(INPUT, 'h-12')}
+                        value={identityName}
+                        onChange={(event) => setIdentityName(event.target.value)}
+                        placeholder="Your name"
+                        autoComplete="name"
+                        required
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
+                      Phone number
+                      <input
+                        className={cx(INPUT, 'h-12')}
+                        value={identityPhone}
+                        onChange={(event) => setIdentityPhone(event.target.value)}
+                        placeholder="98XXXXXXXX"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        required
+                      />
+                    </label>
+                    <div className="flex gap-2.5">
+                      <button type="submit" className={cx(BTN, 'h-11 flex-1 bg-flame text-white')}>
+                        {dinerIdentity ? 'Save' : 'Continue'}
+                      </button>
+                      {dinerIdentity && (
+                        <button
+                          type="button"
+                          className={cx(BTN, 'h-11 flex-1 bg-surface-2 ring-1 ring-hairline ring-inset')}
+                          onClick={() => {
+                            setIdentityName(dinerIdentity.name);
+                            setIdentityPhone(dinerIdentity.phone);
+                            setEditingIdentity(false);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <span className={cx(EYEBROW, 'text-flame-1/80')}>Serving to</span>
+                    <b className={cx(DISPLAY, 'text-[21px]')}>{dinerIdentity?.name}</b>
+                    <span className="text-[13px] text-ink-3">
+                      {menu.restaurant.name} · {dinerIdentity?.phone} · {isFloor ? floor?.name : identityLabel}
+                    </span>
+                    <button
+                      type="button"
+                      className="mt-1 self-start text-[13px] font-semibold text-flame-1 underline underline-offset-2"
+                      onClick={() => setEditingIdentity(true)}
+                    >
+                      Not you? Change
+                    </button>
+                  </div>
+                )}
+                {isFloor && (
+                  <label className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
+                    Where should we bring this?
+                    <input
+                      className={cx(INPUT, 'h-12')}
+                      value={floorPlace}
+                      onChange={(event) => setFloorPlace(event.target.value)}
+                      placeholder="Cabin A, Room 12, near the entrance…"
+                      autoComplete="off"
+                      required
+                    />
+                  </label>
+                )}
               </div>
             </section>
           )}
