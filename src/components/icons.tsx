@@ -244,3 +244,18 @@ export const Move = ({ size = 16, className }: IconProps) => (
     <line x1="12" y1="2" x2="12" y2="22" />
   </svg>
 );
+
+export const MapPin = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+    <circle cx="12" cy="10" r="2.4" />
+  </svg>
+);
+
+export const Contact = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <circle cx="9" cy="11" r="2.2" />
+    <path d="M5.8 16.2a3.4 3.4 0 016.4 0M14.5 10h3.5M14.5 13.5H18" />
+  </svg>
+);

@@ -1,6 +1,6 @@
 import type { CreateOrderInput, DeliverySessionResult, StartDeliverySessionInput } from './client';
 import type { ReviewDraft } from './client';
-import type { AddOn, CartLine, Customer, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Floor, Menu, MenuCategory, Order, Payment, PaymentMethod, Restaurant, Review } from '../domain/types';
+import type { AddOn, CartLine, Customer, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Floor, Menu, MenuCategory, Order, Payment, PaymentMethod, PublicBranch, Restaurant, Review } from '../domain/types';
 import { apiRequest } from './http';
 import type { Paginated } from './http';
 import { getSocket, joinRoom } from './socket';
@@ -55,6 +55,7 @@ interface ApiTable {
 interface ApiSession {
   id: string;
   restaurantId: string;
+  branchId?: string;
   tableId: string | null;
   anonymousSessionToken: string;
   startedAt: string;
@@ -224,6 +225,8 @@ interface ApiOrder {
   tableName: string | null;
   sessionId: string;
   customerId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
   status: Order['status'];
   acceptedAt: string | null;
   cancelledAt: string | null;
@@ -288,6 +291,7 @@ function toSession(api: ApiSession): DiningSession {
   return {
     id: api.id,
     restaurantId: api.restaurantId,
+    branchId: api.branchId,
     tableId: api.tableId ?? null,
     anonymousSessionToken: api.anonymousSessionToken,
     startedAt: api.startedAt,
@@ -418,6 +422,8 @@ function toOrder(api: ApiOrder): Order {
     reviewedDishIds: api.reviewedDishIds,
     deliveryAddress: api.deliveryAddress ?? null,
     deliveryPhone: api.deliveryPhone ?? null,
+    customerName: api.customerName ?? null,
+    customerPhone: api.customerPhone ?? null,
     deliveryCustomerName: api.deliveryCustomerName ?? null,
     deliveryNote: api.deliveryNote ?? null,
     floorVisitorName: api.floorVisitorName ?? null,
@@ -671,6 +677,7 @@ export async function startDeliverySession(input: StartDeliverySessionInput): Pr
     method: 'POST',
     body: JSON.stringify({
       restaurantSlug: input.restaurantSlug,
+      branchSlug: input.branchSlug || undefined,
       phone: input.phone,
       name: input.name || undefined,
       address: input.address || undefined,
@@ -719,8 +726,18 @@ export async function getRestaurant(restaurantSlug: string): Promise<Restaurant>
   return toRestaurant(await apiRequest<ApiRestaurant>(`/public/restaurants/${encodeURIComponent(restaurantSlug)}`));
 }
 
-export async function getMenu(restaurantSlug: string): Promise<Menu> {
-  const menu = await apiRequest<ApiMenu>(`/public/restaurants/${encodeURIComponent(restaurantSlug)}/menu`);
+/** The restaurant's active branches with their hours and whether each is open right now. */
+export async function getBranches(restaurantSlug: string): Promise<PublicBranch[]> {
+  return apiRequest<PublicBranch[]>(`/public/restaurants/${encodeURIComponent(restaurantSlug)}/branches`);
+}
+
+/**
+ * `branchId` is the session's own branch: the menu then shows that branch's prices and sold-out
+ * dishes instead of the shared ones. Without it the shared menu is returned, as before.
+ */
+export async function getMenu(restaurantSlug: string, branchId?: string): Promise<Menu> {
+  const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : '';
+  const menu = await apiRequest<ApiMenu>(`/public/restaurants/${encodeURIComponent(restaurantSlug)}/menu${query}`);
   const restaurant = toRestaurant(menu.restaurant);
 
   return {

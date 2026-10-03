@@ -386,7 +386,7 @@ export function Select<T extends string>({
   options: { value: T; label: string }[];
 }) {
   return (
-    <select className={cx(INPUT_BOX, 'cursor-pointer')} value={value} onChange={(e) => onChange(e.target.value as T)}>
+    <select className={cx(INPUT_BOX, 'cursor-pointer pr-9')} value={value} onChange={(e) => onChange(e.target.value as T)}>
       {options.map((o) => (
         <option key={o.value} value={o.value} className="bg-surface-2">
           {o.label}

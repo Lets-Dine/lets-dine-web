@@ -2,6 +2,7 @@ import { useEffect, createContext, useContext, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
 import {
+  getBranches,
   getMenu,
   isSessionOpen,
   joinTableSession,
@@ -16,7 +17,7 @@ import { IS_LIVE_API } from '../api/http';
 import { ApiError } from '../api/store';
 import { buildRankContext } from '../domain/metrics';
 import type { RankContext } from '../domain/metrics';
-import type { Customer, DiningSession, DiningTable, Floor, Menu } from '../domain/types';
+import type { Customer, DiningSession, DiningTable, Floor, Menu, PublicBranch } from '../domain/types';
 import { CartProvider } from '../state/CartContext';
 import { SessionOrdersProvider } from '../state/SessionOrdersContext';
 import { useAsync } from '../state/useAsync';
@@ -117,13 +118,21 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
     () => (isFloor ? openFloorSession(slug, token ?? '') : Promise.resolve(null)),
     [slug, token, isFloor],
   );
-  const menu = useAsync(() => getMenu(slug), [slug]);
-
   const resolved: Resolved | null = isDelivery
     ? (delivery ?? deliveryResume.data ?? null)
     : isFloor
       ? floorOpen.data
       : (joined ?? qr.data ?? null);
+
+  // The menu is the session's branch's menu — its own prices and sold-out dishes — so live it waits for
+  // the session to say which branch that is rather than flashing the shared menu first. The offline demo
+  // has no branches and keeps loading in parallel.
+  const sessionBranchId = resolved?.session.branchId;
+  const sessionReady = Boolean(resolved);
+  const menu = useAsync<Menu | null>(
+    () => (IS_LIVE_API && !sessionReady ? Promise.resolve(null) : getMenu(slug, sessionBranchId)),
+    [slug, sessionBranchId, sessionReady],
+  );
 
   const value = useMemo<RestaurantValue | null>(() => {
     if (!resolved || !menu.data) return null;
@@ -326,6 +335,11 @@ function DeliveryEntryScreen({
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // A restaurant with one location has nothing to pick, so the choice only appears for two or more.
+  const branches = useAsync<PublicBranch[]>(() => getBranches(restaurantSlug), [restaurantSlug]);
+  const [pickedBranch, setPickedBranch] = useState<string | null>(null);
+  const choices = branches.data ?? [];
+  const branch = choices.find((candidate) => candidate.slug === pickedBranch) ?? choices.find((candidate) => candidate.isDefault) ?? choices[0];
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -337,6 +351,7 @@ function DeliveryEntryScreen({
           restaurantSlug,
           phone: phone.trim(),
           name: name.trim() || undefined,
+          branchSlug: choices.length > 1 ? branch?.slug : undefined,
         }),
       );
     } catch (cause) {
@@ -356,6 +371,35 @@ function DeliveryEntryScreen({
             We'll text you when your order is on its way. A returning number picks up your saved details.
           </p>
         </div>
+        {choices.length > 1 && (
+          <fieldset className="grid gap-2">
+            <legend className="mb-2 text-[13px] font-semibold text-ink-2">Which branch should deliver?</legend>
+            {choices.map((candidate) => (
+              <label
+                key={candidate.id}
+                className={cx(
+                  'flex cursor-pointer items-start gap-3 rounded-2xl p-3.5 ring-1 ring-inset transition-colors',
+                  candidate.slug === branch?.slug ? 'bg-flame-1/10 ring-flame-1/50' : 'ring-hairline hover:bg-surface-2/40',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="branch"
+                  className="mt-1 accent-[var(--color-flame-1,currentColor)]"
+                  checked={candidate.slug === branch?.slug}
+                  onChange={() => setPickedBranch(candidate.slug)}
+                />
+                <span className="grid gap-0.5">
+                  <span className="text-[14.5px] font-semibold text-ink">{candidate.name}</span>
+                  {candidate.address && <span className="text-[12.5px] text-ink-4">{candidate.address}</span>}
+                  <span className={cx('text-[12px] font-semibold', candidate.isOpenNow ? 'text-ink-3' : 'text-flame-1')}>
+                    {candidate.isOpenNow ? 'Open now' : 'Closed right now — you can browse, but not order'}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        )}
         <label className="grid gap-2 text-[13px] font-semibold text-ink-2">
           Phone number
           <input

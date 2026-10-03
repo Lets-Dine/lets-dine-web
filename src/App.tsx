@@ -18,7 +18,10 @@ import { AdminLayout } from './routes/admin/AdminLayout';
 import { Analytics } from './routes/admin/Analytics';
 import { AddOns } from './routes/admin/AddOns';
 import { AuditLog } from './routes/admin/AuditLog';
+import { BranchDetail } from './routes/admin/BranchDetail';
+import { Branches } from './routes/admin/Branches';
 import { Categories } from './routes/admin/Categories';
+import { Customers } from './routes/admin/Customers';
 import { Dashboard } from './routes/admin/Dashboard';
 import { DishEditor } from './routes/admin/DishEditor';
 import { MenuBoard } from './routes/admin/MenuBoard';
@@ -144,9 +147,12 @@ export default function App() {
                 <Route path="tables/:tableId" element={<TableDetail />} />
                 <Route path="floors" element={<Floors />} />
                 <Route path="floors/:floorId" element={<FloorDetail />} />
+                <Route path="customers" element={<Customers />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="reviews" element={<Reviews />} />
                 <Route path="analytics" element={<Analytics />} />
+                <Route path="branches" element={<Branches />} />
+                <Route path="branches/:branchId" element={<BranchDetail />} />
                 <Route path="staff" element={<Staff />} />
                 <Route path="audit" element={<AuditLog />} />
                 <Route path="settings" element={<Settings />} />

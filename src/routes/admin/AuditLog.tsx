@@ -61,6 +61,11 @@ const CATEGORY_OF: Record<AuditAction, Exclude<Category, 'all'>> = {
   floor_renamed: 'tables',
   floor_disabled: 'tables',
   floor_enabled: 'tables',
+  branch_created: 'settings',
+  branch_updated: 'settings',
+  branch_disabled: 'settings',
+  branch_enabled: 'settings',
+  branch_hours_updated: 'settings',
   order_status_changed: 'orders',
   order_cancelled: 'orders',
   order_item_added: 'orders',
@@ -72,6 +77,7 @@ const CATEGORY_OF: Record<AuditAction, Exclude<Category, 'all'>> = {
   staff_invited: 'settings',
   staff_role_changed: 'settings',
   staff_deactivated: 'settings',
+  staff_branches_changed: 'settings',
 };
 
 const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
@@ -116,6 +122,11 @@ const ACTION_TONE: Record<AuditAction, string> = {
   floor_renamed: 'text-ink-3',
   floor_disabled: 'text-berry',
   floor_enabled: 'text-mint',
+  branch_created: 'text-mint',
+  branch_updated: 'text-ink-3',
+  branch_disabled: 'text-berry',
+  branch_enabled: 'text-mint',
+  branch_hours_updated: 'text-ink-3',
   order_status_changed: 'text-pass',
   order_cancelled: 'text-berry',
   order_item_added: 'text-ink-3',
@@ -127,6 +138,7 @@ const ACTION_TONE: Record<AuditAction, string> = {
   staff_invited: 'text-mint',
   staff_role_changed: 'text-gold',
   staff_deactivated: 'text-berry',
+  staff_branches_changed: 'text-ink-3',
 };
 
 function matchesQuery(entry: AuditEntry, q: string): boolean {
@@ -289,7 +301,14 @@ export function AuditLog() {
 
   return (
     <>
-      <PageTitle title="Audit log" subtitle="Every management action, kept with who did it and what changed — §51" />
+      <PageTitle
+        title="Audit log"
+        subtitle={
+          staff.branches && staff.branches.length > 1
+            ? `Management actions at ${staff.branches.find((b) => b.id === staff.branchId)?.name ?? 'this branch'}, kept with who did it and what changed`
+            : 'Every management action, kept with who did it and what changed'
+        }
+      />
 
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <div className="overflow-x-auto no-scrollbar">

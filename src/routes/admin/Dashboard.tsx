@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { allOrders } from '../../api/admin';
-import { completeOrderPayment, fetchOrderComparison, fetchRevenueComparison, fetchTopSellingDishes } from '../../api/staff';
+import {
+  BRANCHES_ENABLED,
+  completeOrderPayment,
+  fetchBranchPerformance,
+  fetchOrderComparison,
+  fetchRevenueComparison,
+  fetchTopSellingDishes,
+} from '../../api/staff';
 import { funnel } from '../../domain/analytics';
 import { byUrgencyThenAge, floorBillSubject, focusMap, newestOrderPerTable } from '../../domain/orderStatus';
 import { feedbackSummary, periodReport } from '../../domain/adminMetrics';
@@ -49,9 +56,13 @@ export function Dashboard() {
   const staff = useStaff();
   const { menu, orders: queue, reloadOrders, applyOrder } = useDashboard();
   const history = useAsync(() => allOrders(staff), [staff]);
-  const revenue = useAsync(() => fetchRevenueComparison(staff, 'today'), [staff]);
-  const orderComparison = useAsync(() => fetchOrderComparison(staff, 'today'), [staff]);
-  const topDishes = useAsync(() => fetchTopSellingDishes(staff, new Date().toISOString()), [staff]);
+  // Today's numbers are the branch being worked in, so the tiles agree with the pass beneath them.
+  const revenue = useAsync(() => fetchRevenueComparison(staff, 'today', staff.branchId), [staff]);
+  const orderComparison = useAsync(() => fetchOrderComparison(staff, 'today', staff.branchId), [staff]);
+  const topDishes = useAsync(() => fetchTopSellingDishes(staff, new Date().toISOString(), undefined, staff.branchId), [staff]);
+  // The comparison across locations only means something with more than one to compare.
+  const compareBranches = BRANCHES_ENABLED && (staff.branches?.length ?? 0) > 1;
+  const branchPerformance = useAsync(() => (compareBranches ? fetchBranchPerformance() : Promise.resolve([])), [staff, compareBranches]);
   const now = useNow(TICK_MS);
   const [lane, setLane] = useState<Lane>('all');
   const { pending, run } = useCommand();
@@ -233,6 +244,29 @@ export function Dashboard() {
           variant="primary"
         />
       </div>
+
+      {compareBranches && (
+        <Panel title="Branches" hint="Last 30 days, by revenue" bare className="mb-4">
+          {branchPerformance.loading && !branchPerformance.data ? (
+            <Loading label="Comparing branches…" />
+          ) : (branchPerformance.data ?? []).length === 0 ? (
+            <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">No orders at any branch yet.</p>
+          ) : (
+            (branchPerformance.data ?? []).map((branch) => (
+              <Row key={branch.branchId}>
+                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
+                  {branch.branchName}
+                  {branch.branchId === staff.branchId && <span className="ml-1.5 font-normal text-ink-4">(here)</span>}
+                </span>
+                <span className="shrink-0 text-[13px] tnum text-ink-4">{branch.completed} orders</span>
+                <span className="w-28 shrink-0 text-right text-[14px] font-bold tnum text-flame-1">
+                  {formatMoney(branch.grossRevenue, menu.restaurant.currency)}
+                </span>
+              </Row>
+            ))
+          )}
+        </Panel>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Panel title="Selling today" hint="By dishes served" bare>

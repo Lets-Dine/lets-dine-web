@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import type { ComponentType } from 'react';
-import { adminMenu, listQueue, subscribeToQueue } from '../../api/staff';
+import { BRANCHES_ENABLED, adminMenu, listQueue, subscribeToQueue } from '../../api/staff';
 import { IS_LIVE_API } from '../../api/http';
 import { ROLE_LABEL } from '../../domain/permissions';
 import type { Permission } from '../../domain/permissions';
@@ -9,9 +9,10 @@ import type { Menu, Order } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { AdminThemeToggle } from '../../state/AdminTheme';
 import { usePageTitle } from '../../state/usePageTitle';
+import { BranchSwitcher } from '../../components/admin/BranchSwitcher';
 import { Loading } from '../../components/admin/kit';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Cash, Folder, Grid, History, Layers, Plate, Receipt, Sliders, Sparkle, Table, Users } from '../../components/icons';
+import { Cash, Contact, Folder, Grid, History, Layers, MapPin, Plate, Receipt, Sliders, Sparkle, Table, Users } from '../../components/icons';
 import { playNewOrderSound } from '../../platform/sound';
 
 /**
@@ -51,6 +52,8 @@ interface NavItem {
   icon: ComponentType<{ size?: number; className?: string }>;
   permission: Permission;
   end?: boolean;
+  /** Needs the live backend — the offline demo is a single location with no branches to manage. */
+  liveOnly?: boolean;
 }
 
 const NAV: NavItem[] = [
@@ -61,9 +64,11 @@ const NAV: NavItem[] = [
   { to: '/admin/categories', label: 'Categories', icon: Folder, permission: 'menu:edit' },
   { to: '/admin/tables', label: 'Tables', icon: Table, permission: 'tables:view' },
   { to: '/admin/floors', label: 'Floors', icon: Layers, permission: 'tables:view' },
+  { to: '/admin/customers', label: 'Customers', icon: Contact, permission: 'customers:view' },
   { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view' },
   // { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view' },
   // { to: '/admin/analytics', label: 'Analytics', icon: TrendUp, permission: 'analytics:view' },
+  { to: '/admin/branches', label: 'Branches', icon: MapPin, permission: 'settings:view', liveOnly: true },
   { to: '/admin/staff', label: 'Staff', icon: Users, permission: 'settings:view' },
   { to: '/admin/audit', label: 'Audit log', icon: History, permission: 'audit:view' },
   { to: '/admin/settings', label: 'Settings', icon: Sliders, permission: 'settings:view' },
@@ -87,11 +92,14 @@ export function AdminLayout() {
   const location = useLocation();
 
   if (!staff) return <Navigate to="/admin/signin" replace state={{ from: location.pathname }} />;
-  return <SignedIn key={staff.id} allows={allows} signOut={signOut} />;
+  // Keyed on the branch too: switching remounts the shell, which drops the old branch's menu, queue,
+  // known-order ids and sockets in one go rather than patching each of them.
+  return <SignedIn key={`${staff.id}:${staff.branchId ?? ''}`} allows={allows} signOut={signOut} />;
 }
 
 function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; signOut: () => void }) {
   const staff = useStaff();
+  const { refreshBranches } = useAuth();
   const location = useLocation();
   const needsOrders = routeNeedsOrders(location.pathname);
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -155,6 +163,11 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     reloadMenu();
   }, [reloadMenu]);
 
+  // The branch list captured at sign-in can be days old; re-read it whenever the dashboard opens.
+  useEffect(() => {
+    void refreshBranches();
+  }, [refreshBranches]);
+
   // §38 — live, the pass gets pushed every new ticket and status change over a
   // socket instead of re-fetching the whole queue every few seconds. The mock
   // has no server to push from, so it keeps polling; `subscribeToQueue` is a
@@ -184,7 +197,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     [menu, orders, needsOrders, reloadOrders, reloadMenu, applyUpdated],
   );
 
-  const items = NAV.filter((item) => allows(item.permission));
+  const items = NAV.filter((item) => allows(item.permission) && (!item.liveOnly || BRANCHES_ENABLED));
 
   return (
     <div className="min-h-dvh bg-bg lg:bg-room">
@@ -194,6 +207,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
           <div className="px-3 pb-5">
             <div className={cx(DISPLAY, 'text-[26px]')}>{menu?.restaurant.name ?? 'Loading…'}</div>
             <div className="mt-0.5 text-[12px] text-ink-4">Restaurant dashboard</div>
+            <BranchSwitcher className="mt-3" />
           </div>
 
           <nav className="flex flex-col gap-0.5">
@@ -229,6 +243,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
                 <div className="text-[11.5px] text-ink-4">
                   {staff.name} · {ROLE_LABEL[staff.role]}
                 </div>
+                <BranchSwitcher className="mt-1.5 max-w-[220px]" />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <AdminThemeToggle />

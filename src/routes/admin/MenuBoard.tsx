@@ -81,7 +81,11 @@ export function MenuBoard() {
     <>
       <PageTitle
         title="Menu"
-        subtitle="Every dish live on the board, one tap from selling out or coming back."
+        subtitle={
+          staff.branches && staff.branches.length > 1
+            ? `${staff.branches.find((b) => b.id === staff.branchId)?.name ?? 'This branch'}'s own menu. Every dish live on the board, one tap from selling out or coming back.`
+            : 'Every dish live on the board, one tap from selling out or coming back.'
+        }
         action={
           editable && (
             <Link to="/admin/menu/new" className={ADMIN_PRIMARY}>

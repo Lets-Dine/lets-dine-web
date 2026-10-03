@@ -289,6 +289,8 @@ export async function startFloorSession(restaurantSlug: string, floorToken: stri
 
 export interface StartDeliverySessionInput {
   restaurantSlug: string;
+  /** Which branch delivers. Live backend only; absent means the restaurant's default branch. */
+  branchSlug?: string;
   phone: string;
   name?: string;
   address?: string;
@@ -490,7 +492,14 @@ export async function createOrder({
   // start; upserted the same way a delivery customer is, by `(restaurantId, phone)`.
   let dineInCustomer: Customer | undefined;
   let customersNext = store.customers;
-  if (!isDelivery && dinerIdentity) {
+  // A table session is one party's visit: once its first order has a customer, every later
+  // order reuses it and a different identity is ignored (mirrors the backend).
+  const lockedTo =
+    !isDelivery && session.tableId && !session.floorId
+      ? store.orders.find((o) => o.sessionId === session.id && o.customerId)?.customerId
+      : undefined;
+  if (lockedTo) dineInCustomer = store.customers.find((c) => c.id === lockedTo);
+  else if (!isDelivery && dinerIdentity) {
     const cleanPhone = dinerIdentity.phone.trim();
     const cleanName = dinerIdentity.name.trim();
     const existingCustomer = store.customers.find((c) => c.restaurantId === restaurant.id && c.phone === cleanPhone);
@@ -564,6 +573,8 @@ export async function createOrder({
     tableName: table?.name ?? null,
     sessionId: session.id,
     customerId: isDelivery ? session.customerId : (dineInCustomer?.id ?? null),
+    customerName: dineInCustomer?.name ?? null,
+    customerPhone: dineInCustomer?.phone ?? null,
     status: 'PENDING',
     acceptedAt: null,
     cancelledAt: null,

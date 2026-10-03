@@ -68,9 +68,54 @@ export interface Floor {
   createdAt: string;
 }
 
+/** The few fields of a branch a signed-in member needs to pick one and label the screen. */
+export interface BranchRef {
+  id: string;
+  name: string;
+  slug: string;
+  isDefault: boolean;
+}
+
+/** One opening range. `dayOfWeek` is 0 (Sunday) – 6; times are `HH:mm` in the branch's own timezone, "24:00" closing at midnight. */
+export interface BranchHours {
+  dayOfWeek: number;
+  opensAt: string;
+  closesAt: string;
+  isClosed: boolean;
+}
+
+/** A restaurant's location, as its owner manages it. A null fee/rate means "inherit the restaurant's". */
+export interface Branch extends BranchRef {
+  restaurantId: string;
+  address: string;
+  phone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string;
+  serviceChargeRate: number | null;
+  taxRate: number | null;
+  deliveryFeeAmount: number | null;
+  isActive: boolean;
+  /** Present only on a single-branch read — an empty schedule means "always open". */
+  hours?: BranchHours[];
+}
+
+/** What a diner may know about a branch: where it is and whether it is open right now. */
+export interface PublicBranch extends BranchRef {
+  address: string;
+  phone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string;
+  isOpenNow: boolean;
+  hours: BranchHours[];
+}
+
 export interface DiningSession {
   id: string;
   restaurantId: string;
+  /** The branch this visit is at. Absent only in the offline demo, which has no branches. */
+  branchId?: string;
   /** Null for a delivery or floor session — there is no single table. */
   tableId: string | null;
   anonymousSessionToken: string;
@@ -275,6 +320,9 @@ export interface Order {
   sessionId: string;
   /** The repeat-customer record it was placed under, if any — a delivery order's own, or a dine-in order's (table or floor, §16b, given at order time). */
   customerId: string | null;
+  /** The linked customer's name/phone — the live per-session read only; lets a table session show who it is locked to. */
+  customerName?: string | null;
+  customerPhone?: string | null;
   /** Computed from `items` (plus `acceptedAt`/`cancelledAt`) — never assigned directly. See `domain/orderStatus.ts`. */
   status: OrderStatus;
   /** Set once, the one remaining whole-order transition. Items stay PENDING until each is started individually. */
@@ -325,6 +373,12 @@ export type BadgeKind = 'popular' | 'loved' | 'trending' | 'gem' | 'value' | 'pi
 export type StaffRole = 'OWNER' | 'MANAGER' | 'STAFF';
 
 export interface StaffMember {
+  /** The branch this session is working in. Absent only in the offline demo. */
+  branchId?: string;
+  /** Branches this person may switch to — drives the branch switcher. */
+  branches?: BranchRef[];
+  /** For a roster entry: the branches a manager/staff member is pinned to (empty for an owner, who reaches all). */
+  branchIds?: string[];
   id: string;
   restaurantId: string;
   name: string;
@@ -380,6 +434,11 @@ export type AuditAction =
   | 'floor_renamed'
   | 'floor_disabled'
   | 'floor_enabled'
+  | 'branch_created'
+  | 'branch_updated'
+  | 'branch_disabled'
+  | 'branch_enabled'
+  | 'branch_hours_updated'
   | 'order_status_changed'
   | 'order_cancelled'
   | 'order_item_added'
@@ -390,4 +449,22 @@ export type AuditAction =
   | 'settings_updated'
   | 'staff_invited'
   | 'staff_role_changed'
-  | 'staff_deactivated';
+  | 'staff_deactivated'
+  | 'staff_branches_changed';
+
+export type CustomerSegment = 'new' | 'regular' | 'lapsed' | 'occasional';
+
+/** One row of the Customers list — identity plus figures derived from the customer's payments at the active branch. */
+export interface CustomerListItem {
+  id: string;
+  name: string;
+  phone: string;
+  segment: CustomerSegment;
+  visits: number;
+  /** Their latest payment; null if they haven't paid yet. */
+  lastVisitAt: string | null;
+  spend: Minor;
+  joinedAt: string;
+  /** Whether they paid in each of the last ten weeks, oldest first. */
+  visitWeeks: boolean[];
+}

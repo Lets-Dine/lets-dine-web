@@ -1,10 +1,13 @@
 import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
-import type { OrderComparison, Period, RevenueComparison, TopSellingDish } from '../domain/adminMetrics';
+import type { BranchPerformance, OrderComparison, Period, RevenueComparison, TopSellingDish } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
 import type {
   AddOn,
   AuditAction,
   AuditEntry,
+  Branch,
+  BranchHours,
+  BranchRef,
   DietaryType,
   DiningTable,
   Dish,
@@ -70,7 +73,7 @@ export function signOut(): void {
   }
 }
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   const token = readToken();
   if (!token) throw new ApiError(401, 'Your session has ended. Please sign in again.');
   return { authorization: `Bearer ${token}` };
@@ -85,6 +88,23 @@ interface ApiAuthProfile {
   memberId: string;
   restaurantId: string;
   role: StaffRole;
+  /** The branch the token is scoped to, and every branch this person may switch to. */
+  branchId: string;
+  branches: BranchRef[];
+}
+
+interface ApiBranch extends BranchRef {
+  restaurantId: string;
+  address: string;
+  phone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string;
+  serviceChargeRate: number | null;
+  taxRate: number | null;
+  deliveryFeeAmount: number | null;
+  isActive: boolean;
+  hours?: BranchHours[];
 }
 
 interface ApiAuthSession {
@@ -198,6 +218,7 @@ interface ApiStaffMember {
   isActive: boolean;
   name: string;
   email: string;
+  branchIds?: string[];
 }
 
 interface ApiAuditLog {
@@ -280,6 +301,8 @@ function toStaff(profile: ApiAuthProfile): StaffMember {
     name: profile.name,
     email: profile.email,
     role: profile.role,
+    branchId: profile.branchId,
+    branches: profile.branches,
   };
 }
 
@@ -363,7 +386,7 @@ function toAddOn(api: ApiAddOn, currency: string): AddOn {
 }
 
 function toStaffMember(api: ApiStaffMember): StaffMember {
-  return { id: api.id, restaurantId: api.restaurantId, name: api.name, email: api.email, role: api.role };
+  return { id: api.id, restaurantId: api.restaurantId, name: api.name, email: api.email, role: api.role, branchIds: api.branchIds ?? [] };
 }
 
 function toTable(api: ApiDiningTable): DiningTable {
@@ -472,13 +495,127 @@ function toPayment(api: ApiPayment): Payment {
 
 /* ── Auth ──────────────────────────────────────────────────────── */
 
-export async function signIn(email: string, pin: string): Promise<StaffMember> {
+export async function signIn(email: string, pin: string, branchId?: string): Promise<StaffMember> {
   const session = await apiRequest<ApiAuthSession>('/auth/staff/sign-in', {
     method: 'POST',
-    body: JSON.stringify({ email: email.trim(), pin: pin.trim() }),
+    body: JSON.stringify({ email: email.trim(), pin: pin.trim(), ...(branchId && { branchId }) }),
   });
   storeToken(session.accessToken);
   return toStaff(session.profile);
+}
+
+/**
+ * Moves this session to another branch the member may work in. The server re-reads access from
+ * the database and mints a fresh token, so the old one stops carrying that branch's scope.
+ */
+export async function switchBranch(branchId: string): Promise<{ branchId: string; branches: BranchRef[] }> {
+  const result = await apiRequest<{ accessToken: string; branchId: string; branches: BranchRef[] }>('/auth/staff/switch-branch', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ branchId }),
+  });
+  storeToken(result.accessToken);
+  return { branchId: result.branchId, branches: result.branches };
+}
+
+/**
+ * The branches this person may work in, read fresh. The list captured at sign-in goes stale the moment
+ * an owner adds, renames or disables a branch, and the switcher is built from it.
+ */
+export async function fetchBranchAccess(): Promise<{ branchId: string; branches: BranchRef[] }> {
+  const profile = await apiRequest<ApiAuthProfile>('/auth/me', { headers: authHeaders() });
+  return { branchId: profile.branchId, branches: profile.branches };
+}
+
+/* ── Branches ──────────────────────────────────────────────────── */
+
+export interface BranchDraft {
+  name: string;
+  address: string;
+  phone: string;
+  timezone: string;
+  /** Ratios, or null to inherit the restaurant's. */
+  serviceChargeRate: number | null;
+  taxRate: number | null;
+  /** Minor units, or null to inherit. */
+  deliveryFeeAmount: number | null;
+  /** On create only: start this branch's menu as a copy of another branch's. Without it the menu starts empty. */
+  copyMenuFrom?: string;
+}
+
+function toBranch(api: ApiBranch): Branch {
+  return { ...api };
+}
+
+function branchBody(draft: Partial<BranchDraft>): Record<string, unknown> {
+  return {
+    ...(draft.name !== undefined && { name: draft.name.trim() }),
+    ...(draft.address !== undefined && { address: draft.address.trim() }),
+    ...(draft.phone !== undefined && { phone: draft.phone.trim() || null }),
+    ...(draft.timezone !== undefined && { timezone: draft.timezone.trim() }),
+    ...(draft.serviceChargeRate !== undefined && { serviceChargeRate: draft.serviceChargeRate }),
+    ...(draft.taxRate !== undefined && { taxRate: draft.taxRate }),
+    ...(draft.deliveryFeeAmount !== undefined && { deliveryFeeAmount: draft.deliveryFeeAmount }),
+    ...(draft.copyMenuFrom && { copyMenuFrom: draft.copyMenuFrom }),
+  };
+}
+
+export async function listBranches(): Promise<Branch[]> {
+  const page = await apiRequest<Paginated<ApiBranch>>('/restaurant/branches?limit=0', { headers: authHeaders() });
+  return page.rows.map(toBranch);
+}
+
+/** One branch with its weekly schedule. */
+export async function fetchBranch(id: string): Promise<Branch> {
+  return toBranch(await apiRequest<ApiBranch>(`/restaurant/branches/${id}`, { headers: authHeaders() }));
+}
+
+export async function createBranch(draft: BranchDraft): Promise<Branch> {
+  return toBranch(
+    await apiRequest<ApiBranch>('/restaurant/branches', { method: 'POST', headers: authHeaders(), body: JSON.stringify(branchBody(draft)) }),
+  );
+}
+
+export async function updateBranch(id: string, patch: Partial<BranchDraft> & { isActive?: boolean }): Promise<Branch> {
+  const { isActive, ...rest } = patch;
+  return toBranch(
+    await apiRequest<ApiBranch>(`/restaurant/branches/${id}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ ...branchBody(rest), ...(isActive !== undefined && { isActive }) }),
+    }),
+  );
+}
+
+/** Replaces the whole weekly schedule. An empty list means "always open". */
+export async function setBranchHours(id: string, hours: BranchHours[]): Promise<BranchHours[]> {
+  return apiRequest<BranchHours[]>(`/restaurant/branches/${id}/hours`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ hours }),
+  });
+}
+
+/* ── Branch menus ──────────────────────────────────────────────── */
+
+/** What a copy moved across, for the confirmation message. */
+export interface MenuCopyResult {
+  categories: number;
+  dishes: number;
+  variants: number;
+  addOns: number;
+}
+
+/**
+ * Starts a branch's menu as a copy of another's. Only into an empty menu, and a one-off: the two menus are
+ * independent afterwards, so a later change at one never reaches the other.
+ */
+export async function copyBranchMenu(toBranchId: string, fromBranchId: string): Promise<MenuCopyResult> {
+  return apiRequest<MenuCopyResult>(`/restaurant/branches/${toBranchId}/copy-menu`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ fromBranchId }),
+  });
 }
 
 /* ── Staff ─────────────────────────────────────────────────────── */
@@ -494,9 +631,23 @@ export async function createStaffMember(draft: StaffDraft): Promise<StaffMember>
   const member = await apiRequest<ApiStaffMember>('/restaurant/staff', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ name: draft.name.trim(), email: draft.email.trim(), pin: draft.pin.trim(), role: draft.role }),
+    body: JSON.stringify({
+      name: draft.name.trim(),
+      email: draft.email.trim(),
+      pin: draft.pin.trim(),
+      role: draft.role,
+      // An owner reaches every branch; anyone else is pinned. Omitted, the server uses the creator's branch.
+      ...(draft.role !== 'OWNER' && draft.branchIds?.length && { branchIds: draft.branchIds }),
+    }),
   });
   return toStaffMember(member);
+}
+
+/** Replaces which branches a manager/staff member works at. */
+export async function updateStaffBranches(id: string, branchIds: string[]): Promise<StaffMember> {
+  return toStaffMember(
+    await apiRequest<ApiStaffMember>(`/restaurant/staff/${id}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ branchIds }) }),
+  );
 }
 
 /* ── Menu ──────────────────────────────────────────────────────── */
@@ -1116,27 +1267,42 @@ export async function listAudit(limit = 80, offset = 0): Promise<{ rows: AuditEn
 
 /* ── Analytics ─────────────────────────────────────────────────── */
 
+/** `&branchId=…` when narrowing to one branch. Without it an owner reads the whole restaurant; anyone else, the branches they are assigned to. */
+function branchParam(branchId?: string): string {
+  return branchId ? `&branchId=${encodeURIComponent(branchId)}` : '';
+}
+
 /** §31 — settled-payment revenue for the period against the whole of the one before it. */
-export async function fetchRevenueComparison(period: Period): Promise<RevenueComparison> {
-  return apiRequest<RevenueComparison>(`/restaurant/analytics/revenue?period=${period}`, {
+export async function fetchRevenueComparison(period: Period, branchId?: string): Promise<RevenueComparison> {
+  return apiRequest<RevenueComparison>(`/restaurant/analytics/revenue?period=${period}${branchParam(branchId)}`, {
     headers: authHeaders(),
   });
 }
 
 /** §31 — order count for the period against the whole of the one before it. */
-export async function fetchOrderComparison(period: Period): Promise<OrderComparison> {
-  return apiRequest<OrderComparison>(`/restaurant/analytics/orders?period=${period}`, {
+export async function fetchOrderComparison(period: Period, branchId?: string): Promise<OrderComparison> {
+  return apiRequest<OrderComparison>(`/restaurant/analytics/orders?period=${period}${branchParam(branchId)}`, {
     headers: authHeaders(),
   });
 }
 
 /** §31 — dishes actually paid for, ranked by units sold. No dates: everything to date. */
-export async function fetchTopSellingDishes(startDate?: string, endDate?: string): Promise<TopSellingDish[]> {
+export async function fetchTopSellingDishes(startDate?: string, endDate?: string, branchId?: string): Promise<TopSellingDish[]> {
   const params = new URLSearchParams();
+  if (branchId) params.set('branchId', branchId);
   if (startDate) params.set('startDate', startDate);
   if (endDate) params.set('endDate', endDate);
   const qs = params.toString();
   return apiRequest<TopSellingDish[]>(`/restaurant/analytics/top-dishes${qs ? `?${qs}` : ''}`, {
     headers: authHeaders(),
   });
+}
+
+/** One row per branch the caller may see, highest revenue first — the cross-branch comparison. */
+export async function fetchBranchPerformance(from?: string, to?: string): Promise<BranchPerformance[]> {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const qs = params.toString();
+  return apiRequest<BranchPerformance[]>(`/restaurant/analytics/branches${qs ? `?${qs}` : ''}`, { headers: authHeaders() });
 }

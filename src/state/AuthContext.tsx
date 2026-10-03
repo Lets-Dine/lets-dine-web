@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { signIn as apiSignIn, signOut as apiSignOut } from '../api/staff';
+import { BRANCHES_ENABLED, fetchBranchAccess, signIn as apiSignIn, signOut as apiSignOut, switchBranch as apiSwitchBranch } from '../api/staff';
 import { AUTH_EXPIRED_EVENT } from '../api/http';
 import { can } from '../domain/permissions';
 import type { Permission } from '../domain/permissions';
@@ -22,6 +22,10 @@ interface AuthValue {
   staff: StaffMember | null;
   signIn: (email: string, pin: string) => Promise<StaffMember>;
   signOut: () => void;
+  /** Moves this session to another branch the member may work in. Resolves once the new token is stored and `staff` reflects it. */
+  switchBranch: (branchId: string) => Promise<void>;
+  /** Re-reads the branches this person may work in. Call after anything that adds, renames or disables one. */
+  refreshBranches: () => Promise<void>;
   allows: (permission: Permission) => boolean;
 }
 
@@ -53,6 +57,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return member;
   }, []);
 
+  const persist = useCallback((member: StaffMember) => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(member));
+    } catch {
+      /* a private-mode browser still gets to work this shift */
+    }
+  }, []);
+
+  const switchBranch = useCallback(
+    async (branchId: string) => {
+      const current = staffRef.current;
+      if (!current || current.branchId === branchId) return;
+      // The API call replaces the stored token; only then does the member object (and everything keyed on it) move.
+      const next = await apiSwitchBranch(branchId);
+      const member: StaffMember = { ...current, branchId: next.branchId, branches: next.branches };
+      persist(member);
+      setStaff(member);
+    },
+    [persist],
+  );
+
+  const refreshBranches = useCallback(async () => {
+    const current = staffRef.current;
+    if (!BRANCHES_ENABLED || !current) return;
+    try {
+      const fresh = await fetchBranchAccess();
+      const known = current.branches ?? [];
+      const same = known.length === fresh.branches.length && known.every((b, i) => b.id === fresh.branches[i].id && b.name === fresh.branches[i].name);
+      if (same) return;
+      // Only the list changes; the branch being worked in stays put unless it is no longer reachable.
+      const stillHere = fresh.branches.some((b) => b.id === current.branchId);
+      const member: StaffMember = { ...current, branches: fresh.branches, branchId: stillHere ? current.branchId : fresh.branchId };
+      persist(member);
+      setStaff(member);
+    } catch {
+      /* the switcher just keeps the list it had; a real auth failure is handled by the 401 listener */
+    }
+  }, [persist]);
+
   const signOut = useCallback(() => {
     try {
       localStorage.removeItem(KEY);
@@ -83,9 +126,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       staff,
       signIn,
       signOut,
+      switchBranch,
+      refreshBranches,
       allows: (permission) => (staff ? can(staff.role, permission) : false),
     }),
-    [staff, signIn, signOut],
+    [staff, signIn, signOut, switchBranch, refreshBranches],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

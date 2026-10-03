@@ -1,5 +1,5 @@
 import type { CreateOrderInput, DeliverySessionResult, FloorSessionResult, ReviewDraft, StartDeliverySessionInput } from './client';
-import type { DiningSession, Dish, Menu, Order, Payment, Restaurant, Review } from '../domain/types';
+import type { DiningSession, Dish, Menu, Order, Payment, PublicBranch, Restaurant, Review } from '../domain/types';
 import * as mock from './client';
 import { IS_LIVE_API } from './http';
 import * as live from './live';
@@ -77,8 +77,14 @@ export function resumeDeliverySession(restaurantSlug: string): Promise<DeliveryS
   return IS_LIVE_API ? live.resumeDeliverySession(restaurantSlug) : mock.resumeDeliverySession(restaurantSlug);
 }
 
-export function getMenu(restaurantSlug: string): Promise<Menu> {
-  return IS_LIVE_API ? live.getMenu(restaurantSlug) : mock.getMenu(restaurantSlug);
+/** `branchId` scopes the menu to a branch's own prices and availability (live backend only). */
+export function getMenu(restaurantSlug: string, branchId?: string): Promise<Menu> {
+  return IS_LIVE_API ? live.getMenu(restaurantSlug, branchId) : mock.getMenu(restaurantSlug);
+}
+
+/** The restaurant's active branches. The offline demo is a single location, so it reports none. */
+export function getBranches(restaurantSlug: string): Promise<PublicBranch[]> {
+  return IS_LIVE_API ? live.getBranches(restaurantSlug) : Promise.resolve([]);
 }
 
 /** `currency` is only needed live, where it lives on the restaurant, not the dish. */

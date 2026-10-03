@@ -100,6 +100,8 @@ export interface StaffDraft {
    */
   pin: string;
   role: StaffRole;
+  /** Live backend only: the branches a manager/staff member is pinned to. The offline demo has no branches. */
+  branchIds?: string[];
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

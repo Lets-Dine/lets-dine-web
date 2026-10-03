@@ -1,6 +1,9 @@
-import type { OrderComparison, Period, RevenueComparison, TopSellingDish } from '../domain/adminMetrics';
+import type { BranchPerformance, OrderComparison, Period, RevenueComparison, TopSellingDish } from '../domain/adminMetrics';
 import type {
   AuditEntry,
+  Branch,
+  BranchHours,
+  BranchRef,
   DiningTable,
   Floor,
   ItemStatus,
@@ -18,6 +21,15 @@ import { IS_LIVE_API } from './http';
 import * as live from './live-admin';
 
 export type { StaffDraft, UploadTarget } from './admin';
+export type { BranchDraft } from './live-admin';
+
+/**
+ * Branches exist only on the live backend. The offline demo is a single-location restaurant, so every
+ * branch screen and switcher is gated on this rather than faking a second branch in the mock store.
+ */
+export const BRANCHES_ENABLED = IS_LIVE_API;
+
+const NEEDS_LIVE = () => Promise.reject(new Error('Branches need the live backend.'));
 
 /**
  * The manager-facing reads/writes that have a real backend behind them so
@@ -31,8 +43,18 @@ export type { StaffDraft, UploadTarget } from './admin';
  * recent slice a pass needs, not a full reporting history.
  */
 
-export function signIn(email: string, pin: string): Promise<StaffMember> {
-  return IS_LIVE_API ? live.signIn(email, pin) : mock.signIn(email, pin);
+export function signIn(email: string, pin: string, branchId?: string): Promise<StaffMember> {
+  return IS_LIVE_API ? live.signIn(email, pin, branchId) : mock.signIn(email, pin);
+}
+
+/** Re-reads which branches this person may work in — the sign-in snapshot goes stale as branches change. */
+export function fetchBranchAccess(): Promise<{ branchId: string; branches: BranchRef[] }> {
+  return IS_LIVE_API ? live.fetchBranchAccess() : NEEDS_LIVE();
+}
+
+/** Moves the session to another branch the member may work in; the token is replaced as a side effect. */
+export function switchBranch(branchId: string): Promise<{ branchId: string; branches: BranchRef[] }> {
+  return IS_LIVE_API ? live.switchBranch(branchId) : NEEDS_LIVE();
 }
 
 /** Clears whatever credential the active source holds. Safe to call from either mode. */
@@ -273,19 +295,19 @@ export function listAudit(actor: StaffMember, limit = 80, offset = 0): Promise<{
 }
 
 /** §31 — settled-payment revenue for the period against the whole of the one before it. */
-export function fetchRevenueComparison(actor: StaffMember, period: Period): Promise<RevenueComparison> {
-  return IS_LIVE_API ? live.fetchRevenueComparison(period) : mock.fetchRevenueComparison(actor, period);
+export function fetchRevenueComparison(actor: StaffMember, period: Period, branchId?: string): Promise<RevenueComparison> {
+  return IS_LIVE_API ? live.fetchRevenueComparison(period, branchId) : mock.fetchRevenueComparison(actor, period);
 }
 
 /** §31 — order count for the period against the whole of the one before it. */
-export function fetchOrderComparison(actor: StaffMember, period: Period): Promise<OrderComparison> {
-  return IS_LIVE_API ? live.fetchOrderComparison(period) : mock.fetchOrderComparison(actor, period);
+export function fetchOrderComparison(actor: StaffMember, period: Period, branchId?: string): Promise<OrderComparison> {
+  return IS_LIVE_API ? live.fetchOrderComparison(period, branchId) : mock.fetchOrderComparison(actor, period);
 }
 
 /** §31 — dishes actually paid for, ranked by units sold. No dates: everything to date. */
-export function fetchTopSellingDishes(actor: StaffMember, startDate?: string, endDate?: string): Promise<TopSellingDish[]> {
+export function fetchTopSellingDishes(actor: StaffMember, startDate?: string, endDate?: string, branchId?: string): Promise<TopSellingDish[]> {
   return IS_LIVE_API
-    ? live.fetchTopSellingDishes(startDate, endDate)
+    ? live.fetchTopSellingDishes(startDate, endDate, branchId)
     : mock.fetchTopSellingDishes(actor, startDate, endDate);
 }
 
@@ -297,3 +319,27 @@ export function listStaff(actor: StaffMember): Promise<StaffMember[]> {
 export function createStaffMember(actor: StaffMember, draft: StaffDraft): Promise<StaffMember> {
   return IS_LIVE_API ? live.createStaffMember(draft) : mock.createStaffMember(actor, draft);
 }
+
+/** The cross-branch comparison an owner reads — one row per branch the caller may see. */
+export function fetchBranchPerformance(from?: string, to?: string): Promise<BranchPerformance[]> {
+  return IS_LIVE_API ? live.fetchBranchPerformance(from, to) : Promise.resolve([]);
+}
+
+/** Replaces which branches a manager/staff member is pinned to. */
+export function updateStaffBranches(id: string, branchIds: string[]): Promise<StaffMember> {
+  return IS_LIVE_API ? live.updateStaffBranches(id, branchIds) : NEEDS_LIVE();
+}
+
+/* ── Branches (live backend only) ──────────────────────────────────── */
+
+export const listBranches = (): Promise<Branch[]> => (IS_LIVE_API ? live.listBranches() : Promise.resolve([]));
+export const fetchBranch = (id: string): Promise<Branch> => (IS_LIVE_API ? live.fetchBranch(id) : NEEDS_LIVE());
+export const createBranch = (draft: live.BranchDraft): Promise<Branch> => (IS_LIVE_API ? live.createBranch(draft) : NEEDS_LIVE());
+export const updateBranch = (id: string, patch: Partial<live.BranchDraft> & { isActive?: boolean }): Promise<Branch> =>
+  IS_LIVE_API ? live.updateBranch(id, patch) : NEEDS_LIVE();
+export const setBranchHours = (id: string, hours: BranchHours[]): Promise<BranchHours[]> =>
+  IS_LIVE_API ? live.setBranchHours(id, hours) : NEEDS_LIVE();
+
+/** Starts a branch's menu as a copy of another's — only into an empty menu, and independent afterwards. */
+export const copyBranchMenu = (toBranchId: string, fromBranchId: string): Promise<live.MenuCopyResult> =>
+  IS_LIVE_API ? live.copyBranchMenu(toBranchId, fromBranchId) : NEEDS_LIVE();

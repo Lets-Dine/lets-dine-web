@@ -7,6 +7,17 @@ import type { Dish, Minor, Order } from './types';
  * drift apart. Cancelled orders never count as revenue.
  */
 
+/** One branch's slice of the restaurant's results — what an owner reads to compare locations. */
+export interface BranchPerformance {
+  branchId: string;
+  branchName: string;
+  orders: number;
+  completed: number;
+  cancelled: number;
+  grossRevenue: number;
+  averageOrderValue: number;
+}
+
 export type Period = 'today' | 'week' | 'month';
 
 export const PERIOD_LABEL: Record<Period, string> = {

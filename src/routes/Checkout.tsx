@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { createOrder } from '../api/diner';
+import { ApiError } from '../api/store';
 import { track } from '../domain/analytics';
 import { formatMoney } from '../domain/money';
 import { haptic } from '../platform/haptics';
@@ -15,6 +16,9 @@ import { useToast } from '../state/ToastContext';
 import { BillLines, PAGE, SPLIT, addOnLabels, lineUnitPrice, useBill, variantLabel } from './Cart';
 import { useRestaurant } from './RestaurantLayout';
 import { TopBar } from './Shell';
+
+/** The server's key for an order refused because the branch is closed or switched off. */
+const BRANCH_CLOSED_KEY = 'ORDER_BRANCH_CLOSED';
 
 const PAYMENT_METHODS_DINE_IN = [
   { id: 'cash', label: 'Cash at the table', hint: 'Pay the server when you are done' },
@@ -38,7 +42,7 @@ export function Checkout() {
   const isDineIn = !isDelivery;
   usePageTitle(`Checkout · ${menu.restaurant.name}`);
   const cart = useCart();
-  const { rememberOrder } = useSessionOrders();
+  const { orders: sessionOrders, rememberOrder } = useSessionOrders();
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -60,7 +64,10 @@ export function Checkout() {
   const deliveryFee = isDelivery ? (menu.restaurant.deliveryFeeAmount ?? 0) : 0;
   const bill = useBill(cart.lines, menu.dishes, deliveryFee);
   const currency = menu.restaurant.currency;
-  const identityReady = !isDineIn || (Boolean(dinerIdentity) && !editingIdentity);
+  // A table session is one party's visit: once its first order is placed, the rest stay under
+  // the same customer and the identity can't be changed (the server enforces it too).
+  const lockedOrder = isDineIn && !isFloor ? sessionOrders.find((o) => o.customerId) : undefined;
+  const identityReady = !isDineIn || Boolean(lockedOrder) || (Boolean(dinerIdentity) && !editingIdentity);
   const placeReady = !isFloor || floorPlace.trim().length > 0;
   const canSubmit = !submitting && !sessionEnded && (!isDelivery || address.trim().length > 0) && identityReady && placeReady;
 
@@ -90,7 +97,7 @@ export function Checkout() {
         idempotencyKey: cart.idempotencyKey,
         deliveryAddress: isDelivery ? address.trim() : undefined,
         deliveryNote: isDelivery ? note.trim() || undefined : undefined,
-        customer: isDineIn && dinerIdentity ? dinerIdentity : undefined,
+        customer: isDineIn && !lockedOrder && dinerIdentity ? dinerIdentity : undefined,
         floorVisitorName: isFloor ? floorPlace.trim() : undefined,
       });
       track('order_placed', { orderId: order.id, total: order.total, items: cart.count });
@@ -104,7 +111,14 @@ export function Checkout() {
       navigate(`${base}/order/${order.id}`, { replace: true });
     } catch (e) {
       haptic.warn();
-      setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+      // The branch shut (or was switched off) after the diner opened the menu — say so plainly and keep the cart.
+      setError(
+        e instanceof ApiError && e.key === BRANCH_CLOSED_KEY
+          ? 'This branch is closed right now, so it can\'t take your order. Your cart is saved — try again when it reopens.'
+          : e instanceof Error
+            ? e.message
+            : 'Something went wrong. Try again.',
+      );
       setSubmitting(false);
     }
   };
@@ -150,7 +164,16 @@ export function Checkout() {
           ) : (
             <section className="animate-rise">
               <div className="flex flex-col gap-3 rounded-3xl bg-surface bg-flame-dim p-4.5 ring-1 ring-flame-2/35 ring-inset">
-                {editingIdentity ? (
+                {lockedOrder ? (
+                  <div className="flex flex-col gap-1">
+                    <span className={cx(EYEBROW, 'text-flame-1/80')}>Serving to</span>
+                    <b className={cx(DISPLAY, 'text-[21px]')}>{lockedOrder.customerName ?? dinerIdentity?.name ?? 'Your table'}</b>
+                    <span className="text-[13px] text-ink-3">
+                      {menu.restaurant.name} · {identityLabel}
+                    </span>
+                    <span className="mt-1 text-[12.5px] text-ink-3">Every order from this table visit stays under this name.</span>
+                  </div>
+                ) : editingIdentity ? (
                   <form className="flex flex-col gap-3" onSubmit={saveIdentity}>
                     <div className="flex flex-col gap-1">
                       <span className={cx(EYEBROW, 'text-flame-1/80')}>Who's this order for?</span>
