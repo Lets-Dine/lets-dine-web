@@ -39,6 +39,92 @@ export interface RevenueComparison {
   differencePercentage: number;
 }
 
+export type TrendPeriod = 'week' | 'month' | 'year';
+
+/**
+ * `GET /restaurant/analytics/revenue/trend?period=...` — settled revenue slot by slot (a day for a
+ * week or month, a month for a year) beside the same slot of the period before. `date` is the
+ * restaurant-local day ("2026-01-14") or, for a year, month ("2026-01"). `current` is null for a slot
+ * that hasn't happened yet; `previous` is null where the earlier period has no such slot (the 31st).
+ * `differencePercentage` is a percent, measured against `previousToDate`, not all of `previousTotal`.
+ */
+export interface RevenueTrendPoint {
+  index: number;
+  date: string;
+  current: Minor | null;
+  previousDate: string | null;
+  previous: Minor | null;
+}
+
+export interface RevenueTrend {
+  period: TrendPeriod;
+  granularity: 'day' | 'month';
+  currentTotal: Minor;
+  previousTotal: Minor;
+  previousToDate: Minor;
+  differencePercentage: number;
+  points: RevenueTrendPoint[];
+}
+
+/**
+ * The offline twin of the trend endpoint, in the browser's own timezone. Same layout rules as the
+ * backend: Sunday-start weeks, one slot per day for a week or month, one per month for a year.
+ */
+export function buildRevenueTrend(orders: Order[], period: TrendPeriod, now: Date = new Date()): RevenueTrend {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const monthKey = (y: number, m: number) => `${y}-${pad(m)}`;
+  const dayKey = (d: Date) => `${monthKey(d.getFullYear(), d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const daysIn = (y: number, m: number) => new Date(y, m, 0).getDate();
+
+  const byDay = new Map<string, Minor>();
+  const byMonth = new Map<string, Minor>();
+  for (const order of orders) {
+    if (!isRevenue(order)) continue;
+    const at = new Date(order.createdAt);
+    byDay.set(dayKey(at), (byDay.get(dayKey(at)) ?? 0) + order.total);
+    const mk = monthKey(at.getFullYear(), at.getMonth() + 1);
+    byMonth.set(mk, (byMonth.get(mk) ?? 0) + order.total);
+  }
+
+  const year = now.getFullYear();
+  const slots: { key: string; previousKey: string | null }[] = [];
+  let todayIndex: number;
+  let source = byDay;
+
+  if (period === 'year') {
+    source = byMonth;
+    for (let m = 1; m <= 12; m++) slots.push({ key: monthKey(year, m), previousKey: monthKey(year - 1, m) });
+    todayIndex = now.getMonth();
+  } else {
+    const today = new Date(year, now.getMonth(), now.getDate());
+    const start = period === 'week' ? addDays(today, -today.getDay()) : new Date(year, now.getMonth(), 1);
+    const prevStart = period === 'week' ? addDays(start, -7) : new Date(year, now.getMonth() - 1, 1);
+    const length = period === 'week' ? 7 : daysIn(year, now.getMonth() + 1);
+    const prevLength = period === 'week' ? 7 : daysIn(prevStart.getFullYear(), prevStart.getMonth() + 1);
+    for (let i = 0; i < length; i++) {
+      slots.push({ key: dayKey(addDays(start, i)), previousKey: i < prevLength ? dayKey(addDays(prevStart, i)) : null });
+    }
+    todayIndex = Math.round((today.getTime() - start.getTime()) / 86_400_000);
+  }
+
+  let currentTotal = 0;
+  let previousTotal = 0;
+  let previousToDate = 0;
+  const points = slots.map((slot, index) => {
+    const current = index > todayIndex ? null : (source.get(slot.key) ?? 0);
+    const previous = slot.previousKey === null ? null : (source.get(slot.previousKey) ?? 0);
+    currentTotal += current ?? 0;
+    previousTotal += previous ?? 0;
+    if (index <= todayIndex) previousToDate += previous ?? 0;
+    return { index, date: slot.key, current, previousDate: slot.previousKey, previous };
+  });
+
+  const differencePercentage =
+    previousToDate === 0 ? (currentTotal === 0 ? 0 : 100) : Number((((currentTotal - previousToDate) / previousToDate) * 100).toFixed(2));
+  return { period, granularity: period === 'year' ? 'month' : 'day', currentTotal, previousTotal, previousToDate, differencePercentage, points };
+}
+
 /**
  * `GET /restaurant/analytics/orders?period=...` — order count for the period
  * so far against the whole of the one before it, same shape and boundaries as

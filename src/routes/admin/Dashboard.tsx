@@ -7,10 +7,12 @@ import {
   fetchBranchPerformance,
   fetchOrderComparison,
   fetchRevenueComparison,
+  fetchRevenueTrend,
   fetchTopSellingDishes,
 } from '../../api/staff';
 import { funnel } from '../../domain/analytics';
 import { byUrgencyThenAge, floorBillSubject, focusMap, newestOrderPerTable } from '../../domain/orderStatus';
+import type { TrendPeriod } from '../../domain/adminMetrics';
 import { feedbackSummary, periodReport } from '../../domain/adminMetrics';
 import { formatMoney } from '../../domain/money';
 import type { Order, OrderStatus } from '../../domain/types';
@@ -19,6 +21,7 @@ import { useAsync } from '../../state/useAsync';
 import { useNow } from '../../state/useNow';
 import { Empty, Loading, PageTitle, Panel, Row, Segmented, StatTile, useCommand } from '../../components/admin/kit';
 import { PassCard } from '../../components/admin/PassCard';
+import { RevenueTrendChart } from '../../components/admin/RevenueTrendChart';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
@@ -58,6 +61,8 @@ export function Dashboard() {
   const history = useAsync(() => allOrders(staff), [staff]);
   // Today's numbers are the branch being worked in, so the tiles agree with the pass beneath them.
   const revenue = useAsync(() => fetchRevenueComparison(staff, 'today', staff.branchId), [staff]);
+  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('week');
+  const trend = useAsync(() => fetchRevenueTrend(staff, trendPeriod, staff.branchId), [staff, trendPeriod]);
   const orderComparison = useAsync(() => fetchOrderComparison(staff, 'today', staff.branchId), [staff]);
   const topDishes = useAsync(() => fetchTopSellingDishes(staff, new Date().toISOString(), undefined, staff.branchId), [staff]);
   // The comparison across locations only means something with more than one to compare.
@@ -110,12 +115,6 @@ export function Dashboard() {
   const shown = filtered.slice(0, PASS_GRID_SIZE);
   const hiddenCount = filtered.length - shown.length;
   const overdue = laneCounts.focus;
-
-  const unavailable = menu.dishes.filter((d) => !d.isArchived && !d.isAvailable);
-  const weakest = menu.dishes
-    .filter((d) => !d.isArchived && d.stats.ratingCount >= 20 && (d.stats.avgRating ?? 5) < 4.2)
-    .sort((a, b) => (a.stats.avgRating ?? 5) - (b.stats.avgRating ?? 5))
-    .slice(0, 3);
 
   return (
     <>
@@ -268,7 +267,7 @@ export function Dashboard() {
         </Panel>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <Panel title="Selling today" hint="By dishes served" bare>
           {topDishes.loading ? (
             <Loading label="Counting today…" />
@@ -287,44 +286,15 @@ export function Dashboard() {
           )}
         </Panel>
 
-        <Panel title="Worth a look" bare>
-          {unavailable.length === 0 && weakest.length === 0 ? (
-            <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">
-              Everything is on the menu and rating well.
-            </p>
-          ) : (
-            <>
-              {unavailable.length > 0 && (
-                <Row>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[14px] font-semibold">
-                      {unavailable.length} dish{unavailable.length === 1 ? '' : 'es'} marked unavailable
-                    </span>
-                    <span className="block truncate text-[12.5px] text-ink-4">
-                      {unavailable.map((d) => d.name).join(', ')}
-                    </span>
-                  </span>
-                  <Link to="/admin/menu" className="shrink-0 text-[13px] font-semibold text-flame-1">
-                    Menu
-                  </Link>
-                </Row>
-              )}
-              {weakest.map((dish) => (
-                <Row key={dish.id}>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-semibold">{dish.name}</span>
-                    <span className="block text-[12.5px] text-ink-4">
-                      {dish.stats.avgRating?.toFixed(1)} ★ from {dish.stats.ratingCount} diners
-                    </span>
-                  </span>
-                  <Link to="/admin/reviews" className="shrink-0 text-[13px] font-semibold text-flame-1">
-                    Reviews
-                  </Link>
-                </Row>
-              ))}
-            </>
-          )}
-        </Panel>
+        <RevenueTrendChart
+          trend={trend.data}
+          period={trendPeriod}
+          onPeriodChange={setTrendPeriod}
+          loading={trend.loading}
+          failed={trend.error !== null}
+          onRetry={trend.reload}
+          currency={menu.restaurant.currency}
+        />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">

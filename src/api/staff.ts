@@ -1,4 +1,4 @@
-import type { BranchPerformance, OrderComparison, Period, RevenueComparison, TopSellingDish } from '../domain/adminMetrics';
+import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import type {
   AuditEntry,
   Branch,
@@ -297,6 +297,11 @@ export function listAudit(actor: StaffMember, limit = 80, offset = 0): Promise<{
 /** §31 — settled-payment revenue for the period against the whole of the one before it. */
 export function fetchRevenueComparison(actor: StaffMember, period: Period, branchId?: string): Promise<RevenueComparison> {
   return IS_LIVE_API ? live.fetchRevenueComparison(period, branchId) : mock.fetchRevenueComparison(actor, period);
+}
+
+/** §31 — revenue slot by slot (day for a week or month, month for a year) against the period before it. */
+export function fetchRevenueTrend(actor: StaffMember, period: TrendPeriod, branchId?: string): Promise<RevenueTrend> {
+  return IS_LIVE_API ? live.fetchRevenueTrend(period, branchId) : mock.fetchRevenueTrend(actor, period);
 }
 
 /** §31 — order count for the period against the whole of the one before it. */

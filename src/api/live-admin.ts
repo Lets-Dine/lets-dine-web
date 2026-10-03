@@ -1,5 +1,5 @@
 import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
-import type { BranchPerformance, OrderComparison, Period, RevenueComparison, TopSellingDish } from '../domain/adminMetrics';
+import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
 import type {
   AddOn,
@@ -1275,6 +1275,13 @@ function branchParam(branchId?: string): string {
 /** §31 — settled-payment revenue for the period against the whole of the one before it. */
 export async function fetchRevenueComparison(period: Period, branchId?: string): Promise<RevenueComparison> {
   return apiRequest<RevenueComparison>(`/restaurant/analytics/revenue?period=${period}${branchParam(branchId)}`, {
+    headers: authHeaders(),
+  });
+}
+
+/** §31 — revenue slot by slot (day for a week or month, month for a year) against the period before it. */
+export async function fetchRevenueTrend(period: TrendPeriod, branchId?: string): Promise<RevenueTrend> {
+  return apiRequest<RevenueTrend>(`/restaurant/analytics/revenue/trend?period=${period}${branchParam(branchId)}`, {
     headers: authHeaders(),
   });
 }

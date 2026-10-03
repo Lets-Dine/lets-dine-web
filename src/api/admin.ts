@@ -1,8 +1,8 @@
 import { HISTORY_REF_CEILING, orderHistory } from '../data/history';
 import { SEED_REVIEWS } from '../data/reviews';
 import { DEMO_PIN } from '../data/staff';
-import type { OrderComparison, Period, RevenueComparison, TopSellingDish } from '../domain/adminMetrics';
-import { dishPerformance, periodReport } from '../domain/adminMetrics';
+import type { OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
+import { buildRevenueTrend, dishPerformance, periodReport } from '../domain/adminMetrics';
 import { formatMoney, percentOf, recomputeTotals, sumLines } from '../domain/money';
 import {
   ITEM_STATUS_LABEL,
@@ -322,6 +322,13 @@ export async function fetchRevenueComparison(actor: StaffMember, period: Period)
   const differencePercentage =
     report.revenueChange === null ? (report.current.revenue > 0 ? 100 : 0) : Number((report.revenueChange * 100).toFixed(2));
   return { current: report.current.revenue, previous: report.previous.revenue, differencePercentage };
+}
+
+/** §31 — the same slot-by-slot trend `GET /restaurant/analytics/revenue/trend` answers live. */
+export async function fetchRevenueTrend(actor: StaffMember, period: TrendPeriod): Promise<RevenueTrend> {
+  authorize(actor, 'analytics:view');
+  const store = seedQueue(readStore());
+  return buildRevenueTrend([...orderHistory(), ...store.orders], period);
 }
 
 /** §31 — the same order-count-vs-prior-period comparison `GET /restaurant/analytics/orders` answers live. */
