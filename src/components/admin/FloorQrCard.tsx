@@ -1,7 +1,7 @@
 import type { Floor } from '../../domain/types';
 import { DISPLAY, cx } from '../ui';
-import { QrImage } from './QrCard';
-import { qrSvgDocument, encodeQr } from '../../domain/qr';
+import { QrImage, downloadSlip, printSlips } from './QrCard';
+import type { SlipContent } from './QrCard';
 
 /**
  * §16b. The floor counterpart of `QrCard.tsx` — one code for the whole floor
@@ -14,58 +14,16 @@ export function floorUrl(slug: string, floor: Floor, origin?: string): string {
   return `${base}/r/${slug}/f/${floor.qrToken}`;
 }
 
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
+const floorSlip = (floor: Floor, url: string): SlipContent => ({ title: floor.name, hint: 'scan to order from anywhere on this floor', url });
+
+/** Downloads the floor's slip as a vector file — the same layout as a table's. */
+export function downloadFloorQr(floor: Floor, restaurantName: string, url: string): void {
+  downloadSlip(floorSlip(floor, url), restaurantName);
 }
 
-/** Downloads a vector file, so a print shop can scale it to any size. */
-export function downloadFloorQr(floor: Floor, url: string): void {
-  const svg = qrSvgDocument(encodeQr(url, { ecl: 'Q' }));
-  const blob = new Blob([svg], { type: 'image/svg+xml' });
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = href;
-  link.download = `${floor.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-qr.svg`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(href);
-}
-
-/** A single floor's code, printed receipt-width — same shape as `printSingleQr`, minus the seat count. */
+/** A single floor's code, printed on the same slip as a table's. */
 export function printSingleFloorQr(floor: Floor, restaurantName: string, url: string): boolean {
-  const sheet = window.open('', '_blank', 'width=420,height=640');
-  if (!sheet) return false;
-
-  const svg = qrSvgDocument(encodeQr(url, { ecl: 'Q' }), 2);
-  sheet.document.write(`<!doctype html><html><head><meta charset="utf-8">
-  <title>${escapeHtml(restaurantName)} — ${escapeHtml(floor.name)} QR</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 24px; background: #fff; color: #111; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
-    .sheet { width: 320px; margin: 0 auto; text-align: center; }
-    .name { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #6a5a45; }
-    .floor { font-size: 34px; font-weight: 900; margin: 6px 0 2px; letter-spacing: -0.01em; }
-    .hint { font-size: 11px; color: #6a5a45; margin: 0 0 14px; }
-    .rule { border-top: 1px dashed rgba(33,26,17,.35); margin: 14px 0; }
-    .qr { width: 200px; height: 200px; margin: 0 auto; }
-    .qr svg { width: 100%; height: 100%; }
-    .url { font-size: 10px; word-break: break-all; margin-top: 14px; }
-    @media print { body { padding: 0; } }
-  </style></head><body>
-  <div class="sheet">
-    <p class="name">${escapeHtml(restaurantName)}</p>
-    <h1 class="floor">${escapeHtml(floor.name)}</h1>
-    <p class="hint">scan to order from anywhere on this floor</p>
-    <div class="qr">${svg}</div>
-    <div class="rule"></div>
-    <p class="url">${escapeHtml(url)}</p>
-  </div>
-  <script>window.onload = function () { setTimeout(function () { window.print(); }, 350); };</script>
-  </body></html>`);
-  sheet.document.close();
-  sheet.focus();
-  return true;
+  return printSlips([floorSlip(floor, url)], restaurantName, `${floor.name} QR`);
 }
 
 export function FloorQrDialog({
@@ -126,7 +84,7 @@ export function FloorQrDialog({
         </div>
 
         <div className="mt-2 flex justify-center gap-3">
-          <button type="button" className="text-[11px] font-semibold text-ink-3 hover:text-ink" onClick={() => downloadFloorQr(floor, url)}>
+          <button type="button" className="text-[11px] font-semibold text-ink-3 hover:text-ink" onClick={() => downloadFloorQr(floor, restaurantName, url)}>
             Download
           </button>
           <button type="button" className="text-[11px] font-semibold text-ink-3 hover:text-ink" onClick={() => onCopy(url)}>

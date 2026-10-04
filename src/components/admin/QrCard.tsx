@@ -37,105 +37,107 @@ export function QrImage({ value, className }: { value: string; className?: strin
   );
 }
 
-/** Downloads a vector file, so a print shop can scale it to any table tent. */
-export function downloadQr(table: DiningTable, url: string): void {
-  const svg = qrSvgDocument(encodeQr(url, { ecl: 'Q' }));
-  const blob = new Blob([svg], { type: 'image/svg+xml' });
+/** What one printed or downloaded slip says. Tables and floors fill it differently; the layout is shared. */
+export interface SlipContent {
+  title: string;
+  hint: string;
+  url: string;
+}
+
+export const tableSlip = (table: DiningTable, url: string): SlipContent => ({ title: table.name, hint: `${table.capacity} seats · scan to order`, url });
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
+}
+
+const slugify = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+/** One slip — the receipt-width layout every printed or downloaded code uses, for a table or a floor, alone or with the rest. */
+function slip(content: SlipContent, restaurantName: string): string {
+  const svg = qrSvgDocument(encodeQr(content.url, { ecl: 'Q' }), 2);
+  return `<div class="sheet">
+    <p class="name">${escapeHtml(restaurantName)}</p>
+    <h1 class="table">${escapeHtml(content.title)}</h1>
+    <p class="hint">${escapeHtml(content.hint)}</p>
+    <div class="qr">${svg}</div>
+  </div>`;
+}
+
+const SLIP_CSS = `
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; background: #fff; color: #111; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+    .sheet { width: 320px; margin: 0 auto; text-align: center; }
+    /* Several codes: flow them side by side so one page carries as many as fit. */
+    .multi { display: grid; grid-template-columns: repeat(auto-fit, 320px); justify-content: center; gap: 8mm; }
+    .multi .sheet { margin: 0; padding: 18px 0; break-inside: avoid; }
+    .name { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #6a5a45; }
+    .table { font-size: 34px; font-weight: 900; margin: 6px 0 2px; letter-spacing: -0.01em; }
+    .hint { font-size: 11px; color: #6a5a45; margin: 0 0 14px; }
+    .qr { width: 200px; height: 200px; margin: 0 auto; }
+    .qr svg { width: 100%; height: 100%; }
+    @page { margin: 10mm; }
+    @media print { body { padding: 0; } }`;
+
+/** Opens a print window with one slip each; several are packed side by side, a single one prints alone. */
+export function printSlips(items: SlipContent[], restaurantName: string, title: string, size = 'width=420,height=640'): boolean {
+  const sheet = window.open('', '_blank', size);
+  if (!sheet) return false;
+
+  sheet.document.write(`<!doctype html><html><head><meta charset="utf-8">
+  <title>${escapeHtml(restaurantName)} — ${escapeHtml(title)}</title>
+  <style>${SLIP_CSS}</style></head><body>
+  <div class="${items.length > 1 ? 'multi' : ''}">${items.map((item) => slip(item, restaurantName)).join('')}</div>
+  <script>window.onload = function () { setTimeout(function () { window.print(); }, 350); };</script>
+  </body></html>`);
+  sheet.document.close();
+  sheet.focus();
+  return true;
+}
+
+/** The slip as a standalone vector drawing, laid out like the printed one, so a print shop can scale it to any size. */
+function slipSvgDocument(content: SlipContent, restaurantName: string): string {
+  const width = 320;
+  const height = 342;
+  // SVG does not wrap text, so a long name shrinks to stay inside the slip.
+  const titleSize = Math.min(34, Math.floor(288 / (Math.max(content.title.length, 1) * 0.6)));
+  const qr = qrSvgDocument(encodeQr(content.url, { ecl: 'Q' }), 2).replace(/^<svg ([^>]*?) width="\d+" height="\d+">/, '<svg $1 x="60" y="118" width="200" height="200">');
+  const font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width * 3}" height="${height * 3}" font-family="${font}" text-anchor="middle">`,
+    `<rect width="${width}" height="${height}" fill="#ffffff"/>`,
+    `<text x="160" y="34" font-size="10" letter-spacing="1.8" fill="#6a5a45">${escapeHtml(restaurantName.toUpperCase())}</text>`,
+    `<text x="160" y="${44 + titleSize * 0.8}" font-size="${titleSize}" font-weight="900" fill="#111111">${escapeHtml(content.title)}</text>`,
+    `<text x="160" y="104" font-size="11" fill="#6a5a45">${escapeHtml(content.hint)}</text>`,
+    qr,
+    '</svg>',
+  ].join('');
+}
+
+/** Downloads the slip as a vector file. */
+export function downloadSlip(content: SlipContent, restaurantName: string): void {
+  const blob = new Blob([slipSvgDocument(content, restaurantName)], { type: 'image/svg+xml' });
   const href = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = href;
-  link.download = `${table.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-qr.svg`;
+  link.download = `${slugify(content.title)}-qr.svg`;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(href);
 }
 
-function card(table: DiningTable, restaurantName: string, url: string): string {
-  const svg = qrSvgDocument(encodeQr(url, { ecl: 'Q' }), 2);
-  return `<figure class="card">
-    <div class="name">${escapeHtml(restaurantName)}</div>
-    <div class="qr">${svg}</div>
-    <div class="table">${escapeHtml(table.name)}</div>
-    <div class="hint">Scan to see the menu, ratings and to order</div>
-  </figure>`;
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
-}
-
-/**
- * Opens a print-ready sheet: black on white, one card per table, sized so a
- * phone camera locks on from across the table.
- */
+/** Prints every given table's code on the same slip as a single table, packed side by side to use as few pages as possible. */
 export function printQrSheet(tables: DiningTable[], restaurantName: string, slug: string): boolean {
-  const sheet = window.open('', '_blank', 'width=900,height=1000');
-  if (!sheet) return false;
-
-  sheet.document.write(`<!doctype html><html><head><meta charset="utf-8">
-  <title>${escapeHtml(restaurantName)} — table codes</title>
-  <style>
-    @page { margin: 12mm; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; color: #111; background: #fff; }
-    .sheet { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10mm; }
-    .card { margin: 0; padding: 8mm 6mm; border: 1px dashed #bbb; border-radius: 4mm; text-align: center; break-inside: avoid; }
-    .name { font-size: 11pt; font-weight: 600; letter-spacing: 0.02em; }
-    .qr { width: 62mm; height: 62mm; margin: 5mm auto 4mm; }
-    .qr svg { width: 100%; height: 100%; }
-    .table { font-size: 20pt; font-weight: 700; letter-spacing: -0.01em; }
-    .hint { margin-top: 2mm; font-size: 8.5pt; color: #555; }
-    @media print { .card { border-color: #ddd; } }
-  </style></head><body>
-  <div class="sheet">${tables.map((t) => card(t, restaurantName, tableUrl(slug, t, window.location.origin))).join('')}</div>
-  </body></html>`);
-  sheet.document.close();
-
-  // Every code is inline SVG, so there is nothing left to load before printing.
-  sheet.focus();
-  sheet.print();
-  return true;
+  return printSlips(tables.map((t) => tableSlip(t, tableUrl(slug, t, window.location.origin))), restaurantName, 'table codes');
 }
 
-/**
- * A single table's code, printed on its own — a receipt-width slip rather
- * than the multi-table sheet, for the moment a manager just wants to reprint
- * one card without pulling the whole floor.
- */
+/** A single table's code, printed on its own. */
 export function printSingleQr(table: DiningTable, restaurantName: string, url: string): boolean {
-  const sheet = window.open('', '_blank', 'width=420,height=640');
-  if (!sheet) return false;
+  return printSlips([tableSlip(table, url)], restaurantName, `${table.name} QR`);
+}
 
-  const svg = qrSvgDocument(encodeQr(url, { ecl: 'Q' }), 2);
-  sheet.document.write(`<!doctype html><html><head><meta charset="utf-8">
-  <title>${escapeHtml(restaurantName)} — ${escapeHtml(table.name)} QR</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 24px; background: #fff; color: #111; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
-    .sheet { width: 320px; margin: 0 auto; text-align: center; }
-    .name { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #6a5a45; }
-    .table { font-size: 34px; font-weight: 900; margin: 6px 0 2px; letter-spacing: -0.01em; }
-    .hint { font-size: 11px; color: #6a5a45; margin: 0 0 14px; }
-    .rule { border-top: 1px dashed rgba(33,26,17,.35); margin: 14px 0; }
-    .qr { width: 200px; height: 200px; margin: 0 auto; }
-    .qr svg { width: 100%; height: 100%; }
-    .url { font-size: 10px; word-break: break-all; margin-top: 14px; }
-    @media print { body { padding: 0; } }
-  </style></head><body>
-  <div class="sheet">
-    <p class="name">${escapeHtml(restaurantName)}</p>
-    <h1 class="table">${escapeHtml(table.name)}</h1>
-    <p class="hint">${table.capacity} seats · scan to order</p>
-    <div class="qr">${svg}</div>
-    <div class="rule"></div>
-    <p class="url">${escapeHtml(url)}</p>
-  </div>
-  <script>window.onload = function () { setTimeout(function () { window.print(); }, 350); };</script>
-  </body></html>`);
-  sheet.document.close();
-  sheet.focus();
-  return true;
+export function downloadQr(table: DiningTable, restaurantName: string, url: string): void {
+  downloadSlip(tableSlip(table, url), restaurantName);
 }
 
 /**
@@ -201,7 +203,7 @@ export function QrDialog({
         </div>
 
         <div className="mt-2 flex justify-center gap-3">
-          <button type="button" className="text-[11px] font-semibold text-ink-3 hover:text-ink" onClick={() => downloadQr(table, url)}>
+          <button type="button" className="text-[11px] font-semibold text-ink-3 hover:text-ink" onClick={() => downloadQr(table, restaurantName, url)}>
             Download
           </button>
           <button type="button" className="text-[11px] font-semibold text-ink-3 hover:text-ink" onClick={() => onCopy(url)}>

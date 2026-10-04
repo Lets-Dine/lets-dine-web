@@ -103,7 +103,7 @@ export function Settings() {
                   <ImageUpload target="restaurant-cover" aspect={16 / 9} label="Upload photo" onUploaded={setCoverImageUrl} />
                 </Field>
                 <Field label="Image URL" className="mt-3">
-                  <TextInput value={coverImageUrl} onChange={setCoverImageUrl} placeholder="https://…/cover.jpg" maxLength={500} />
+                  <TextInput value={coverImageUrl} onChange={setCoverImageUrl} placeholder="https://…/cover.jpg" maxLength={5000} />
                 </Field>
               </fieldset>
             </div>
