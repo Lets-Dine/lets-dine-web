@@ -22,6 +22,18 @@ import * as live from './live-admin';
 
 export type { StaffDraft, UploadTarget } from './admin';
 export type { BranchDraft } from './live-admin';
+export {
+  SUBSCRIPTION_ENABLED,
+  changePlan,
+  fetchInvoices,
+  fetchPlans,
+  fetchSubscription,
+  fetchUsage,
+  isFeatureLocked,
+  isPlanError,
+  isSuspension,
+} from './subscription';
+export type { ChangePlanResult } from './subscription';
 
 /**
  * Branches exist only on the live backend. The offline demo is a single-location restaurant, so every

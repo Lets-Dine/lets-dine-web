@@ -259,3 +259,95 @@ export const Contact = ({ size = 16, className }: IconProps) => (
     <path d="M5.8 16.2a3.4 3.4 0 016.4 0M14.5 10h3.5M14.5 13.5H18" />
   </svg>
 );
+
+/** A ticket with a perforated stub — a plan is a pass you hold. */
+export const Ticket = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M3 9.5a2.5 2.5 0 0 0 0 5V17a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2.5a2.5 2.5 0 0 0 0-5V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z" />
+    <path d="M14 5.5v13" strokeDasharray="1.6 2.6" />
+  </svg>
+);
+
+export const Lock = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="5" y="11" width="14" height="9" rx="2.2" />
+    <path d="M8.5 11V8.2a3.5 3.5 0 0 1 7 0V11" />
+  </svg>
+);
+
+export const Alert = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 4.2 2.9 19.4a.9.9 0 0 0 .8 1.35h16.6a.9.9 0 0 0 .8-1.35z" />
+    <path d="M12 10v4.2M12 17.2h.01" />
+  </svg>
+);
+
+/* ── Platform console ────────────────────────────────────────────── */
+
+export const Building = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4.5 20.5V6.2a1 1 0 0 1 .7-.95l7-2.3a1 1 0 0 1 1.3.95V20.5" />
+    <path d="M13.5 9.5h5a1 1 0 0 1 1 1v10M2.5 20.5h19M8 9.5h2M8 13h2M8 16.5h2" />
+  </svg>
+);
+
+export const Bell = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M6 9.5a6 6 0 0 1 12 0c0 5.2 2 6.5 2 6.5H4s2-1.3 2-6.5z" />
+    <path d="M10 19.5a2.2 2.2 0 0 0 4 0" />
+  </svg>
+);
+
+export const Shield = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 3.2 4.8 6v5.6c0 4.3 2.9 7.6 7.2 9.2 4.3-1.6 7.2-4.9 7.2-9.2V6z" />
+    <path d="m9 12 2.2 2.2L15.2 10" />
+  </svg>
+);
+
+export const Key = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="8" cy="15" r="3.8" />
+    <path d="m10.8 12.2 8.4-8.4M16 6.6l2.4 2.4M13.6 9l1.8 1.8" />
+  </svg>
+);
+
+export const ArrowUpRight = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M7 17 17 7M8.5 7H17v8.5" />
+  </svg>
+);
+
+export const Download = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 4v11M7.5 10.8 12 15.3l4.5-4.5M5 19.5h14" />
+  </svg>
+);
+
+export const Copy = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="8.5" y="8.5" width="11" height="11" rx="2.2" />
+    <path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8" />
+  </svg>
+);
+
+export const Send = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M20.5 3.8 3.8 10.6l6.4 2.4 2.4 6.4z" />
+    <path d="m10.2 13 4.4-4.4" />
+  </svg>
+);
+
+export const Eye = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+    <circle cx="12" cy="12" r="2.8" />
+  </svg>
+);
+
+export const Megaphone = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 10v4a1 1 0 0 0 1 1h2.5l8 4.2V4.8l-8 4.2H5a1 1 0 0 0-1 1z" />
+    <path d="M19 9.5a3.5 3.5 0 0 1 0 5" />
+  </svg>
+);

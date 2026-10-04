@@ -24,7 +24,9 @@ export type Permission =
   | 'payments:view'
   | 'payments:discount'
   | 'customers:view'
-  | 'customers:edit';
+  | 'customers:edit'
+  | 'billing:view'
+  | 'billing:manage';
 
 const STAFF: Permission[] = ['orders:view', 'orders:advance', 'menu:view', 'payments:view', 'customers:view'];
 
@@ -41,12 +43,15 @@ const MANAGER: Permission[] = [
   'audit:view',
   'payments:discount',
   'customers:edit',
+  // The plan's status and usage — what the restaurant is on and when it needs attention. No money.
+  'billing:view',
 ];
 
 const GRANTS: Record<StaffRole, Permission[]> = {
   STAFF,
   MANAGER,
-  OWNER: [...MANAGER, 'settings:edit'],
+  // Prices, invoices and changing plan: the owner is who commits the restaurant to a plan.
+  OWNER: [...MANAGER, 'settings:edit', 'billing:manage'],
 };
 
 export function can(role: StaffRole, permission: Permission): boolean {
@@ -60,7 +65,7 @@ export const ROLE_LABEL: Record<StaffRole, string> = {
 };
 
 export const ROLE_SCOPE: Record<StaffRole, string> = {
-  OWNER: 'Everything, including settings and fees',
-  MANAGER: 'Menu, tables, orders, reviews and analytics',
+  OWNER: 'Everything, including settings, fees and the plan',
+  MANAGER: 'Menu, tables, orders, reviews, analytics and the plan status',
   STAFF: 'The order queue only',
 };

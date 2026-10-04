@@ -76,7 +76,7 @@ export function clearPlatformKey(): void {
   }
 }
 
-function platformHeaders(): Record<string, string> {
+export function platformHeaders(): Record<string, string> {
   const key = readPlatformKey();
   if (!key) throw new ApiError(401, 'Enter the platform key to continue.');
   return { 'x-platform-key': key };

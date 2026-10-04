@@ -1,268 +1,275 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiError } from '../../api/store';
-import { clearPlatformKey, listPlatformRestaurants, registerRestaurant } from '../../api/platform';
-import type { PlatformRestaurant, RegisterRestaurantInput } from '../../api/platform';
-import { Navigate } from 'react-router-dom';
+import { clearPlatformKey } from '../../api/platform';
+import { countTenantViews, listPlans, listTenantRows } from '../../api/platformConsole';
+import type { TenantListRow, TenantSort, TenantView } from '../../api/platformConsole';
 import { useAsync } from '../../state/useAsync';
-import {
-  ADMIN_PRIMARY,
-  Empty,
-  Field,
-  Loading,
-  INPUT_BOX,
-  PageTitle,
-  Panel,
-  TextArea,
-  TextInput,
-  useCommand,
-} from '../../components/admin/kit';
-import { Search } from '../../components/icons';
+import { ADMIN_GHOST, ADMIN_PRIMARY, Change, Empty, INPUT_BOX, PageTitle, Panel, Select } from '../../components/admin/kit';
+import { Download, Search } from '../../components/icons';
+import { useToast } from '../../state/ToastContext';
 import { usePageTitle } from '../../state/usePageTitle';
 import { cx } from '../../components/ui';
+import { Avatar, FilterPills, Meter, SkeletonRows, StatusBadge, TD, TH, WeekBars, relTime, rupees } from './kit';
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-}
+const PAGE_SIZE = 25;
+const VIEWS: TenantView[] = ['all', 'active', 'trial', 'attention', 'closed'];
+const SORTS: TenantSort[] = ['active', 'newest', 'name', 'revenue'];
 
-const emptyForm = {
-  name: '',
-  slug: '',
-  tagline: '',
-  description: '',
-  currency: 'NPR',
-  timezone: 'Asia/Kathmandu',
-  service: '10',
-  tax: '13',
-  ownerName: '',
-  ownerEmail: '',
-  ownerPin: '',
-};
+const isBilling = (t: TenantListRow) => t.status === 'ACTIVE' || t.status === 'PAST_DUE' || t.status === 'RESTRICTED';
 
-/**
- * The thin platform console: every restaurant on the service, and the form
- * that creates the next one together with its first OWNER account.
- */
+/** Every restaurant on the service, cut the way an operator asks about them: who is paying, who is on trial, who needs me. Filtering, sorting and paging all happen on the server. */
 export function PlatformRestaurants() {
   usePageTitle('Restaurants · Platform admin');
-  const [keyword, setKeyword] = useState('');
-  const list = useAsync(() => listPlatformRestaurants(keyword), [keyword]);
-  const { busy, run } = useCommand();
-  const [form, setForm] = useState(emptyForm);
-  const [slugTouched, setSlugTouched] = useState(false);
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [params, setParams] = useSearchParams();
+
+  const rawView = params.get('status') as TenantView | null;
+  const view: TenantView = rawView && VIEWS.includes(rawView) ? rawView : 'all';
+  const plan = params.get('plan') ?? 'all';
+  const rawSort = params.get('sort') as TenantSort | null;
+  const sort: TenantSort = rawSort && SORTS.includes(rawSort) ? rawSort : 'active';
+  const keyword = params.get('q') ?? '';
+  const page = Math.max(1, Number(params.get('page')) || 1);
+
+  // Typing updates the box at once; the URL (and so the request) follows once the typing pauses.
+  const [typed, setTyped] = useState(keyword);
+  useEffect(() => setTyped(keyword), [keyword]);
+
+  const setParam = (key: string, value: string, fallback: string) => {
+    const next = new URLSearchParams(params);
+    if (value === fallback) next.delete(key);
+    else next.set(key, value);
+    if (key !== 'page') next.delete('page');
+    setParams(next, { replace: true });
+  };
+
+  useEffect(() => {
+    if (typed === keyword) return;
+    const id = window.setTimeout(() => setParam('q', typed, ''), 300);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typed]);
+
+  const list = useAsync(
+    () => listTenantRows({ view, planKey: plan === 'all' ? undefined : plan, keyword, sort, page, pageSize: PAGE_SIZE }),
+    [view, plan, keyword, sort, page],
+  );
+  const viewCounts = useAsync(countTenantViews, []);
+  const plans = useAsync(listPlans, []);
+
+  const rows = list.data?.rows ?? [];
+  const total = list.data?.count ?? 0;
+  const counts = viewCounts.data;
+  const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // A shrinking list can leave the URL pointing past the last page.
+  useEffect(() => {
+    if (list.data && page > lastPage) setParam('page', String(lastPage), '1');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.data, lastPage]);
 
   if (list.error instanceof ApiError && list.error.status === 401) {
     clearPlatformKey();
     return <Navigate to="/platform/signin" replace />;
   }
 
-  const rows = list.data?.rows ?? [];
-  const count = list.data?.count ?? 0;
-
-  const set = <K extends keyof typeof emptyForm>(key: K, value: string) => {
-    setForm((prev) => {
-      const next = { ...prev, [key]: value };
-      if (key === 'name' && !slugTouched) next.slug = slugify(value);
-      return next;
-    });
-  };
-
-  const ready = useMemo(() => {
-    const slugOk = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug);
-    const pinOk = /^\d{4,8}$/.test(form.ownerPin);
-    const emailOk = form.ownerEmail.includes('@');
-    return Boolean(form.name.trim() && slugOk && form.ownerName.trim() && emailOk && pinOk);
-  }, [form]);
-
-  const submit = () => {
-    const payload: RegisterRestaurantInput = {
-      name: form.name.trim(),
-      slug: form.slug.trim(),
-      tagline: form.tagline.trim() || undefined,
-      description: form.description.trim() || undefined,
-      currency: form.currency.trim().toUpperCase() || undefined,
-      timezone: form.timezone.trim() || undefined,
-      serviceChargeRate: Number(form.service) / 100,
-      taxRate: Number(form.tax) / 100,
-      owner: {
-        name: form.ownerName.trim(),
-        email: form.ownerEmail.trim(),
-        pin: form.ownerPin.trim(),
-      },
-    };
-    void run(
-      'register',
-      () => registerRestaurant(payload),
-      `Restaurant created. ${form.ownerName.trim()} can sign in at the restaurant dashboard.`,
-    ).then((ok) => {
-      if (!ok) return;
-      setForm(emptyForm);
-      setSlugTouched(false);
-      list.reload();
-    });
-  };
+  const filtersOn = view !== 'all' || plan !== 'all' || keyword !== '' || typed !== '';
 
   return (
     <>
       <PageTitle
         title="Restaurants"
-        subtitle={count === 1 ? '1 restaurant on the platform' : `${count} restaurants on the platform`}
+        subtitle={counts ? `${counts.all} on the platform · ${counts.active} paying · ${counts.trial} on trial` : 'Loading…'}
+        action={
+          <>
+            <button type="button" className={ADMIN_GHOST} onClick={() => toast(`Exported ${total} restaurants to CSV.`, <Download size={16} />)}>
+              <Download size={15} /> Export
+            </button>
+          </>
+        }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr] lg:items-start">
-        <Panel
-          title="On the platform"
-          hint="Search by name or slug"
-          action={
-            <label className="relative block w-44">
-              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-4" />
-              <input
-                className={cx(INPUT_BOX, 'h-8 py-0 pl-7 text-[13px]')}
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="Search"
-                aria-label="Search restaurants"
-              />
-            </label>
-          }
-          bare
-        >
-          {list.loading && !list.data ? (
-            <Loading label="Loading restaurants…" />
-          ) : list.error && !list.data ? (
-            <p className="px-4 py-6 text-[13.5px] text-berry sm:px-5">{list.error.message}</p>
-          ) : rows.length === 0 ? (
-            <Empty title="No restaurants yet" message="Add the first one with an owner on the right." />
-          ) : (
-            <ul>
-              {rows.map((restaurant) => (
-                <RestaurantRow key={restaurant.id} restaurant={restaurant} />
+      <div className="mb-4 grid gap-3">
+        <FilterPills
+          label="Show"
+          value={view}
+          onChange={(v) => setParam('status', v, 'all')}
+          options={[
+            { value: 'all', label: 'All', count: counts?.all },
+            { value: 'active', label: 'Paying', count: counts?.active },
+            { value: 'trial', label: 'On trial', count: counts?.trial },
+            { value: 'attention', label: 'Needs attention', count: counts?.attention },
+            { value: 'closed', label: 'Closed', count: counts?.closed },
+          ]}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative block min-w-[200px] flex-1 sm:max-w-xs">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-4" />
+            <input className={cx(INPUT_BOX, 'h-9 py-0 pl-8 text-[13.5px]')} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Filter this list" aria-label="Filter restaurants" />
+          </label>
+          <div className="w-36">
+            <Select
+              value={plan}
+              onChange={(v) => setParam('plan', v, 'all')}
+              options={[
+                { value: 'all', label: 'Every plan' },
+                ...(plans.data?.plans ?? []).map((p) => ({ value: p.key, label: p.name })),
+              ]}
+            />
+          </div>
+          <div className="w-44">
+            <Select<TenantSort>
+              value={sort}
+              onChange={(v) => setParam('sort', v, 'active')}
+              options={[
+                { value: 'active', label: 'Recently active' },
+                { value: 'newest', label: 'Newest first' },
+                { value: 'revenue', label: 'Highest revenue' },
+                { value: 'name', label: 'Name A–Z' },
+              ]}
+            />
+          </div>
+          {filtersOn && (
+            <button type="button" className="h-9 px-2 text-[13px] font-semibold text-ink-3 hover:text-ink" onClick={() => { setTyped(''); setParams({}, { replace: true }); }}>
+              Clear filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      <Panel bare>
+        {list.loading && !list.data ? (
+          <SkeletonRows />
+        ) : rows.length === 0 ? (
+          <Empty
+            emoji="🔎"
+            title={!filtersOn ? 'No restaurants yet' : 'No restaurant matches'}
+            message={!filtersOn ? 'Add the first restaurant and its owner. They get a sign-in and a printed QR in minutes.' : 'Try a different filter, or clear them all to see every restaurant.'}
+            action={
+              !filtersOn ? (
+                <Link to="/platform/restaurants/new" className={ADMIN_PRIMARY}>
+                  Add restaurant
+                </Link>
+              ) : (
+                <button type="button" className={ADMIN_GHOST} onClick={() => { setTyped(''); setParams({}, { replace: true }); }}>
+                  Clear filters
+                </button>
+              )
+            }
+          />
+        ) : (
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[860px] border-collapse text-[13.5px]">
+                <thead>
+                  <tr className="border-b border-hairline">
+                    <th className={TH}>Restaurant</th>
+                    <th className={TH}>Status</th>
+                    <th className={TH}>Plan</th>
+                    <th className={TH}>Seats and branches</th>
+                    <th className={TH}>Orders, 8 weeks</th>
+                    <th className={cx(TH, 'text-right')}>Revenue</th>
+                    <th className={cx(TH, 'text-right')}>Last active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((t) => (
+                    <TenantRow key={t.id} t={t} onOpen={() => navigate(`/platform/restaurants/${t.id}`)} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="md:hidden">
+              {rows.map((t) => (
+                <li key={t.id}>
+                  <Link to={`/platform/restaurants/${t.id}`} className="flex items-start gap-3 border-b border-hairline px-4 py-3.5 last:border-0 active:bg-surface-2/60">
+                    <Avatar name={t.name} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate text-[14.5px] font-semibold">{t.name}</span>
+                        <StatusBadge status={t.status} />
+                      </span>
+                      <span className="mt-0.5 block truncate text-[12.5px] text-ink-3">
+                        {t.owner?.name ?? 'No owner'} · {t.planName} · active {relTime(t.lastActiveAt)}
+                      </span>
+                      <span className="mt-1 block text-[12.5px] text-ink-3 tnum">
+                        {t.ordersThisMonth.toLocaleString()} orders · {isBilling(t) ? `${rupees(t.mrr)} / mo` : 'not billing'}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
               ))}
             </ul>
-          )}
-        </Panel>
-
-        <Panel title="Add a restaurant" hint="Creates the restaurant and its first owner in one step">
-          <form
-            className="grid gap-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (ready && !busy) submit();
-            }}
-          >
-            <Field label="Restaurant name">
-              <TextInput value={form.name} onChange={(v) => set('name', v)} maxLength={120} placeholder="Newa Kitchen" />
-            </Field>
-            <Field label="Slug" hint="Lowercase letters, numbers and dashes. Used in diner URLs.">
-              <TextInput
-                value={form.slug}
-                onChange={(v) => {
-                  setSlugTouched(true);
-                  set('slug', v.toLowerCase());
-                }}
-                maxLength={80}
-                placeholder="newa-kitchen"
-              />
-            </Field>
-            <Field label="Tagline">
-              <TextInput value={form.tagline} onChange={(v) => set('tagline', v)} maxLength={160} placeholder="Charcoal grill & Newari kitchen" />
-            </Field>
-            <Field label="Description">
-              <TextArea value={form.description} onChange={(v) => set('description', v)} maxLength={2000} rows={3} />
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Currency">
-                <TextInput value={form.currency} onChange={(v) => set('currency', v.toUpperCase())} maxLength={3} placeholder="NPR" />
-              </Field>
-              <Field label="Timezone">
-                <TextInput value={form.timezone} onChange={(v) => set('timezone', v)} maxLength={60} placeholder="Asia/Kathmandu" />
-              </Field>
-              <Field label="Service charge">
-                <PercentInput value={form.service} onChange={(v) => set('service', v)} />
-              </Field>
-              <Field label="Tax">
-                <PercentInput value={form.tax} onChange={(v) => set('tax', v)} />
-              </Field>
+            <div className="flex items-center justify-between gap-3 border-t border-hairline px-4 py-3 text-[13px] text-ink-3">
+              <span className="tnum">
+                {(page - 1) * PAGE_SIZE + 1}–{(page - 1) * PAGE_SIZE + rows.length} of {total}
+              </span>
+              <span className="flex items-center gap-2">
+                <button type="button" className={ADMIN_GHOST} disabled={page <= 1} onClick={() => setParam('page', String(page - 1), '1')}>
+                  Previous
+                </button>
+                <button type="button" className={ADMIN_GHOST} disabled={page >= lastPage} onClick={() => setParam('page', String(page + 1), '1')}>
+                  Next
+                </button>
+              </span>
             </div>
-
-            <div className="border-t border-hairline pt-4">
-              <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-4">Owner</p>
-              <div className="grid gap-4">
-                <Field label="Name">
-                  <TextInput value={form.ownerName} onChange={(v) => set('ownerName', v)} maxLength={120} placeholder="Ranjana Shrestha" />
-                </Field>
-                <Field label="Email">
-                  <TextInput value={form.ownerEmail} onChange={(v) => set('ownerEmail', v)} type="email" placeholder="owner@restaurant.np" />
-                </Field>
-                <Field label="PIN" hint="4 to 8 digits. Used to sign in to the restaurant dashboard.">
-                  <TextInput value={form.ownerPin} onChange={(v) => set('ownerPin', v.replace(/\D/g, '').slice(0, 8))} type="password" maxLength={8} placeholder="••••" />
-                </Field>
-              </div>
-            </div>
-
-            <button type="submit" disabled={busy || !ready} className={cx(ADMIN_PRIMARY, 'h-11 w-full')}>
-              {busy ? 'Creating…' : 'Create restaurant'}
-            </button>
-          </form>
-        </Panel>
-      </div>
+          </>
+        )}
+      </Panel>
     </>
   );
 }
 
-function RestaurantRow({ restaurant }: { restaurant: PlatformRestaurant }) {
-  const fees = [
-    restaurant.serviceChargeRate > 0 ? `${Math.round(restaurant.serviceChargeRate * 100)}% service` : null,
-    restaurant.taxRate > 0 ? `${Math.round(restaurant.taxRate * 100)}% tax` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
+function TenantRow({ t, onOpen }: { t: TenantListRow; onOpen: () => void }) {
+  const change = t.ordersLastMonth > 0 ? t.ordersThisMonth / t.ordersLastMonth - 1 : null;
+  const closed = t.status === 'SUSPENDED' || t.status === 'CANCELLED';
   return (
-    <li className="flex items-start gap-3 border-b border-hairline px-4 py-3.5 last:border-0 sm:px-5">
-      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-flame-dim text-[12px] font-bold text-flame-1">
-        {restaurant.name.slice(0, 1).toUpperCase()}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-baseline gap-x-2">
-          <span className="truncate text-[14.5px] font-semibold">{restaurant.name}</span>
-          <span className="text-[12px] text-ink-4">/{restaurant.slug}</span>
-        </span>
-        {restaurant.tagline && <span className="mt-0.5 block truncate text-[13px] text-ink-3">{restaurant.tagline}</span>}
-        <span className="mt-1 block text-[12px] text-ink-4">
-          {restaurant.currency} · {restaurant.timezone}
-          {fees ? ` · ${fees}` : ''}
-          {restaurant.isActive ? '' : ' · inactive'}
-        </span>
-      </span>
-      <span
-        className={cx(
-          'mt-1 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.06em]',
-          restaurant.isActive ? 'bg-mint/16 text-mint-ink' : 'bg-ink/8 text-ink-3',
-        )}
-      >
-        {restaurant.isActive ? 'Active' : 'Off'}
-      </span>
-    </li>
-  );
-}
-
-function PercentInput({ value, onChange }: { value: string; onChange: (next: string) => void }) {
-  return (
-    <span className="relative block">
-      <input
-        className={cx(INPUT_BOX, 'pr-9 tnum')}
-        value={value}
-        inputMode="decimal"
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
-      />
-      <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-[13.5px] font-semibold text-ink-4">
-        %
-      </span>
-    </span>
+    <tr onClick={onOpen} className="cursor-pointer border-b border-hairline transition-colors duration-150 last:border-0 hover:bg-surface-2/50">
+      <td className={TD}>
+        <div className="flex items-center gap-3">
+          <Avatar name={t.name} />
+          <div className="min-w-0">
+            <Link to={`/platform/restaurants/${t.id}`} onClick={(e) => e.stopPropagation()} className="block truncate text-[14px] font-semibold hover:underline">
+              {t.name}
+            </Link>
+            <div className="truncate text-[12.5px] text-ink-3">
+              {t.owner?.name ?? 'No owner'}
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className={TD}>
+        <StatusBadge status={t.status} />
+      </td>
+      <td className={TD}>
+        <div className="font-semibold">{t.planName}</div>
+        <div className="text-[12px] text-ink-4">{t.interval === 'ANNUAL' ? 'Yearly' : 'Monthly'}</div>
+      </td>
+      <td className={cx(TD, 'w-[190px]')}>
+        <div className="grid gap-1.5">
+          <Meter compactLabel label="Staff seats" used={t.seats} limit={t.seatLimit} />
+          <div className="text-[12px] text-ink-4 tnum">
+            {t.seats} seats · {t.branches} {t.branches === 1 ? 'branch' : 'branches'}
+          </div>
+        </div>
+      </td>
+      <td className={TD}>
+        <div className="flex items-end gap-3">
+          <WeekBars data={t.weekly} />
+          <div>
+            <div className="font-semibold tnum">{t.ordersThisMonth.toLocaleString()}</div>
+            {change !== null && !closed && (
+              <div className="text-[12px]">
+                <Change value={change} />
+              </div>
+            )}
+          </div>
+        </div>
+      </td>
+      <td className={cx(TD, 'whitespace-nowrap text-right tnum')}>{isBilling(t) ? <span className="font-semibold">{rupees(t.mrr)}</span> : <span className="text-ink-4">—</span>}</td>
+      <td className={cx(TD, 'whitespace-nowrap text-right text-ink-3 tnum')}>{relTime(t.lastActiveAt)}</td>
+    </tr>
   );
 }

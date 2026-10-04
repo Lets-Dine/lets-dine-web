@@ -108,6 +108,7 @@
   --animate-breathe: breathe 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
   --animate-breathe-slow: breathe 3.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
   --animate-grow-x: grow-x 700ms var(--ease-out-quart) both;
+  --animate-grow-y: grow-y 620ms var(--ease-out-quart) both;
   --animate-dock-in: dock-in 460ms var(--ease-spring) both;
   --animate-settle: settle 1.4s var(--ease-out-quart) both;
   --animate-sink: sink 200ms var(--ease-out-quart) both;
@@ -131,6 +132,10 @@
   @keyframes breathe {
     0%, 100% { opacity: 0.9; transform: scale(1); }
     50% { opacity: 1; transform: scale(1.14); }
+  }
+  @keyframes grow-y {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
   }
   @keyframes grow-x {
     from { transform: scaleX(0); }

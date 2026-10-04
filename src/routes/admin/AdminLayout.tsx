@@ -1,18 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import type { ComponentType } from 'react';
-import { BRANCHES_ENABLED, adminMenu, listQueue, subscribeToQueue } from '../../api/staff';
+import { BRANCHES_ENABLED, adminMenu, isSuspension, listQueue, subscribeToQueue } from '../../api/staff';
 import { IS_LIVE_API } from '../../api/http';
 import { ROLE_LABEL } from '../../domain/permissions';
 import type { Permission } from '../../domain/permissions';
 import type { Menu, Order } from '../../domain/types';
+import { needsAttention } from '../../domain/subscription';
 import { useAuth, useStaff } from '../../state/AuthContext';
+import { SubscriptionProvider, useSubscription } from '../../state/SubscriptionContext';
 import { AdminThemeToggle } from '../../state/AdminTheme';
 import { usePageTitle } from '../../state/usePageTitle';
 import { BranchSwitcher } from '../../components/admin/BranchSwitcher';
 import { Loading } from '../../components/admin/kit';
+import { LockedScreen, PlanChip, SubscriptionBanner } from '../../components/admin/SubscriptionBits';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Cash, Contact, Folder, Grid, History, Layers, MapPin, Plate, Receipt, Sliders, Sparkle, Table, Users } from '../../components/icons';
+import { Cash, Contact, Folder, Grid, History, Layers, MapPin, Plate, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
 import { playNewOrderSound } from '../../platform/sound';
 
 /**
@@ -52,7 +55,7 @@ interface NavItem {
   icon: ComponentType<{ size?: number; className?: string }>;
   permission: Permission;
   end?: boolean;
-  /** Needs the live backend — the offline demo is a single location with no branches to manage. */
+  /** Needs the live backend — the offline demo is a single location with no branches to manage, and no plan to show. */
   liveOnly?: boolean;
 }
 
@@ -71,6 +74,7 @@ const NAV: NavItem[] = [
   { to: '/admin/branches', label: 'Branches', icon: MapPin, permission: 'settings:view', liveOnly: true },
   { to: '/admin/staff', label: 'Staff', icon: Users, permission: 'settings:view' },
   { to: '/admin/audit', label: 'Audit log', icon: History, permission: 'audit:view' },
+  { to: '/admin/plan', label: 'Plan', icon: Ticket, permission: 'billing:view', liveOnly: true },
   { to: '/admin/settings', label: 'Settings', icon: Sliders, permission: 'settings:view' },
 ];
 
@@ -94,12 +98,17 @@ export function AdminLayout() {
   if (!staff) return <Navigate to="/admin/signin" replace state={{ from: location.pathname }} />;
   // Keyed on the branch too: switching remounts the shell, which drops the old branch's menu, queue,
   // known-order ids and sockets in one go rather than patching each of them.
-  return <SignedIn key={`${staff.id}:${staff.branchId ?? ''}`} allows={allows} signOut={signOut} />;
+  return (
+    <SubscriptionProvider key={`${staff.id}:${staff.branchId ?? ''}`}>
+      <SignedIn allows={allows} signOut={signOut} />
+    </SubscriptionProvider>
+  );
 }
 
 function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; signOut: () => void }) {
   const staff = useStaff();
   const { refreshBranches } = useAuth();
+  const subscription = useSubscription();
   const location = useLocation();
   const needsOrders = routeNeedsOrders(location.pathname);
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -116,11 +125,23 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     };
   }, []);
 
+  const { markLocked } = subscription;
+
+  /** A suspended restaurant refuses everything; that closes the dashboard rather than printing an error over it. */
+  const fail = useCallback(
+    (e: unknown) => {
+      if (!alive.current) return;
+      if (isSuspension(e)) markLocked();
+      else setError(e instanceof Error ? e.message : String(e));
+    },
+    [markLocked],
+  );
+
   const reloadMenu = useCallback(() => {
     adminMenu(staff)
       .then((next) => alive.current && setMenu(next))
-      .catch((e: Error) => alive.current && setError(e.message));
-  }, [staff]);
+      .catch(fail);
+  }, [staff, fail]);
 
   /** Sounds the alert for any id this poll turned up that wasn't there last time — silent on the very first load. */
   const noteOrders = useCallback((next: Order[]) => {
@@ -140,8 +161,8 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
         noteOrders(next);
         setOrders(next);
       })
-      .catch((e: Error) => alive.current && setError(e.message));
-  }, [staff, noteOrders]);
+      .catch(fail);
+  }, [staff, noteOrders, fail]);
 
   /** A brand-new ticket the queue hasn't seen yet — appended rather than replacing the list. */
   const applyCreated = useCallback((created: Order) => {
@@ -159,9 +180,11 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     setOrders((prev) => (prev ? prev.map((o) => (o.id === updated.id ? updated : o)) : prev));
   }, []);
 
+  // Also re-runs when a closed restaurant is reopened (the owner paid): the menu was never loaded while it was locked.
   useEffect(() => {
+    if (subscription.locked) return;
     reloadMenu();
-  }, [reloadMenu]);
+  }, [reloadMenu, subscription.locked]);
 
   // The branch list captured at sign-in can be days old; re-read it whenever the dashboard opens.
   useEffect(() => {
@@ -175,14 +198,14 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   // doesn't show the queue — no reason to keep a socket open or poll in the
   // background for data nothing on screen reads.
   useEffect(() => {
-    if (!needsOrders) return;
+    if (!needsOrders || subscription.locked) return;
     reloadOrders();
     if (IS_LIVE_API) {
       return subscribeToQueue(applyCreated, applyUpdated, reloadOrders);
     }
     const timer = setInterval(reloadOrders, POLL_MS);
     return () => clearInterval(timer);
-  }, [needsOrders, reloadOrders, applyCreated, applyUpdated]);
+  }, [needsOrders, subscription.locked, reloadOrders, applyCreated, applyUpdated]);
 
   const activeLabel = NAV.find((item) => (item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)))?.label;
   usePageTitle(`${activeLabel ?? 'Dashboard'} · ${menu?.restaurant.name ?? "Let's Dine"} admin`);
@@ -197,7 +220,12 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     [menu, orders, needsOrders, reloadOrders, reloadMenu, applyUpdated],
   );
 
-  const items = NAV.filter((item) => allows(item.permission) && (!item.liveOnly || BRANCHES_ENABLED));
+  const locked = subscription.locked;
+  const canManagePlan = allows('billing:manage');
+  const onPlanPage = location.pathname === '/admin/plan';
+  // A closed restaurant has one door left, and only the owner has the key: the plan, to put it right.
+  const items = NAV.filter((item) => (locked ? item.to === '/admin/plan' && canManagePlan : allows(item.permission) && (!item.liveOnly || BRANCHES_ENABLED)));
+  const attention = needsAttention(subscription.notice);
 
   return (
     <div className="min-h-dvh bg-bg lg:bg-room">
@@ -205,9 +233,10 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
         {/* ── Sidebar, laptops and up ─────────────────────────────── */}
         <aside className="sticky top-0 hidden h-dvh flex-col border-r border-hairline bg-surface/40 px-3 py-5 lg:flex">
           <div className="px-3 pb-5">
-            <div className={cx(DISPLAY, 'text-[26px]')}>{menu?.restaurant.name ?? 'Loading…'}</div>
+            <div className={cx(DISPLAY, 'text-[26px]')}>{menu?.restaurant.name ?? (subscription.locked ? 'Dashboard' : 'Loading…')}</div>
             <div className="mt-0.5 text-[12px] text-ink-4">Restaurant dashboard</div>
             <BranchSwitcher className="mt-3" />
+            {subscription.subscription && <PlanChip subscription={subscription.subscription} notice={subscription.notice} className="mt-3" />}
           </div>
 
           <nav className="flex flex-col gap-0.5">
@@ -254,13 +283,24 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
             </div>
             <nav className="flex gap-1 overflow-x-auto no-scrollbar px-3 pb-2">
               {items.map((item) => (
-                <TabLink key={item.to} item={item} badge={item.to === '/admin/orders' ? waiting : 0} />
+                <TabLink key={item.to} item={item} badge={item.to === '/admin/orders' ? waiting : 0} dot={item.to === '/admin/plan' && attention} />
               ))}
             </nav>
           </header>
 
           <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
-            {error && !dashboard ? (
+            {!locked && !onPlanPage && subscription.notice && <SubscriptionBanner notice={subscription.notice} onDismiss={subscription.dismissNotice} />}
+            {locked ? (
+              canManagePlan ? (
+                onPlanPage ? (
+                  <Outlet />
+                ) : (
+                  <Navigate to="/admin/plan" replace />
+                )
+              ) : (
+                <LockedScreen onSignOut={signOut} />
+              )
+            ) : error && !dashboard ? (
               <p className="rounded-2xl bg-berry/10 px-4 py-3 text-[14px] text-berry ring-1 ring-berry/25 ring-inset">
                 {error}
               </p>
@@ -306,7 +346,7 @@ function SideLink({ item, badge }: { item: NavItem; badge: number }) {
   );
 }
 
-function TabLink({ item, badge }: { item: NavItem; badge: number }) {
+function TabLink({ item, badge, dot = false }: { item: NavItem; badge: number; dot?: boolean }) {
   return (
     <NavLink
       to={item.to}
@@ -325,6 +365,7 @@ function TabLink({ item, badge }: { item: NavItem; badge: number }) {
           {badge}
         </span>
       )}
+      {dot && <span className="size-2 rounded-full bg-gold ring-2 ring-bg" role="img" aria-label="Needs attention" />}
     </NavLink>
   );
 }

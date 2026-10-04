@@ -1,12 +1,14 @@
 import { useCallback, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { isPlanError } from '../../api/subscription';
 import { ApiError } from '../../api/store';
 import { formatMoney, symbolFor } from '../../domain/money';
 import type { Minor, OrderStatus } from '../../domain/types';
 import { haptic } from '../../platform/haptics';
 import { useToast } from '../../state/ToastContext';
 import { BTN, DISPLAY, cx } from '../ui';
-import { Check, ChevronRight, X } from '../icons';
+import { Alert, Check, ChevronRight, X } from '../icons';
 
 /**
  * The dashboard's vocabulary. It shares the diner app's palette and easings —
@@ -618,6 +620,7 @@ export function Confirm({
  */
 export function useCommand() {
   const push = useToast();
+  const navigate = useNavigate();
   const [pending, setPending] = useState<string | null>(null);
 
   const run = useCallback(
@@ -632,13 +635,16 @@ export function useCommand() {
         return true;
       } catch (error) {
         haptic.warn();
-        push(error instanceof ApiError ? error.message : 'That did not go through. Try again.', '⚠️');
+        const message = error instanceof ApiError ? error.message : 'That did not go through. Try again.';
+        // A refusal because of the plan (a limit, a locked feature, a restriction) has an answer on the Plan page.
+        if (isPlanError(error)) push(message, <Alert size={16} />, { label: 'See plan', onAction: () => navigate('/admin/plan') });
+        else push(message, '⚠️');
         return false;
       } finally {
         setPending(null);
       }
     },
-    [push],
+    [push, navigate],
   );
 
   return { pending, busy: pending !== null, run };

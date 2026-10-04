@@ -27,6 +27,7 @@ import { DishEditor } from './routes/admin/DishEditor';
 import { MenuBoard } from './routes/admin/MenuBoard';
 import { Orders } from './routes/admin/Orders';
 import { Payments } from './routes/admin/Payments';
+import { Plan } from './routes/admin/Plan';
 import { Reviews } from './routes/admin/Reviews';
 import { Settings } from './routes/admin/Settings';
 import { SignIn } from './routes/admin/SignIn';
@@ -38,6 +39,13 @@ import { TableDetail } from './routes/admin/TableDetail';
 import { PlatformLayout } from './routes/platform/PlatformLayout';
 import { PlatformSignIn } from './routes/platform/PlatformSignIn';
 import { PlatformRestaurants } from './routes/platform/Restaurants';
+import { PlatformOverview } from './routes/platform/Overview';
+import { PlatformRestaurantNew } from './routes/platform/RestaurantNew';
+import { PlatformRestaurantDetail } from './routes/platform/RestaurantDetail';
+import { PlatformBilling } from './routes/platform/Billing';
+import { PlatformPlans } from './routes/platform/Plans';
+import { PlatformActivity } from './routes/platform/Activity';
+import { PlatformSettingsPage } from './routes/platform/Settings';
 
 /**
  * Scroll and focus, per navigation.
@@ -155,12 +163,20 @@ export default function App() {
                 <Route path="branches/:branchId" element={<BranchDetail />} />
                 <Route path="staff" element={<Staff />} />
                 <Route path="audit" element={<AuditLog />} />
+                <Route path="plan" element={<Plan />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
 
               <Route path="/platform/signin" element={<PlatformSignIn />} />
               <Route path="/platform" element={<PlatformLayout />}>
-                <Route index element={<PlatformRestaurants />} />
+                <Route index element={<PlatformOverview />} />
+                <Route path="restaurants" element={<PlatformRestaurants />} />
+                <Route path="restaurants/new" element={<PlatformRestaurantNew />} />
+                <Route path="restaurants/:id" element={<PlatformRestaurantDetail />} />
+                <Route path="billing" element={<PlatformBilling />} />
+                <Route path="plans" element={<PlatformPlans />} />
+                <Route path="activity" element={<PlatformActivity />} />
+                <Route path="settings" element={<PlatformSettingsPage />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

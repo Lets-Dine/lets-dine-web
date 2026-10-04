@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { RevenueTrend, RevenueTrendPoint, TrendPeriod } from '../../domain/adminMetrics';
 import type { Minor } from '../../domain/types';
 import { formatMoney } from '../../domain/money';
 import { DISPLAY, cx } from '../ui';
+import { Lock } from '../icons';
 import { Change, Loading, Panel, Segmented } from './kit';
 
 const PERIODS: { value: TrendPeriod; label: string }[] = [
@@ -111,22 +113,33 @@ interface Props {
   /** True while a request is in flight — the last figures stay on screen, dimmed, until the new ones land. */
   loading: boolean;
   failed: boolean;
+  /** The restaurant's plan does not include revenue trends — a state of the plan, not a failure. */
+  locked?: boolean;
   onRetry: () => void;
   currency: string;
 }
 
 /** A line comparison of revenue: this period drawn solid up to today, the one before it dashed behind. */
-export function RevenueTrendChart({ trend, period, onPeriodChange, loading, failed, onRetry, currency }: Props) {
+export function RevenueTrendChart({ trend, period, onPeriodChange, loading, failed, locked = false, onRetry, currency }: Props) {
   const copy = COPY[period];
 
   return (
     <Panel
       title={copy.title}
       hint="Settled payments, against the period before"
-      action={<Segmented label="Period" value={period} onChange={onPeriodChange} options={PERIODS} />}
+      action={locked ? undefined : <Segmented label="Period" value={period} onChange={onPeriodChange} options={PERIODS} />}
     >
       {trend === null ? (
-        failed ? (
+        locked ? (
+          <div className="grid place-items-center gap-2 py-14 text-center">
+            <Lock size={20} className="text-ink-4" />
+            <p className="text-[13.5px] font-semibold">Revenue trends are not in your current plan</p>
+            <p className="max-w-[38ch] text-[13px] leading-snug text-ink-3">Today's orders and the pass are unaffected. A higher plan adds trends and comparisons.</p>
+            <Link to="/admin/plan" className="mt-1 text-[13px] font-semibold text-flame-1">
+              See what your plan includes
+            </Link>
+          </div>
+        ) : failed ? (
           <div className="grid place-items-center gap-3 py-16 text-center">
             <p className="text-[13.5px] text-ink-3">Revenue couldn't be loaded.</p>
             <button type="button" onClick={onRetry} className="text-[13px] font-semibold text-flame-1">

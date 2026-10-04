@@ -9,6 +9,7 @@ import {
   fetchRevenueComparison,
   fetchRevenueTrend,
   fetchTopSellingDishes,
+  isFeatureLocked,
 } from '../../api/staff';
 import { funnel } from '../../domain/analytics';
 import { byUrgencyThenAge, floorBillSubject, focusMap, newestOrderPerTable } from '../../domain/orderStatus';
@@ -68,6 +69,10 @@ export function Dashboard() {
   // The comparison across locations only means something with more than one to compare.
   const compareBranches = BRANCHES_ENABLED && (staff.branches?.length ?? 0) > 1;
   const branchPerformance = useAsync(() => (compareBranches ? fetchBranchPerformance() : Promise.resolve([])), [staff, compareBranches]);
+  // A plan without analytics answers these with FEATURE_LOCKED. That is the plan talking, not something broken.
+  const analyticsLocked = isFeatureLocked(revenue.error) || isFeatureLocked(orderComparison.error);
+  const trendLocked = isFeatureLocked(trend.error);
+  const branchesLocked = isFeatureLocked(branchPerformance.error);
   const now = useNow(TICK_MS);
   const [lane, setLane] = useState<Lane>('all');
   const { pending, run } = useCommand();
@@ -225,15 +230,15 @@ export function Dashboard() {
         <StatTile
           label="Orders today"
           value={orderComparison.data ? String(orderComparison.data.current) : '—'}
-          change={orderComparison.data ? orderComparison.data.differencePercentage / 100 : null}
-          sub="vs yesterday"
+          change={analyticsLocked ? undefined : orderComparison.data ? orderComparison.data.differencePercentage / 100 : null}
+          sub={analyticsLocked ? 'Not in your plan' : 'vs yesterday'}
           variant="primary"
         />
         <StatTile
           label="Revenue today"
           value={revenue.data ? formatMoney(revenue.data.current, menu.restaurant.currency) : '—'}
-          change={revenue.data ? revenue.data.differencePercentage / 100 : null}
-          sub="vs yesterday"
+          change={analyticsLocked ? undefined : revenue.data ? revenue.data.differencePercentage / 100 : null}
+          sub={analyticsLocked ? 'Not in your plan' : 'vs yesterday'}
           variant="primary"
         />
         <StatTile
@@ -248,6 +253,13 @@ export function Dashboard() {
         <Panel title="Branches" hint="Last 30 days, by revenue" bare className="mb-4">
           {branchPerformance.loading && !branchPerformance.data ? (
             <Loading label="Comparing branches…" />
+          ) : branchesLocked ? (
+            <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">
+              Comparing branches is not in your current plan.{' '}
+              <Link to="/admin/plan" className="font-semibold text-flame-1">
+                See what it includes
+              </Link>
+            </p>
           ) : (branchPerformance.data ?? []).length === 0 ? (
             <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">No orders at any branch yet.</p>
           ) : (
@@ -291,7 +303,8 @@ export function Dashboard() {
           period={trendPeriod}
           onPeriodChange={setTrendPeriod}
           loading={trend.loading}
-          failed={trend.error !== null}
+          failed={trend.error !== null && !trendLocked}
+          locked={trendLocked}
           onRetry={trend.reload}
           currency={menu.restaurant.currency}
         />

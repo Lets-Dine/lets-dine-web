@@ -13,7 +13,8 @@
     "test:flow": "esbuild tests/flow.smoke.tsx --bundle --platform=node --format=esm --jsx=automatic --external:react --external:react-dom --external:react-dom/client --external:react-router-dom --external:socket.io-client --outfile=node_modules/.tmp/flow.mjs --log-level=error && node --import ./tests/dom-shim.mjs node_modules/.tmp/flow.mjs",
     "test:dashboard": "esbuild tests/dashboard.smoke.tsx --bundle --platform=node --format=esm --jsx=automatic --external:react --external:react-dom --external:react-dom/client --external:react-router-dom --external:socket.io-client --outfile=node_modules/.tmp/dashboard.mjs --log-level=error && node --import ./tests/dom-shim.mjs node_modules/.tmp/dashboard.mjs",
     "test:live": "node tests/run-live.mjs",
-    "test": "npm run test:rules && npm run test:admin && npm run test:flow && npm run test:dashboard"
+    "test": "npm run test:rules && npm run test:admin && npm run test:flow && npm run test:dashboard",
+    "test:subscription": "esbuild tests/subscription.smoke.ts --bundle --platform=node --format=esm --outfile=node_modules/.tmp/subscription.mjs --log-level=error && node node_modules/.tmp/subscription.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
