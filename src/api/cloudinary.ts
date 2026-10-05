@@ -1,14 +1,17 @@
 import { getUploadSignature } from './staff';
+import type { UploadSignature } from './admin';
 import type { UploadTarget } from './staff';
 import { ApiError } from './store';
 
 /**
  * Uploads straight from the browser to Cloudinary with a signature minted by
  * our backend (`getUploadSignature`) — the file never makes a round trip
- * through our server, and the API secret never reaches the browser.
+ * through our server, and the API secret never reaches the browser. `target` is
+ * a restaurant upload folder, or a function minting a signature for callers
+ * that are not a restaurant (the platform's dish library).
  */
-export async function uploadToCloudinary(file: Blob, target: UploadTarget): Promise<string> {
-  const sig = await getUploadSignature(target);
+export async function uploadToCloudinary(file: Blob, target: UploadTarget | (() => Promise<UploadSignature>)): Promise<string> {
+  const sig = await (typeof target === 'function' ? target() : getUploadSignature(target));
 
   const body = new FormData();
   body.append('file', file);

@@ -331,6 +331,7 @@ export function TextInput({
   maxLength,
   type = 'text',
   autoFocus,
+  list,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -339,6 +340,8 @@ export function TextInput({
   maxLength?: number;
   type?: 'text' | 'email' | 'password';
   autoFocus?: boolean;
+  /** Id of a `<datalist>` offering suggestions. */
+  list?: string;
 }) {
   return (
     <input
@@ -348,6 +351,7 @@ export function TextInput({
       placeholder={placeholder}
       maxLength={maxLength}
       autoFocus={autoFocus}
+      list={list}
       onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
     />
   );

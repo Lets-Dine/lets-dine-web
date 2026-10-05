@@ -209,7 +209,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   }, [needsOrders, subscription.locked, reloadOrders, applyCreated, applyUpdated]);
 
   const activeLabel = NAV.find((item) => (item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)))?.label;
-  usePageTitle(`${activeLabel ?? 'Dashboard'} · ${menu?.restaurant.name ?? "Let's Dine"} admin`);
+  usePageTitle(`${activeLabel ?? 'Dashboard'} · ${menu?.restaurant.name ?? "FeastoX"} admin`);
 
   const waiting = useMemo(() => (orders ?? []).filter((o) => o.status === 'PENDING').length, [orders]);
 

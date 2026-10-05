@@ -52,7 +52,7 @@ function escapeHtml(text: string): string {
 
 const slugify = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-const BRAND = "Let’s Dine";
+const BRAND = "FeastoX";
 
 /** The mark beside "Powered by": a plate seen from above with a flame-lit rim. Drawn once, reused by the print and the vector download. */
 const BRAND_MARK = `<circle cx="10" cy="10" r="9" fill="#ff8a3d"/><circle cx="10" cy="10" r="5.6" fill="none" stroke="#17110d" stroke-width="1.6"/><circle cx="10" cy="10" r="1.9" fill="#17110d"/>`;

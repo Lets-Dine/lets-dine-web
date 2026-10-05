@@ -87,7 +87,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Shown wherever an owner is told how to pay. Payments are settled by a person today, so it says exactly that. */
 // TODO: replace with the real bank / wallet details once the payment method is decided.
 export const PAYMENT_NOTE =
-  "Payment is arranged with the Let's Dine team. Once it is received, the invoice is marked paid and your plan renews.";
+  "Payment is arranged with the FeastoX team. Once it is received, the invoice is marked paid and your plan renews.";
 
 /* ── Status ────────────────────────────────────────────────────────── */
 

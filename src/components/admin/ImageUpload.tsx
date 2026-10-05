@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { uploadToCloudinary } from '../../api/cloudinary';
+import type { UploadSignature } from '../../api/admin';
 import type { UploadTarget } from '../../api/staff';
 import { ApiError } from '../../api/store';
 import { useToast } from '../../state/ToastContext';
@@ -282,12 +283,15 @@ interface ImageUploadProps {
   /** Crop viewport's width/height ratio, e.g. 1 for a square dish photo, 16/9 for a wide cover. */
   aspect: number;
   onUploaded: (url: string) => void;
-  label?: string;
+  /** Mints the upload signature for a caller with no restaurant (the platform library); `target` then only sets the compression profile. */
+  signer?: () => Promise<UploadSignature>;
+  disabled?: boolean;
+  label?: ReactNode;
   className?: string;
 }
 
 /** A button that opens a file picker, crops the chosen image, compresses it, and uploads it to Cloudinary. */
-export function ImageUpload({ target, aspect, onUploaded, label = 'Upload photo', className }: ImageUploadProps) {
+export function ImageUpload({ target, aspect, onUploaded, signer, disabled, label = 'Upload photo', className }: ImageUploadProps) {
   const push = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [source, setSource] = useState<string | null>(null);
@@ -311,7 +315,7 @@ export function ImageUpload({ target, aspect, onUploaded, label = 'Upload photo'
     closeSource();
     setBusy(true);
     try {
-      onUploaded(await uploadToCloudinary(blob, target));
+      onUploaded(await uploadToCloudinary(blob, signer ?? target));
     } catch (error) {
       push(error instanceof ApiError ? error.message : 'Upload failed. Try again.', '⚠️');
     } finally {
@@ -331,7 +335,7 @@ export function ImageUpload({ target, aspect, onUploaded, label = 'Upload photo'
           e.target.value = '';
         }}
       />
-      <button type="button" className={cx(ADMIN_GHOST, className)} disabled={busy} onClick={() => inputRef.current?.click()}>
+      <button type="button" className={cx(ADMIN_GHOST, className)} disabled={busy || disabled} onClick={() => inputRef.current?.click()}>
         {busy ? 'Uploading…' : label}
       </button>
       {source && (

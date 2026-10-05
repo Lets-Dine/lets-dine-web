@@ -337,7 +337,7 @@ function Handoff({ done, onAnother, onCopy }: { done: { tenant: Tenant; pin: str
   const { tenant, pin } = done;
   const [shown, setShown] = useState(false);
   const message = useMemo(
-    () => `Welcome to Let's Dine, ${tenant.owner.name}!\n\nYour restaurant dashboard is ready.\nSign in: FeastoX.app/admin/signin\nEmail: ${tenant.owner.email}\nTemporary PIN: ${pin}\n\nPlease change your PIN after your first sign-in.`,
+    () => `Welcome to FeastoX, ${tenant.owner.name}!\n\nYour restaurant dashboard is ready.\nSign in: FeastoX.app/admin/signin\nEmail: ${tenant.owner.email}\nTemporary PIN: ${pin}\n\nPlease change your PIN after your first sign-in.`,
     [tenant, pin],
   );
   return (

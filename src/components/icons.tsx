@@ -351,3 +351,11 @@ export const Megaphone = ({ size = 16, className }: IconProps) => (
     <path d="M19 9.5a3.5 3.5 0 0 1 0 5" />
   </svg>
 );
+
+export const Photo = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="m4 17 5-4.5 3.5 3L16 12l4 4.5" />
+  </svg>
+);

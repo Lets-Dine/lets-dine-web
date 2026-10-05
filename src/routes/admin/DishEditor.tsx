@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createDish,
@@ -10,11 +11,15 @@ import {
   updateDishVariant,
 } from '../../api/staff';
 import type { DishDraft } from '../../api/admin';
+import { suggestPhotos } from '../../api/dishPhotos';
+import type { LibraryPhoto } from '../../api/dishPhotos';
+import { useAsync } from '../../state/useAsync';
 import { formatMoney } from '../../domain/money';
 import type { DietaryType, DishVariant } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { DietMarks, DishImage } from '../../components/Bits';
 import { ImageUpload } from '../../components/admin/ImageUpload';
+import { PhotoPickerDialog } from '../../components/admin/PhotoPickerDialog';
 import { RatingBreakdown } from '../../components/Rating';
 import {
   ADMIN_GHOST,
@@ -33,7 +38,7 @@ import {
   Toggle,
   useCommand,
 } from '../../components/admin/kit';
-import { Check } from '../../components/icons';
+import { Check, Plus, X } from '../../components/icons';
 import { cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
@@ -247,39 +252,47 @@ export function DishEditor() {
           </Panel>
 
           <Panel title="Photo" hint="Food is visual — a dish with a photo outsells one without.">
-            <div className="flex flex-wrap items-start gap-4">
-              <DishImage
-                dish={{ imageUrl: draft.imageUrl, name: draft.name || '?' }}
-                className="size-28 shrink-0 rounded-2xl"
-                monogram="text-2xl"
-              />
-              <div className="min-w-45 flex-1">
-                <Field label="Photo" hint="Upload a photo, or paste an image URL below.">
-                  <ImageUpload target="dish" aspect={1} label="Upload photo" onUploaded={(url) => patch('imageUrl', url)} />
-                </Field>
-                <Field label="Image URL" className="mt-3">
-                  <TextInput
-                    value={draft.imageUrl ?? ''}
-                    onChange={(v) => patch('imageUrl', v.trim() || null)}
-                    placeholder="/img/chicken-sekuwa.jpg"
-                  />
-                </Field>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {library.slice(0, 12).map((url) => (
-                    <button
-                      key={url}
-                      type="button"
-                      aria-label={`Use ${url}`}
-                      onClick={() => patch('imageUrl', url)}
-                      className={cx(
-                        'size-10 overflow-hidden rounded-lg ring-1 ring-inset transition-move active:scale-90',
-                        draft.imageUrl === url ? 'ring-[1.5px] ring-flame-2' : 'ring-hairline',
-                      )}
-                    >
-                      <img src={url} alt="" className="size-full object-cover" loading="lazy" />
-                    </button>
-                  ))}
-                </div>
+            <div className="grid gap-5 sm:grid-cols-[8rem_1fr]">
+              <div className="relative size-32">
+                <DishImage
+                  dish={{ imageUrl: draft.imageUrl, name: draft.name || '?' }}
+                  className="size-32 rounded-2xl ring-1 ring-hairline ring-inset"
+                  monogram="text-3xl"
+                />
+                {draft.imageUrl && (
+                  <button
+                    type="button"
+                    aria-label="Remove photo"
+                    onClick={() => patch('imageUrl', null)}
+                    className="absolute top-1.5 right-1.5 grid size-7 place-items-center rounded-full bg-ink/70 text-bg transition-move hover:bg-ink active:scale-90"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              <div className="grid content-start gap-3">
+                <PhotoSuggestions
+                  name={draft.name}
+                  value={draft.imageUrl}
+                  onPick={(url) => patch('imageUrl', url)}
+                  menuPhotos={library}
+                  upload={
+                    <ImageUpload
+                      target="dish"
+                      aspect={1}
+                      onUploaded={(url) => patch('imageUrl', url)}
+                      label={
+                        <>
+                          <Plus size={16} />
+                          Upload
+                        </>
+                      }
+                      className="size-18! flex-col gap-0.5 rounded-xl! border border-dashed border-hairline-strong bg-transparent! px-0! text-[12px]! text-ink-3 ring-0! hover:text-ink"
+                    />
+                  }
+                />
+                <PhotoLink value={draft.imageUrl} onChange={(v) => patch('imageUrl', v)} />
               </div>
             </div>
           </Panel>
@@ -657,6 +670,125 @@ export function DishEditor() {
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Library photos for the dish being named. Typing "Chicken Momo" surfaces the
+ * photos the platform filed under "Momo" — the fast path for a restaurant with no
+ * photographer. Upload sits in the same strip as the last tile: it is just one
+ * more way to get a photo, not a second section. "Browse all" opens the whole
+ * library in a dialog for when the name matches nothing.
+ */
+function PhotoSuggestions({
+  name,
+  value,
+  onPick,
+  menuPhotos,
+  upload,
+}: {
+  name: string;
+  value: string | null;
+  onPick: (url: string) => void;
+  /** Photos this restaurant already uses on other dishes. */
+  menuPhotos: string[];
+  upload: ReactNode;
+}) {
+  const typed = name.trim();
+  // The name changes on every keystroke; the library only needs asking once typing pauses.
+  const [query, setQuery] = useState(typed);
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(typed), 350);
+    return () => clearTimeout(timer);
+  }, [typed]);
+
+  const [browsing, setBrowsing] = useState(false);
+  const matches = useAsync(() => (query ? suggestPhotos(query) : Promise.resolve<LibraryPhoto[]>([])), [query]);
+
+  const found = matches.data ?? [];
+
+  return (
+    <div className="grid gap-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[13px] text-ink-3" role="status">
+          {!query
+            ? 'Name the dish to see matching photos'
+            : matches.loading && !matches.data
+              ? 'Looking for photos…'
+              : found.length > 0
+                ? <>Suggested for <span className="font-semibold text-ink">{query}</span></>
+                : <>No photo for <span className="font-semibold text-ink">{query}</span> yet</>}
+        </p>
+        <button type="button" className="text-[12.5px] font-semibold text-ink-3 transition-colors hover:text-ink" aria-haspopup="dialog" onClick={() => setBrowsing(true)}>
+          Browse all
+        </button>
+      </div>
+
+      <PhotoStrip urls={found.map((p) => p.imageUrl)} value={value} onPick={onPick} trailing={upload} />
+
+      {browsing && <PhotoPickerDialog value={value} menuPhotos={menuPhotos} onPick={onPick} onClose={() => setBrowsing(false)} />}
+    </div>
+  );
+}
+
+function PhotoStrip({
+  urls,
+  value,
+  onPick,
+  trailing,
+}: {
+  urls: string[];
+  value: string | null;
+  onPick: (url: string) => void;
+  trailing?: ReactNode;
+}) {
+  return (
+    <ul className="flex flex-wrap gap-2.5">
+      {urls.map((url) => {
+        const on = url === value;
+        return (
+          <li key={url}>
+            <button
+              type="button"
+              aria-pressed={on}
+              aria-label={on ? 'Selected photo' : 'Use this photo'}
+              onClick={() => onPick(url)}
+              className={cx(
+                'relative block size-18 overflow-hidden rounded-xl transition-move active:scale-95',
+                on ? 'ring-2 ring-flame-2 ring-offset-2 ring-offset-docket-surface' : 'ring-1 ring-hairline ring-inset hover:ring-hairline-strong',
+              )}
+            >
+              <img src={url} alt="" className="size-full object-cover" loading="lazy" />
+              {on && (
+                <span className="absolute right-1 bottom-1 grid size-4.5 place-items-center rounded-full bg-flame text-white" aria-hidden>
+                  <Check size={10} />
+                </span>
+              )}
+            </button>
+          </li>
+        );
+      })}
+      {trailing && <li>{trailing}</li>}
+    </ul>
+  );
+}
+
+/** Pasting a link is the rare path, so it stays folded away until asked for. */
+function PhotoLink({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <button type="button" className="justify-self-start text-[12.5px] font-semibold text-ink-3 transition-colors hover:text-ink" onClick={() => setOpen(true)}>
+        Use an image link instead
+      </button>
+    );
+  return (
+    <TextInput
+      autoFocus
+      value={value ?? ''}
+      onChange={(v) => onChange(v.trim() || null)}
+      placeholder="https://…"
+    />
   );
 }
 

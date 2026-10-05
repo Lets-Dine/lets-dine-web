@@ -44,6 +44,7 @@ import { PlatformRestaurantNew } from './routes/platform/RestaurantNew';
 import { PlatformRestaurantDetail } from './routes/platform/RestaurantDetail';
 import { PlatformBilling } from './routes/platform/Billing';
 import { PlatformPlans } from './routes/platform/Plans';
+import { PlatformPhotos } from './routes/platform/Photos';
 import { PlatformActivity } from './routes/platform/Activity';
 import { PlatformSettingsPage } from './routes/platform/Settings';
 
@@ -175,6 +176,7 @@ export default function App() {
                 <Route path="restaurants/:id" element={<PlatformRestaurantDetail />} />
                 <Route path="billing" element={<PlatformBilling />} />
                 <Route path="plans" element={<PlatformPlans />} />
+                <Route path="photos" element={<PlatformPhotos />} />
                 <Route path="activity" element={<PlatformActivity />} />
                 <Route path="settings" element={<PlatformSettingsPage />} />
               </Route>

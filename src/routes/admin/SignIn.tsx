@@ -19,7 +19,7 @@ import { DISPLAY, SHELL, cx } from '../../components/ui';
  */
 export function SignIn() {
   const { staff, signIn } = useAuth();
-  usePageTitle("Sign in · Let's Dine admin");
+  usePageTitle("Sign in · FeastoX admin");
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/admin';
