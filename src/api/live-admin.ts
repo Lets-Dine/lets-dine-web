@@ -124,6 +124,7 @@ interface ApiRestaurant {
   serviceChargeRate: number;
   taxRate: number;
   deliveryFeeAmount?: number | null;
+  vatPanNumber?: string | null;
 }
 
 interface ApiCategory {
@@ -289,6 +290,7 @@ interface ApiPayment {
   createdAt: string;
   createdBy: string | null;
   createdByName: string | null;
+  customerName?: string | null;
   items: ApiPaymentItem[];
 }
 
@@ -322,6 +324,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     serviceChargeRate: api.serviceChargeRate,
     taxRate: api.taxRate,
     deliveryFeeAmount: api.deliveryFeeAmount ?? null,
+    vatPanNumber: api.vatPanNumber ?? null,
   };
 }
 
@@ -483,6 +486,7 @@ function toPayment(api: ApiPayment): Payment {
     createdAt: api.createdAt,
     createdBy: api.createdBy,
     createdByName: api.createdByName,
+    customerName: api.customerName ?? null,
     items: api.items.map((item) => ({
       id: item.id,
       dishId: item.dishId,

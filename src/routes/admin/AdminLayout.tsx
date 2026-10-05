@@ -13,6 +13,7 @@ import { AdminThemeToggle } from '../../state/AdminTheme';
 import { usePageTitle } from '../../state/usePageTitle';
 import { BranchSwitcher } from '../../components/admin/BranchSwitcher';
 import { Loading } from '../../components/admin/kit';
+import { RestaurantCard } from '../../components/admin/RestaurantCard';
 import { LockedScreen, PlanChip, SubscriptionBanner } from '../../components/admin/SubscriptionBits';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
 import { Cash, Contact, Folder, Grid, History, Layers, MapPin, Plate, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
@@ -233,7 +234,11 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
         {/* ── Sidebar, laptops and up ─────────────────────────────── */}
         <aside className="sticky top-0 hidden h-dvh flex-col border-r border-hairline bg-surface/40 px-3 py-5 lg:flex">
           <div className="px-3 pb-5">
-            <div className={cx(DISPLAY, 'text-[26px]')}>{menu?.restaurant.name ?? (subscription.locked ? 'Dashboard' : 'Loading…')}</div>
+            <RestaurantCard
+              restaurant={menu?.restaurant}
+              fallbackName={subscription.locked ? 'Dashboard' : 'Loading…'}
+              nameClassName={cx(DISPLAY, 'text-[26px]')}
+            />
             <div className="mt-0.5 text-[12px] text-ink-4">Restaurant dashboard</div>
             <BranchSwitcher className="mt-3" />
             {subscription.subscription && <PlanChip subscription={subscription.subscription} notice={subscription.notice} className="mt-3" />}
@@ -266,9 +271,13 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
           <header className={cx('sticky top-0 z-40 border-b border-hairline lg:hidden', GLASS)}>
             <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-[calc(10px+var(--safe-t))]">
               <div className="min-w-0">
-                <div className="truncate text-[15px] font-semibold tracking-tight">
-                  {menu?.restaurant.name ?? 'Dashboard'}
-                </div>
+                <RestaurantCard
+                  restaurant={menu?.restaurant}
+                  fallbackName="Dashboard"
+                  nameClassName="text-[15px] font-semibold tracking-tight"
+                  className="max-w-[220px]"
+                />
+
                 <div className="text-[11.5px] text-ink-4">
                   {staff.name} · {ROLE_LABEL[staff.role]}
                 </div>

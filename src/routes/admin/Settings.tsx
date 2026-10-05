@@ -34,6 +34,7 @@ export function Settings() {
   const [coverImageUrl, setCoverImageUrl] = useState(restaurant.coverImageUrl);
   const [service, setService] = useState((restaurant.serviceChargeRate * 100).toFixed(1));
   const [tax, setTax] = useState((restaurant.taxRate * 100).toFixed(1));
+  const [vatPan, setVatPan] = useState(restaurant.vatPanNumber ?? '');
   const [deliveryFee, setDeliveryFee] = useState(restaurant.deliveryFeeAmount ?? 0);
 
   const audit = useAsync(async () => (await listAudit(staff, 5)).rows, [staff]);
@@ -43,6 +44,7 @@ export function Settings() {
     tagline !== restaurant.tagline ||
     description !== restaurant.description ||
     coverImageUrl !== restaurant.coverImageUrl ||
+    vatPan.trim() !== (restaurant.vatPanNumber ?? '') ||
     Number(service) / 100 !== restaurant.serviceChargeRate ||
     Number(tax) / 100 !== restaurant.taxRate ||
     Math.round(Number(deliveryFee) * 100) !== (restaurant.deliveryFeeAmount ?? 0);
@@ -56,6 +58,7 @@ export function Settings() {
           tagline,
           description,
           coverImageUrl: coverImageUrl.trim() || null,
+          vatPanNumber: vatPan.trim() || null,
           serviceChargeRate: Number(service) / 100,
           taxRate: Number(tax) / 100,
           deliveryFeeAmount: deliveryFee,
@@ -82,6 +85,9 @@ export function Settings() {
               </Field>
               <Field label="Description">
                 <TextArea value={description} onChange={setDescription} maxLength={400} rows={3} />
+              </Field>
+              <Field label="VAT / PAN number" hint="Printed on every receipt. Leave blank to omit it.">
+                <TextInput value={vatPan} onChange={setVatPan} maxLength={30} placeholder="e.g. 123456789" />
               </Field>
             </fieldset>
           </Panel>

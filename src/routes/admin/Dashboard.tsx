@@ -342,6 +342,7 @@ export function Dashboard() {
         orders={payingOrder ? [payingOrder] : []}
         dishes={menuDishes}
         restaurantName={menu.restaurant.name}
+        vatPanNumber={menu.restaurant.vatPanNumber}
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}
         pending={pending}

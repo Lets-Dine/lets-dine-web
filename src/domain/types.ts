@@ -36,6 +36,8 @@ export interface Restaurant {
   taxRate: number;
   /** Flat, owner-configurable delivery fee in minor units. `null`/`0` = no fee. */
   deliveryFeeAmount: number | null;
+  /** VAT/PAN registration number printed on receipts. `null` = none on file. */
+  vatPanNumber: string | null;
 }
 
 export interface DiningTable {
@@ -304,6 +306,8 @@ export interface Payment {
   createdAt: string;
   createdBy: string | null;
   createdByName: string | null;
+  /** The paying customer, when the settled orders were placed under one. */
+  customerName: string | null;
   items: PaymentItem[];
 }
 

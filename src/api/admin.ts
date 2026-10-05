@@ -503,6 +503,7 @@ export async function settleDeliveryOrder(actor: StaffMember, orderId: string, m
     createdAt: now,
     createdBy: actor.id,
     createdByName: actor.name,
+    customerName: order.customerName ?? order.deliveryCustomerName ?? order.floorVisitorName ?? null,
     items: order.items.map((i) => ({ id: uid('payi'), dishId: i.dishId, dishNameSnapshot: i.dishNameSnapshot, unitPrice: i.unitPrice, quantity: i.quantity })),
   };
 
@@ -649,6 +650,7 @@ export async function completePayment(
     createdAt: new Date().toISOString(),
     createdBy: actor.id,
     createdByName: actor.name,
+    customerName: null,
     items: paymentItems.map((item) => ({ id: uid('payi'), ...item })),
   };
 
@@ -731,6 +733,7 @@ export async function completeOrderPayment(
     createdAt: now,
     createdBy: actor.id,
     createdByName: actor.name,
+    customerName: null,
     items: paymentItems.map((item) => ({ id: uid('payi'), ...item })),
   };
 
@@ -1926,6 +1929,8 @@ export interface SettingsPatch {
   taxRate?: number;
   /** Flat, minor-unit delivery fee. `null`/`0` means no fee. */
   deliveryFeeAmount?: number | null;
+  /** VAT/PAN number for receipts; `null`/`''` clears it. */
+  vatPanNumber?: string | null;
 }
 
 export async function updateSettings(actor: StaffMember, patch: SettingsPatch): Promise<Restaurant> {
@@ -1953,6 +1958,7 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
     serviceChargeRate: rate(patch.serviceChargeRate, 'Service charge') ?? before.serviceChargeRate,
     taxRate: rate(patch.taxRate, 'Tax') ?? before.taxRate,
     deliveryFeeAmount: deliveryFee !== undefined ? deliveryFee : before.deliveryFeeAmount,
+    vatPanNumber: patch.vatPanNumber !== undefined ? patch.vatPanNumber?.trim() || null : before.vatPanNumber,
   };
 
   const changes: string[] = [];
@@ -1966,6 +1972,8 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
   if (after.deliveryFeeAmount !== before.deliveryFeeAmount)
     changes.push(`Delivery fee ${formatMoney(before.deliveryFeeAmount ?? 0, before.currency)} → ${formatMoney(after.deliveryFeeAmount ?? 0, after.currency)}`);
 
+  if (after.vatPanNumber !== before.vatPanNumber) changes.push(`VAT/PAN ${before.vatPanNumber ?? '—'} → ${after.vatPanNumber ?? '—'}`);
+
   // Only the editable fields are stored, so the seed data keeps owning
   // identity (slug, currency, timezone) and the review aggregates.
   let next: Store = {
@@ -1978,6 +1986,7 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
       serviceChargeRate: after.serviceChargeRate,
       taxRate: after.taxRate,
       deliveryFeeAmount: after.deliveryFeeAmount,
+      vatPanNumber: after.vatPanNumber,
     },
   };
   if (changes.length > 0) next = record(next, actor, 'settings_updated', before.name, changes.join(' · '));

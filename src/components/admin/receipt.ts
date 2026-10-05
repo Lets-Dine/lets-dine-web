@@ -28,6 +28,12 @@ export interface ReceiptPayment {
   takenBy: string | null;
 }
 
+/** What the receipt header needs to know about the restaurant. */
+export interface ReceiptRestaurant {
+  name: string;
+  vatPanNumber?: string | null;
+}
+
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
 }
@@ -36,12 +42,15 @@ export function printReceipt(
   table: { name: string; capacity?: number },
   lines: ReceiptLine[],
   totals: ReceiptTotals,
-  restaurantName: string,
+  restaurant: ReceiptRestaurant,
   payment?: ReceiptPayment,
+  customerName?: string | null,
 ): boolean {
   const sheet = window.open('', '_blank', 'width=420,height=640');
   if (!sheet) return false;
 
+  const restaurantName = restaurant.name;
+  const vatPan = restaurant.vatPanNumber?.trim();
   const { currency, subtotal, serviceCharge, tax, discount, total } = totals;
   const rows = lines
     .map(
@@ -49,6 +58,8 @@ export function printReceipt(
         `<tr><td>${escapeHtml(i.dishNameSnapshot)}</td><td class="num">${i.quantity}</td><td class="num"><b>${formatMoney(i.total, currency)}</b></td></tr>`,
     )
     .join('');
+  const customer = customerName?.trim();
+  const customerRow = customer ? `<div class="row"><span>Customer</span><span>${escapeHtml(customer)}</span></div>` : '';
   const paymentRows = payment
     ? `<div class="row"><span>Paid by</span><span>${payment.method === 'CASH' ? 'Cash' : 'Card'}</span></div>` +
       (payment.takenBy ? `<div class="row"><span>Served by</span><span>${escapeHtml(payment.takenBy)}</span></div>` : '') +
@@ -67,17 +78,25 @@ export function printReceipt(
     .row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; margin: 6px 0; }
     .items { width: 100%; border-collapse: collapse; font-size: 12px; }
     .items th { padding-bottom: 6px; border-bottom: 1px dashed rgba(33,26,17,.35); text-align: left; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #6a5a45; }
-    .items td { padding: 6px 0; vertical-align: top; }
+    .items td { padding: 6px 0; vertical-align: top; overflow-wrap: anywhere; }
     .items th.num, .items td.num { text-align: right; white-space: nowrap; padding-left: 10px; }
     .total { font-weight: 900; font-size: 20px; }
-    @media print { body { padding: 0; } }
+    @page { margin: 0; }
+    @media print {
+      body { padding: 0; }
+      .sheet { width: 100%; max-width: 100mm; margin: 0; padding: 0 2mm; }
+      .rule { border-top-color: #000; }
+      .muted, .items th { color: #000; }
+    }
   </style></head><body>
   <div class="sheet">
     <div class="center">
       <h1 style="font-size:22px;margin:0">${escapeHtml(restaurantName)}</h1>
+      ${vatPan ? `<p class="muted" style="margin:4px 0 0">VAT/PAN: ${escapeHtml(vatPan)}</p>` : ''}
       <p class="muted" style="margin:6px 0 0">${escapeHtml(table.name)}${table.capacity ? ` · ${table.capacity} seats` : ''}</p>
     </div>
     <div class="rule"></div>
+    ${customerRow}
     ${paymentRows}
     <table class="items">
       <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Total</th></tr></thead>

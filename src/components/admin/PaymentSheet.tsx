@@ -79,6 +79,7 @@ interface CommittedBill {
   items: { dishId: string; quantity: number }[];
   lines: ReceiptLine[];
   totals: ReceiptTotals;
+  customerName: string | null;
 }
 
 type PayStep = 'bill' | 'method' | 'qr' | 'done';
@@ -88,6 +89,7 @@ export function PaymentSheet({
   orders,
   dishes,
   restaurantName,
+  vatPanNumber,
   serviceChargeRate,
   taxRate,
   pending,
@@ -99,6 +101,7 @@ export function PaymentSheet({
   orders: Order[];
   dishes: Dish[];
   restaurantName: string;
+  vatPanNumber: string | null;
   serviceChargeRate: number;
   taxRate: number;
   pending: string | null;
@@ -109,6 +112,9 @@ export function PaymentSheet({
 }) {
   const staff = useStaff();
   const canDiscount = can(staff.role, 'payments:discount');
+
+  // Whoever the table's orders were placed for — a linked customer, a delivery recipient or a floor visitor.
+  const customerName = orders.map((o) => o.customerName ?? o.deliveryCustomerName ?? o.floorVisitorName).find((n) => !!n?.trim()) ?? null;
 
   const [adding, setAdding] = useState(false);
   // Edits made in the sheet are a draft until "Take payment" — closing without
@@ -526,6 +532,7 @@ export function PaymentSheet({
                 items,
                 lines: draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total })),
                 totals: { currency, subtotal, serviceCharge, tax, discount: appliedDiscount, total },
+                customerName,
               });
               setPendingAdds([]);
               setPendingRemoves([]);
@@ -544,7 +551,9 @@ export function PaymentSheet({
                 table,
                 draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total })),
                 { currency, subtotal, serviceCharge, tax, discount: appliedDiscount, total },
-                restaurantName,
+                { name: restaurantName, vatPanNumber },
+                undefined,
+                customerName,
               )
             }
             className="rounded-[14px] bg-[oklch(0.232_0.019_70)] py-3.5 text-[12px] font-bold tracking-wide text-[oklch(0.943_0.024_85)] transition-transform active:translate-y-px disabled:opacity-40"
@@ -662,10 +671,10 @@ export function PaymentSheet({
               <button
                 type="button"
                 onClick={() =>
-                  printReceipt(table, committed.lines, committed.totals, restaurantName, {
+                  printReceipt(table, committed.lines, committed.totals, { name: restaurantName, vatPanNumber }, {
                     method: method === 'cash' ? 'CASH' : 'CARD',
                     takenBy: staff.name,
-                  })
+                  }, committed.customerName)
                 }
                 className="rounded-[14px] bg-[oklch(0.232_0.019_70)] py-3.5 text-[12px] font-bold tracking-wide text-[oklch(0.943_0.024_85)] transition-transform active:translate-y-px"
               >

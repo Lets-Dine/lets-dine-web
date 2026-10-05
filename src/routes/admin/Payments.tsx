@@ -162,8 +162,9 @@ export function Payments() {
       { name: table?.name ?? tableName(payment.tableId), capacity: table?.capacity },
       payment.items.map((i) => ({ dishNameSnapshot: i.dishNameSnapshot, quantity: i.quantity, total: i.unitPrice * i.quantity })),
       { currency: payment.currency, subtotal: payment.subtotal, serviceCharge: payment.serviceCharge, tax: payment.tax, discount: payment.discount, total: payment.total },
-      menu.restaurant.name,
+      menu.restaurant,
       { method: payment.method, takenBy: payment.createdByName },
+      payment.customerName,
     );
   };
 
