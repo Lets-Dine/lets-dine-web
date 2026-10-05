@@ -27,6 +27,8 @@ export interface Restaurant {
   tagline: string;
   description: string;
   coverImageUrl: string;
+  /** Square mark shown beside the name. Empty string = none. */
+  logoUrl: string;
   currency: string;
   timezone: string;
   avgRating: number | null;

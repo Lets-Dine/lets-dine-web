@@ -6,7 +6,7 @@ export interface DinerIdentity {
   phone: string;
 }
 
-const STORAGE_KEY = 'letsDine.diner-identity';
+const STORAGE_KEY = 'FeastoX.diner-identity';
 
 function readStoredIdentity(): DinerIdentity | null {
   try {

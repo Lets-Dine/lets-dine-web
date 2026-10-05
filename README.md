@@ -1,4 +1,4 @@
-# letsDine
+# FeastoX
 
 Both halves of the Restaurant Dining Experience Platform described in
 `my_food_blueprint.md`:
@@ -48,7 +48,7 @@ reach the real kitchen until those are moved across too.
 ```bash
 cd ../lets-dine-backend
 docker compose up -d db && npm run db:seed && npm run dev   # API on :3100
-cd ../letsDine && npm run dev                                 # reads .env
+cd ../FeastoX && npm run dev                                 # reads .env
 npm run test:live                                           # menu, rendered against the API
 ```
 

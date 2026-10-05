@@ -20,7 +20,10 @@ import type { BillingInterval, Invoice, MeterKind, Plan as PlanData, Subscriptio
 import { useAuth } from '../../state/AuthContext';
 import { useSubscription } from '../../state/SubscriptionContext';
 import { useAsync } from '../../state/useAsync';
+
+type AsyncPlans = ReturnType<typeof useAsync<PlanData[]>>;
 import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_QUIET, Empty, Loading, PANEL, PageTitle, Panel, Segmented, useCommand } from '../../components/admin/kit';
+import { PlanCompareModal } from '../../components/admin/PlanCompareModal';
 import { SubscriptionStatusPill, TonePill } from '../../components/admin/SubscriptionBits';
 import { Check, Lock } from '../../components/icons';
 import { DISPLAY, TAG, TAG_ON, cx } from '../../components/ui';
@@ -42,6 +45,8 @@ export function Plan() {
   const subscription = sub.subscription;
   // Read once per visit: "days left" and "overdue" do not need to tick while someone reads a page.
   const [now] = useState(() => new Date());
+  const plans = useAsync(() => fetchPlans(), []);
+  const [comparing, setComparing] = useState(false);
 
   // A banner or a toast can point at a section; the page is long enough that the link has to land on it.
   useEffect(() => {
@@ -72,7 +77,31 @@ export function Plan() {
 
   return (
     <>
-      <PageTitle title="Plan" subtitle={canManage ? 'Your subscription, usage and invoices' : 'What this restaurant is on, and how much of it is used'} />
+      <PageTitle
+        title="Plan"
+        subtitle={canManage ? 'Your subscription, usage and invoices' : 'What this restaurant is on, and how much of it is used'}
+        action={
+          <button type="button" className={ADMIN_GHOST} onClick={() => setComparing(true)}>
+            Compare plans
+          </button>
+        }
+      />
+      {comparing && (
+        <PlanCompareModal
+          plans={plans}
+          current={subscription.plan.key}
+          interval={subscription.interval}
+          onClose={() => setComparing(false)}
+          onChangePlan={
+            canManage
+              ? () => {
+                  setComparing(false);
+                  requestAnimationFrame(() => document.getElementById('change-plan')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+                }
+              : undefined
+          }
+        />
+      )}
 
       <div className="grid gap-4">
         <StatusBand subscription={subscription} canManage={canManage} now={now} />
@@ -85,7 +114,7 @@ export function Plan() {
 
         {canManage ? (
           <>
-            <ChangePlanSection subscription={subscription} onChanged={sub.reload} />
+            <ChangePlanSection subscription={subscription} plans={plans} onChanged={sub.reload} />
             {!owing && invoices}
           </>
         ) : (
@@ -252,8 +281,15 @@ function IncludedSection({ subscription }: { subscription: Subscription }) {
 
 /* ── Changing plan (owner) ─────────────────────────────────────────── */
 
-function ChangePlanSection({ subscription, onChanged }: { subscription: Subscription; onChanged: () => Promise<void> }) {
-  const plans = useAsync(() => fetchPlans(), []);
+function ChangePlanSection({
+  subscription,
+  plans,
+  onChanged,
+}: {
+  subscription: Subscription;
+  plans: AsyncPlans;
+  onChanged: () => Promise<void>;
+}) {
   // What the owner has picked in the toggle, or nothing yet — which means whatever they are billed on now.
   const [picked, setPicked] = useState<BillingInterval | null>(null);
   const interval = picked ?? subscription.interval;

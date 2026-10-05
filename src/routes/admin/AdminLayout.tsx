@@ -237,7 +237,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
             <RestaurantCard
               restaurant={menu?.restaurant}
               fallbackName={subscription.locked ? 'Dashboard' : 'Loading…'}
-              nameClassName={cx(DISPLAY, 'text-[26px]')}
+              nameClassName={cx(DISPLAY, 'text-[20px]')}
             />
             <div className="mt-0.5 text-[12px] text-ink-4">Restaurant dashboard</div>
             <BranchSwitcher className="mt-3" />
@@ -275,13 +275,13 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
                   restaurant={menu?.restaurant}
                   fallbackName="Dashboard"
                   nameClassName="text-[15px] font-semibold tracking-tight"
-                  className="max-w-[220px]"
+                  className="max-w-55"
                 />
 
                 <div className="text-[11.5px] text-ink-4">
                   {staff.name} · {ROLE_LABEL[staff.role]}
                 </div>
-                <BranchSwitcher className="mt-1.5 max-w-[220px]" />
+                <BranchSwitcher className="mt-1.5 max-w-55" />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <AdminThemeToggle />

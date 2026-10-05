@@ -38,7 +38,7 @@ const QR_AUTO_MS = 8000;
  */
 function paymentQrPayload(subject: BillSubject, amount: number, currency: string): string {
   const ref = `${subject.qrToken.slice(0, 6)}${Date.now().toString(36)}`.toUpperCase();
-  return `letsdine-pay://charge?table=${encodeURIComponent(subject.name)}&amount=${amount}&currency=${currency}&ref=${ref}`;
+  return `FeastoX-pay://charge?table=${encodeURIComponent(subject.name)}&amount=${amount}&currency=${currency}&ref=${ref}`;
 }
 
 /** One underlying order item a displayed bill line is backed by — a served line can merge several of these. */

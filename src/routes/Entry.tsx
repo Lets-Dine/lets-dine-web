@@ -35,7 +35,7 @@ export function Entry() {
         <div className="flex flex-col gap-4">
           <span className="inline-flex w-fit animate-rise items-center gap-1.5 rounded-full bg-flame-2/14 py-1.5 pl-3 pr-3.5 text-[13px] font-bold text-flame-1 ring-1 ring-flame-2/35 ring-inset">
             <Sparkle size={15} />
-            letsDine
+            FeastoX
           </span>
           <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(34px,11vw,44px)] lg:text-6xl')} style={{ animationDelay: '60ms' }}>
             Stop guessing

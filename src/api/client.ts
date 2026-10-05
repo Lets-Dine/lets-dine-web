@@ -187,7 +187,7 @@ export async function resolveQr(
   const key = `${restaurant.id}:${table.id}`;
   const existing = store.sessions[key];
   const stillValid = existing && new Date(existing.expiresAt).getTime() > Date.now();
-  const localKey = `letsDine.mock-session.${restaurantSlug}.${tableToken}`;
+  const localKey = `FeastoX.mock-session.${restaurantSlug}.${tableToken}`;
   const storedToken = localStorage.getItem(localKey);
 
   if (stillValid) {
@@ -233,7 +233,7 @@ export interface FloorSessionResult {
   session: DiningSession;
 }
 
-const floorSessionLocalKey = (slug: string, floorToken: string) => `letsDine.mock-session.floor.${slug}.${floorToken}`;
+const floorSessionLocalKey = (slug: string, floorToken: string) => `FeastoX.mock-session.floor.${slug}.${floorToken}`;
 
 /**
  * A page reload has no name to re-ask for, only whatever session id this
@@ -363,7 +363,7 @@ export async function startDeliverySession({
   return { table: null, session, customer };
 }
 
-const deliverySessionLocalKey = (slug: string) => `letsDine.mock-session.delivery.${slug}`;
+const deliverySessionLocalKey = (slug: string) => `FeastoX.mock-session.delivery.${slug}`;
 
 /**
  * A page reload has no phone number to re-key on, only whatever session id
@@ -725,7 +725,7 @@ export async function submitReviews(orderId: string, drafts: ReviewDraft[]): Pro
 
 /** Clears every namespaced key: orders, reviews, sessions, carts and analytics. */
 export function resetDemoData(): void {
-  const doomed = Object.keys(localStorage).filter((k) => k.startsWith('letsDine.'));
+  const doomed = Object.keys(localStorage).filter((k) => k.startsWith('FeastoX.'));
   for (const key of doomed) localStorage.removeItem(key);
 }
 

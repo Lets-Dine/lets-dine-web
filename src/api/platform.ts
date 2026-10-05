@@ -11,8 +11,8 @@ import type { StaffMember } from '../domain/types';
  * not exist yet has nobody to sign in as.
  */
 
-const KEY = 'letsDine.platform.key.v1';
-const MOCK_KEY = 'letsDine.platform.restaurants.v1';
+const KEY = 'FeastoX.platform.key.v1';
+const MOCK_KEY = 'FeastoX.platform.restaurants.v1';
 
 export interface PlatformRestaurant {
   id: string;

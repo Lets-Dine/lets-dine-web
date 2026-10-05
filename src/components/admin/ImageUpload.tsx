@@ -22,6 +22,7 @@ const WHEEL_ZOOM_SENSITIVITY = 0.0018;
 const MAX_OUTPUT_WIDTH: Record<UploadTarget, number> = {
   dish: 900,
   'restaurant-cover': 1600,
+  'restaurant-logo': 512,
 };
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {

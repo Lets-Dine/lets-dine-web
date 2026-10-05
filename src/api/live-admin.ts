@@ -46,7 +46,7 @@ import { getSocket, joinRoom } from './socket';
  * rather than reconstructing a `Dish` with stats they don't have.
  */
 
-const TOKEN_KEY = 'letsDine.staff.token.v1';
+const TOKEN_KEY = 'FeastoX.staff.token.v1';
 
 function storeToken(token: string): void {
   try {
@@ -119,6 +119,7 @@ interface ApiRestaurant {
   tagline: string;
   description: string;
   coverImageUrl: string | null;
+  logoUrl?: string | null;
   currency: string;
   timezone: string;
   serviceChargeRate: number;
@@ -316,6 +317,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     tagline: api.tagline,
     description: api.description,
     coverImageUrl: api.coverImageUrl ?? '',
+    logoUrl: api.logoUrl ?? '',
     currency: api.currency,
     timezone: api.timezone,
     // The staff profile endpoint does not carry rating aggregates.

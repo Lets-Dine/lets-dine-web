@@ -96,7 +96,7 @@ export function Problem() {
             className="flex flex-col overflow-hidden rounded-[20px] bg-surface shadow-deep ring-1 ring-hairline ring-inset"
           >
             <figcaption className="label flex items-center justify-between border-b border-hairline px-6 py-4 text-ink-4 sm:px-8">
-              <span>On letsDine</span>
+              <span>On FeastoX</span>
               <span className="rounded-full bg-flame-2/12 px-2 py-0.5 text-[9.5px] tracking-[0.12em] text-flame-1">
                 What the room knows
               </span>

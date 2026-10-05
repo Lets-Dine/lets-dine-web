@@ -10,6 +10,7 @@ export const RESTAURANT: Restaurant = {
   description:
     'Open charcoal grill, hand-folded momo and a Thakali kitchen that has been running since 1998. Everything below is rated only by people who actually ate here.',
   coverImageUrl: '/img/cover.jpg',
+  logoUrl: '',
   currency: 'NPR',
   timezone: 'Asia/Kathmandu',
   avgRating: 4.6,

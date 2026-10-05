@@ -1925,6 +1925,8 @@ export interface SettingsPatch {
   description?: string;
   /** `null`/`''` clears it back to the plain gradient fallback. */
   coverImageUrl?: string | null;
+  /** `null`/`''` removes the logo. */
+  logoUrl?: string | null;
   serviceChargeRate?: number;
   taxRate?: number;
   /** Flat, minor-unit delivery fee. `null`/`0` means no fee. */
@@ -1955,6 +1957,7 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
     tagline: patch.tagline?.trim() ?? before.tagline,
     description: patch.description?.trim() ?? before.description,
     coverImageUrl: patch.coverImageUrl !== undefined ? patch.coverImageUrl?.trim() || '' : before.coverImageUrl,
+    logoUrl: patch.logoUrl !== undefined ? patch.logoUrl?.trim() || '' : before.logoUrl,
     serviceChargeRate: rate(patch.serviceChargeRate, 'Service charge') ?? before.serviceChargeRate,
     taxRate: rate(patch.taxRate, 'Tax') ?? before.taxRate,
     deliveryFeeAmount: deliveryFee !== undefined ? deliveryFee : before.deliveryFeeAmount,
@@ -1966,6 +1969,7 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
   if (after.tagline !== before.tagline) changes.push('Tagline edited');
   if (after.description !== before.description) changes.push('Description edited');
   if (after.coverImageUrl !== before.coverImageUrl) changes.push('Cover image changed');
+  if (after.logoUrl !== before.logoUrl) changes.push('Logo changed');
   if (after.serviceChargeRate !== before.serviceChargeRate)
     changes.push(`Service charge ${percent(before.serviceChargeRate)} → ${percent(after.serviceChargeRate)}`);
   if (after.taxRate !== before.taxRate) changes.push(`Tax ${percent(before.taxRate)} → ${percent(after.taxRate)}`);
@@ -1983,6 +1987,7 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
       tagline: after.tagline,
       description: after.description,
       coverImageUrl: after.coverImageUrl,
+      logoUrl: after.logoUrl,
       serviceChargeRate: after.serviceChargeRate,
       taxRate: after.taxRate,
       deliveryFeeAmount: after.deliveryFeeAmount,
@@ -2000,7 +2005,7 @@ function percent(rate: number): string {
 
 /* ── Uploads ───────────────────────────────────────────────────────── */
 
-export type UploadTarget = 'dish' | 'restaurant-cover';
+export type UploadTarget = 'dish' | 'restaurant-cover' | 'restaurant-logo';
 
 export interface UploadSignature {
   cloudName: string;

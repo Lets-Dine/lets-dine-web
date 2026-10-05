@@ -8,6 +8,7 @@ import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../../components/time';
 import { ADMIN_PRIMARY, Field, MoneyInput, PageTitle, Panel, PercentInput, TextArea, TextInput, useCommand } from '../../components/admin/kit';
 import { ImageUpload } from '../../components/admin/ImageUpload';
+import { RestaurantMark } from '../../components/RestaurantMark';
 import { History } from '../../components/icons';
 import { useDashboard } from './AdminLayout';
 
@@ -32,6 +33,7 @@ export function Settings() {
   const [tagline, setTagline] = useState(restaurant.tagline);
   const [description, setDescription] = useState(restaurant.description);
   const [coverImageUrl, setCoverImageUrl] = useState(restaurant.coverImageUrl);
+  const [logoUrl, setLogoUrl] = useState(restaurant.logoUrl);
   const [service, setService] = useState((restaurant.serviceChargeRate * 100).toFixed(1));
   const [tax, setTax] = useState((restaurant.taxRate * 100).toFixed(1));
   const [vatPan, setVatPan] = useState(restaurant.vatPanNumber ?? '');
@@ -44,6 +46,7 @@ export function Settings() {
     tagline !== restaurant.tagline ||
     description !== restaurant.description ||
     coverImageUrl !== restaurant.coverImageUrl ||
+    logoUrl !== restaurant.logoUrl ||
     vatPan.trim() !== (restaurant.vatPanNumber ?? '') ||
     Number(service) / 100 !== restaurant.serviceChargeRate ||
     Number(tax) / 100 !== restaurant.taxRate ||
@@ -58,6 +61,7 @@ export function Settings() {
           tagline,
           description,
           coverImageUrl: coverImageUrl.trim() || null,
+          logoUrl: logoUrl.trim() || null,
           vatPanNumber: vatPan.trim() || null,
           serviceChargeRate: Number(service) / 100,
           taxRate: Number(tax) / 100,
@@ -90,6 +94,27 @@ export function Settings() {
                 <TextInput value={vatPan} onChange={setVatPan} maxLength={30} placeholder="e.g. 123456789" />
               </Field>
             </fieldset>
+          </Panel>
+
+          <Panel title="Logo" hint="Shown beside your name in the dashboard and on the diner menu">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <RestaurantMark name={name || restaurant.name} logoUrl={logoUrl} className="size-28 text-[44px]" />
+              <fieldset disabled={!canEdit} className="min-w-0 flex-1 disabled:opacity-60">
+                <Field label="Logo" hint="A square image works best. Upload one, or paste a URL below.">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ImageUpload target="restaurant-logo" aspect={1} label="Upload logo" onUploaded={setLogoUrl} />
+                    {logoUrl && (
+                      <button type="button" onClick={() => setLogoUrl('')} className="px-2 text-[13px] font-semibold text-ink-3 hover:text-ink">
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </Field>
+                <Field label="Image URL" className="mt-3">
+                  <TextInput value={logoUrl} onChange={setLogoUrl} placeholder="https://…/logo.png" maxLength={5000} />
+                </Field>
+              </fieldset>
+            </div>
           </Panel>
 
           <Panel title="Cover image" hint="Shown at the top of the diner menu">

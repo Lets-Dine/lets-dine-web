@@ -31,6 +31,7 @@ interface ApiRestaurant {
   tagline: string;
   description: string;
   coverImageUrl: string | null;
+  logoUrl?: string | null;
   currency: string;
   timezone: string;
   serviceChargeRate: number;
@@ -263,6 +264,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     description: api.description,
     // The menu screen falls back to a plain surface when a restaurant has no cover.
     coverImageUrl: api.coverImageUrl ?? '',
+    logoUrl: api.logoUrl ?? '',
     currency: api.currency,
     timezone: api.timezone,
     avgRating: api.avgRating ?? null,
@@ -492,7 +494,7 @@ function toPayment(api: ApiPayment): Payment {
    restaurant+table: reopening the tab mid-meal resumes the same visit
    instead of opening a second one.                                    */
 
-const sessionKey = (slug: string, tableToken: string) => `letsDine.session.${slug}.${tableToken}`;
+const sessionKey = (slug: string, tableToken: string) => `FeastoX.session.${slug}.${tableToken}`;
 
 interface StoredSession {
   token: string;
@@ -654,7 +656,7 @@ export async function startFloorSession(restaurantSlug: string, floorToken: stri
    No table token in the URL, so the resume key is the slug alone —
    one open delivery session per restaurant per browser at a time. */
 
-const deliverySessionKey = (slug: string) => `letsDine.session.delivery.${slug}`;
+const deliverySessionKey = (slug: string) => `FeastoX.session.delivery.${slug}`;
 
 function readStoredDeliveryToken(slug: string): string | null {
   try {

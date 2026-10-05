@@ -182,7 +182,7 @@ export function PlatformRestaurantNew() {
                 >
                   <div>
                     <div className="flex items-center overflow-hidden rounded-xl bg-surface-2 ring-1 ring-hairline ring-inset focus-within:ring-[1.5px] focus-within:ring-flame-2/40">
-                      <span className="shrink-0 pl-3.5 text-[14px] text-ink-4">letsdine.app/r/</span>
+                      <span className="shrink-0 pl-3.5 text-[14px] text-ink-4">FeastoX.app/r/</span>
                       <input
                         className="w-full bg-transparent px-1 py-2.5 pr-3.5 text-[14.5px] text-ink outline-none"
                         value={form.slug}
@@ -297,7 +297,7 @@ export function PlatformRestaurantNew() {
           <Panel title="What will be created" variant="subtle">
             <dl className="grid gap-3.5 text-[13.5px]">
               <Row label="Restaurant">{form.name.trim() || <Muted>Not named yet</Muted>}</Row>
-              <Row label="Diner address">{form.slug ? <span className="break-all">letsdine.app/r/{form.slug}</span> : <Muted>—</Muted>}</Row>
+              <Row label="Diner address">{form.slug ? <span className="break-all">FeastoX.app/r/{form.slug}</span> : <Muted>—</Muted>}</Row>
               <Row label="Owner">{form.ownerName.trim() ? `${form.ownerName.trim()}${emailOk ? ` · ${form.ownerEmail}` : ''}` : <Muted>Added in step 2</Muted>}</Row>
               <Row label="Plan">
                 {plan ? `${plan.name} · ${form.interval === 'ANNUAL' ? 'yearly' : 'monthly'}` : <Muted>—</Muted>}
@@ -337,7 +337,7 @@ function Handoff({ done, onAnother, onCopy }: { done: { tenant: Tenant; pin: str
   const { tenant, pin } = done;
   const [shown, setShown] = useState(false);
   const message = useMemo(
-    () => `Welcome to Let's Dine, ${tenant.owner.name}!\n\nYour restaurant dashboard is ready.\nSign in: letsdine.app/admin/signin\nEmail: ${tenant.owner.email}\nTemporary PIN: ${pin}\n\nPlease change your PIN after your first sign-in.`,
+    () => `Welcome to Let's Dine, ${tenant.owner.name}!\n\nYour restaurant dashboard is ready.\nSign in: FeastoX.app/admin/signin\nEmail: ${tenant.owner.email}\nTemporary PIN: ${pin}\n\nPlease change your PIN after your first sign-in.`,
     [tenant, pin],
   );
   return (

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Restaurant } from '../../domain/types';
 import { useToast } from '../../state/ToastContext';
+import { RestaurantMark } from '../RestaurantMark';
 import { Download, Qr, Star } from '../icons';
 import { DISPLAY, cx } from '../ui';
 import { QrImage, downloadSlip, printSlips } from './QrCard';
@@ -69,6 +70,7 @@ export function RestaurantCard({
         onClick={() => setOpen((v) => !v)}
         className="group flex w-full min-w-0 items-center gap-2 rounded-lg text-left"
       >
+        <RestaurantMark name={name} logoUrl={restaurant.logoUrl} className="size-8 text-[15px]" />
         <span className={cx('min-w-0 truncate', nameClassName)}>{name}</span>
         <Qr size={16} className="shrink-0 text-ink-4 transition-colors group-hover:text-flame-3" />
       </button>
@@ -83,8 +85,13 @@ export function RestaurantCard({
             align === 'right' ? 'right-0' : 'left-0',
           )}
         >
-          <p className={cx(DISPLAY, 'text-[22px] leading-tight text-balance')}>{restaurant.name}</p>
-          {restaurant.tagline && <p className="mt-1 text-[13px] text-ink-3">{restaurant.tagline}</p>}
+          <div className="flex items-center gap-3">
+            <RestaurantMark name={name} logoUrl={restaurant.logoUrl} className="size-14 text-[24px]" />
+            <div className="min-w-0">
+              <p className={cx(DISPLAY, 'text-[22px] leading-tight text-balance')}>{restaurant.name}</p>
+              {restaurant.tagline && <p className="mt-0.5 text-[13px] text-ink-3">{restaurant.tagline}</p>}
+            </div>
+          </div>
           {restaurant.avgRating != null && restaurant.ratingCount > 0 && (
             <p className="mt-2 flex items-center gap-1 text-[12.5px] font-semibold text-ink-2 tnum">
               <Star size={13} className="text-gold" />

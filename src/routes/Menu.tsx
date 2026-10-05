@@ -11,6 +11,7 @@ import { DishRow, DishTile } from '../components/DishCard';
 import { QuickAddSheet } from '../components/QuickAddSheet';
 import { SessionCode } from '../components/Bits';
 import { RatingPill } from '../components/Rating';
+import { RestaurantMark } from '../components/RestaurantMark';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, EYEBROW, GLASS, ICON_BTN, RAIL, SHELL, WIDE, cx } from '../components/ui';
 import { Clock, Plate, Plus, Receipt, Search, X } from '../components/icons';
 import { useRestaurant } from './RestaurantLayout';
@@ -170,6 +171,7 @@ export function Menu() {
               <span className="size-1.5 rounded-full bg-mint shadow-[0_0_0_3px_rgb(78_203_143/0.2)]" aria-hidden />
               {identityLabel}
             </span>
+            {menu.restaurant.logoUrl && <RestaurantMark name={menu.restaurant.name} logoUrl={menu.restaurant.logoUrl} className="size-14 shadow-lg shadow-black/40 lg:size-16" />}
             <h1 className={cx(DISPLAY, 'text-[clamp(30px,9vw,38px)] lg:text-5xl')}>{menu.restaurant.name}</h1>
             <div className="flex flex-wrap items-center gap-2">
               <RatingPill rating={menu.restaurant.avgRating} count={menu.restaurant.ratingCount} size="md" />

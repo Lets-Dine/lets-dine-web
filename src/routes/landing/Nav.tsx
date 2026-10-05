@@ -18,7 +18,7 @@ const isAnchor = (href: string) => href.startsWith('#');
 function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cx('font-display text-[19px] font-semibold tracking-[-0.03em] text-ink', className)}>
-      letsDine
+      FeastoX
       <span className="text-flame-1">.</span>
     </span>
   );
@@ -98,7 +98,7 @@ export function LandingNav() {
             compact ? 'h-[62px]' : 'h-[80px]',
           )}
         >
-          <Link to="/" className="shrink-0 rounded-md" aria-label="letsDine — home">
+          <Link to="/" className="shrink-0 rounded-md" aria-label="FeastoX — home">
             <Wordmark />
           </Link>
 

@@ -19,7 +19,7 @@ import { useAuth } from './AuthContext';
 /** A plan changes by the day, not the minute — and a lock should not take a whole shift to be noticed. */
 const REFRESH_MS = 5 * 60 * 1000;
 
-const DISMISSED_KEY = 'letsDine.notice.dismissed.v1';
+const DISMISSED_KEY = 'FeastoX.notice.dismissed.v1';
 
 type Phase = 'loading' | 'ready' | 'error';
 

@@ -287,8 +287,8 @@ function SuccessStage({ restaurantName }: { restaurantName: string }) {
  */
 export function GetStarted() {
   usePageTitle(
-    'Get started — letsDine for restaurants',
-    'Bring your restaurant onto letsDine in a few minutes: tell us about your restaurant and create your owner account.',
+    'Get started — FeastoX for restaurants',
+    'Bring your restaurant onto FeastoX in a few minutes: tell us about your restaurant and create your owner account.',
   );
 
   useLayoutEffect(() => {
@@ -330,9 +330,9 @@ export function GetStarted() {
   return (
     <div className="flex min-h-dvh flex-col bg-stock">
       <header className="flex items-center justify-between px-5 py-5 sm:px-8">
-        <Link to="/" className="rounded-md" aria-label="letsDine — home">
+        <Link to="/" className="rounded-md" aria-label="FeastoX — home">
           <span className="font-display text-[18px] font-semibold tracking-[-0.03em] text-ink">
-            letsDine
+            FeastoX
             <span className="text-flame-1">.</span>
           </span>
         </Link>
