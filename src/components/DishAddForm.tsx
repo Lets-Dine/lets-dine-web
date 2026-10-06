@@ -25,6 +25,7 @@ export function DishAddForm({
   onSelectVariant,
   onAdd,
   actionLabel = 'Add',
+  allowNote = true,
 }: {
   dish: Dish;
   quantity: number;
@@ -39,6 +40,8 @@ export function DishAddForm({
   onSelectVariant: (id: string) => void;
   onAdd: () => void;
   actionLabel?: string;
+  /** Staff adding on a diner's behalf can't attach a kitchen note, so they hide it. */
+  allowNote?: boolean;
 }) {
   const [noteOpen, setNoteOpen] = useState(note.length > 0);
 
@@ -137,7 +140,7 @@ export function DishAddForm({
       {/* Most diners never write a note, and this panel is often pinned over
           the page — so the common path shows first and the note is one tap
           deeper, exactly as it already works in the cart. */}
-      {noteOpen ? (
+      {!allowNote ? null : noteOpen ? (
         <input
           type="text"
           value={note}

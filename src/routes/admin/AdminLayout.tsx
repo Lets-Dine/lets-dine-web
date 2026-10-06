@@ -18,7 +18,7 @@ import { Loading } from '../../components/admin/kit';
 import { RestaurantCard } from '../../components/admin/RestaurantCard';
 import { LockedScreen, PlanChip, SubscriptionBanner } from '../../components/admin/SubscriptionBits';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Cash, Contact, Folder, Grid, History, Layers, MapPin, Plate, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
+import { Cash, ChevronRight, Contact, Folder, Grid, History, Layers, MapPin, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
 import { playNewOrderSound } from '../../platform/sound';
 
 /**
@@ -60,26 +60,29 @@ interface NavItem {
   end?: boolean;
   /** Needs the live backend — the offline demo is a single location with no branches to manage, and no plan to show. */
   liveOnly?: boolean;
+  /** Sidebar section it sits under; the tab strip on small screens stays one flat row. */
+  group: string;
 }
 
 const NAV: NavItem[] = [
-  { to: '/admin', label: 'Dashboard', icon: Grid, permission: 'orders:view', end: true },
-  { to: '/admin/orders', label: 'Orders', icon: Receipt, permission: 'orders:view' },
-  { to: '/admin/menu', label: 'Menu', icon: Plate, permission: 'menu:view' },
-  { to: '/admin/add-ons', label: 'Add-ons', icon: Sparkle, permission: 'menu:edit' },
-  { to: '/admin/categories', label: 'Categories', icon: Folder, permission: 'menu:edit' },
-  { to: '/admin/tables', label: 'Tables', icon: Table, permission: 'tables:view' },
-  { to: '/admin/floors', label: 'Floors', icon: Layers, permission: 'tables:view' },
-  { to: '/admin/customers', label: 'Customers', icon: Contact, permission: 'customers:view' },
-  { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view' },
-  { to: '/admin/ledger', label: 'Cash book', icon: Cash, permission: 'ledger:view', liveOnly: true },
-  // { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view' },
-  // { to: '/admin/analytics', label: 'Analytics', icon: TrendUp, permission: 'analytics:view' },
-  { to: '/admin/branches', label: 'Branches', icon: MapPin, permission: 'settings:view', liveOnly: true },
-  { to: '/admin/staff', label: 'Staff', icon: Users, permission: 'settings:view' },
-  { to: '/admin/audit', label: 'Audit log', icon: History, permission: 'audit:view' },
-  { to: '/admin/plan', label: 'Plan', icon: Ticket, permission: 'billing:view', liveOnly: true },
-  { to: '/admin/settings', label: 'Settings', icon: Sliders, permission: 'settings:view' },
+  { to: '/admin', label: 'Dashboard', icon: Grid, permission: 'orders:view', end: true, group: '' },
+  { to: '/admin/orders', label: 'Orders', icon: Receipt, permission: 'orders:view', group: 'Service' },
+  { to: '/admin/tables', label: 'Tables', icon: Table, permission: 'tables:view', group: 'Service' },
+  { to: '/admin/floors', label: 'Floors', icon: Layers, permission: 'tables:view', group: 'Service' },
+  { to: '/admin/customers', label: 'Customers', icon: Contact, permission: 'customers:view', group: 'Service' },
+  { to: '/admin/menu', label: 'Menu', icon: Plate, permission: 'menu:view', group: 'Menu' },
+  { to: '/admin/add-ons', label: 'Add-ons', icon: Sparkle, permission: 'menu:edit', group: 'Menu' },
+  { to: '/admin/categories', label: 'Categories', icon: Folder, permission: 'menu:edit', group: 'Menu' },
+  { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view', group: 'Money' },
+  { to: '/admin/ledger', label: 'Cash book', icon: Cash, permission: 'ledger:view', liveOnly: true, group: 'Money' },
+  // { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view', group: 'Insights' },
+  // { to: '/admin/analytics', label: 'Analytics', icon: TrendUp, permission: 'analytics:view', group: 'Insights' },
+  { to: '/admin/branches', label: 'Branches', icon: MapPin, permission: 'settings:view', liveOnly: true, group: 'Business' },
+  { to: '/admin/staff', label: 'Staff', icon: Users, permission: 'settings:view', group: 'Business' },
+  { to: '/admin/audit', label: 'Audit log', icon: History, permission: 'audit:view', group: 'Business' },
+  { to: '/admin/plan', label: 'Plan', icon: Ticket, permission: 'billing:view', liveOnly: true, group: 'Business' },
+  { to: '/admin/payment-modes', label: 'Payment modes', icon: Qr, permission: 'settings:view', liveOnly: true, group: 'Business' },
+  { to: '/admin/settings', label: 'Settings', icon: Sliders, permission: 'settings:view', group: 'Business' },
 ];
 
 /** How often the queue re-reads itself. A pass cannot wait a minute for a ticket. */
@@ -230,6 +233,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const onPlanPage = location.pathname === '/admin/plan';
   // A closed restaurant has one door left, and only the owner has the key: the plan, to put it right.
   const items = NAV.filter((item) => (locked ? item.to === '/admin/plan' && canManagePlan : allows(item.permission) && (!item.liveOnly || BRANCHES_ENABLED)));
+  const groups = [...Map.groupBy(items, (item) => item.group)];
   const attention = needsAttention(subscription.notice);
 
   return (
@@ -248,10 +252,14 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
             {subscription.subscription && <PlanChip subscription={subscription.subscription} notice={subscription.notice} className="mt-3" />}
           </div>
 
-          <nav className="flex flex-col gap-0.5">
-            {items.map((item) => (
-              <SideLink key={item.to} item={item} badge={item.to === '/admin/orders' ? waiting : 0} />
-            ))}
+          <nav className="flex flex-col gap-0.5 overflow-y-auto no-scrollbar">
+            {groups.map(([group, links]) =>
+              group ? (
+                <NavGroup key={group} label={group} links={links} pathname={location.pathname} waiting={waiting} />
+              ) : (
+                links.map((item) => <SideLink key={item.to} item={item} badge={0} />)
+              ),
+            )}
           </nav>
 
           <div className="mt-auto border-t border-hairline pt-4">
@@ -348,6 +356,34 @@ function Badge({ count }: { count: number }) {
     <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-flame px-1.5 text-[11px] font-bold text-white tnum">
       {count}
     </span>
+  );
+}
+
+/** A collapsible sidebar section. It opens by itself when the current page lives inside it; the user's own toggle wins after that. */
+function NavGroup({ label, links, pathname, waiting }: { label: string; links: NavItem[]; pathname: string; waiting: number }) {
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  const hasActive = links.some((item) => pathname.startsWith(item.to));
+  const open = toggled ?? hasActive;
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setToggled(!open)}
+        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] font-semibold text-ink-2 transition-colors duration-150 hover:bg-surface/60"
+      >
+        {label}
+        {!open && links.some((item) => item.to === '/admin/orders') && <Badge count={waiting} />}
+        <ChevronRight size={13} className={cx('ml-auto text-ink-4 transition-transform duration-150', open && 'rotate-90')} />
+      </button>
+      {open && (
+        <div className="ml-4 flex flex-col gap-0.5 border-l border-hairline pl-2">
+          {links.map((item) => (
+            <SideLink key={item.to} item={item} badge={item.to === '/admin/orders' ? waiting : 0} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

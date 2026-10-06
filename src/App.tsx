@@ -27,6 +27,7 @@ import { DishEditor } from './routes/admin/DishEditor';
 import { MenuBoard } from './routes/admin/MenuBoard';
 import { Orders } from './routes/admin/Orders';
 import { Ledger } from './routes/admin/Ledger';
+import { PaymentModes } from './routes/admin/PaymentModes';
 import { Payments } from './routes/admin/Payments';
 import { Plan } from './routes/admin/Plan';
 import { Reviews } from './routes/admin/Reviews';
@@ -160,6 +161,7 @@ export default function App() {
                 <Route path="floors/:floorId" element={<FloorDetail />} />
                 <Route path="customers" element={<Customers />} />
                 <Route path="payments" element={<Payments />} />
+                <Route path="payment-modes" element={<PaymentModes />} />
                 <Route path="ledger" element={<Ledger />} />
                 <Route path="reviews" element={<Reviews />} />
                 <Route path="analytics" element={<Analytics />} />

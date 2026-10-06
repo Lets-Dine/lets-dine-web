@@ -1,4 +1,4 @@
-import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
+import type { AddOnDraft, DishDraft, ItemOptions, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
 import type {
@@ -1066,11 +1066,11 @@ export async function fetchOrdersBySession(sessionId: string): Promise<Order[]> 
 }
 
 /** Always lands on the table's most recent order, whatever its status — a correction after settling works the same as one mid-service. */
-export async function addOrderItem(tableId: string, dishId: string): Promise<Order> {
+export async function addOrderItem(tableId: string, dishId: string, options: ItemOptions = {}): Promise<Order> {
   const order = await apiRequest<ApiOrder>(`/restaurant/orders/table/${encodeURIComponent(tableId)}/items`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ dishId }),
+    body: JSON.stringify({ dishId, variantId: options.variantId ?? undefined, addOnIds: options.addOnIds ?? [] }),
   });
   return toOrder(order);
 }

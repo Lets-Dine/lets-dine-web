@@ -242,6 +242,12 @@ export function ItemRow({
   );
 }
 
+/** A varianted dish's own price isn't what's charged, so show its cheapest option as "from". */
+function fromPrice(dish: Dish, currency: string): string {
+  const prices = dish.variants.filter((v) => v.isAvailable && !v.isArchived).map((v) => v.price);
+  return prices.length > 0 ? `from ${formatMoney(Math.min(...prices), currency)}` : formatMoney(dish.price, currency);
+}
+
 /**
  * The menu, narrowed to what the kitchen can actually cook right now. A dish
  * that is archived or marked unavailable is not offered — the pass should not
@@ -297,7 +303,7 @@ export function DishPicker({
               >
                 <Plus size={13} className="shrink-0 text-flame-1" />
                 <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">{dish.name}</span>
-                <span className="shrink-0 text-[13px] tnum text-ink-3">{formatMoney(dish.price, menu.restaurant.currency)}</span>
+                <span className="shrink-0 text-[13px] tnum text-ink-3">{fromPrice(dish, menu.restaurant.currency)}</span>
               </button>
             </li>
           ))

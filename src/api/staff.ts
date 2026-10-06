@@ -16,7 +16,7 @@ import type {
   StaffMember,
 } from '../domain/types';
 import * as mock from './admin';
-import type { AddOnDraft, DishDraft, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
+import type { AddOnDraft, DishDraft, ItemOptions, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import { IS_LIVE_API } from './http';
 import * as live from './live-admin';
 
@@ -209,8 +209,8 @@ export function fetchOrdersBySession(actor: StaffMember, sessionId: string): Pro
   return IS_LIVE_API ? live.fetchOrdersBySession(sessionId) : mock.fetchOrdersBySession(actor, sessionId);
 }
 
-export function addOrderItem(actor: StaffMember, tableId: string, dishId: string): Promise<Order> {
-  return IS_LIVE_API ? live.addOrderItem(tableId, dishId) : mock.addOrderItem(actor, tableId, dishId);
+export function addOrderItem(actor: StaffMember, tableId: string, dishId: string, options?: ItemOptions): Promise<Order> {
+  return IS_LIVE_API ? live.addOrderItem(tableId, dishId, options) : mock.addOrderItem(actor, tableId, dishId, options);
 }
 
 export function removeOrderItem(actor: StaffMember, orderId: string, itemId: string): Promise<Order> {

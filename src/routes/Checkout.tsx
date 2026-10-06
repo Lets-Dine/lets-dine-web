@@ -7,7 +7,6 @@ import { track } from '../domain/analytics';
 import { formatMoney } from '../domain/money';
 import { haptic } from '../platform/haptics';
 import { BTN, BTN_FLAME, BTN_SIZE, DISPLAY, EYEBROW, GLASS, INPUT, SHELL, cx } from '../components/ui';
-import { Check } from '../components/icons';
 import { requestNotifyPermission } from '../platform/notify';
 import { useCart } from '../state/CartContext';
 import { usePageTitle } from '../state/usePageTitle';
@@ -19,16 +18,6 @@ import { TopBar } from './Shell';
 
 /** The server's key for an order refused because the branch is closed or switched off. */
 const BRANCH_CLOSED_KEY = 'ORDER_BRANCH_CLOSED';
-
-const PAYMENT_METHODS_DINE_IN = [
-  { id: 'cash', label: 'Cash at the table', hint: 'Pay the server when you are done' },
-  { id: 'card', label: 'Card at the counter', hint: 'The restaurant brings the machine over' },
-] as const;
-
-const PAYMENT_METHODS_DELIVERY = [
-  { id: 'cash', label: 'Cash on delivery', hint: 'Pay the rider when your order arrives' },
-  { id: 'card', label: 'Card on delivery', hint: 'The rider brings a card machine' },
-] as const;
 
 export function Checkout() {
   const { menu, customer, floor, dinerIdentity, setDinerIdentity, floorPlace, setFloorPlace, identityLabel, session, base } =
@@ -46,7 +35,6 @@ export function Checkout() {
   const navigate = useNavigate();
   const toast = useToast();
 
-  const [method, setMethod] = useState<string>('cash');
   const [address, setAddress] = useState(customer?.defaultAddress ?? '');
   const [note, setNote] = useState(customer?.defaultNote ?? '');
   const [submitting, setSubmitting] = useState(false);
@@ -58,7 +46,6 @@ export function Checkout() {
   const [identityName, setIdentityName] = useState(dinerIdentity?.name ?? '');
   const [identityPhone, setIdentityPhone] = useState(dinerIdentity?.phone ?? '');
   const sessionEnded = Boolean(session.endedAt);
-  const paymentMethods = isDelivery ? PAYMENT_METHODS_DELIVERY : PAYMENT_METHODS_DINE_IN;
 
   const byId = new Map(menu.dishes.map((d) => [d.id, d]));
   const deliveryFee = isDelivery ? (menu.restaurant.deliveryFeeAmount ?? 0) : 0;
@@ -287,43 +274,6 @@ export function Checkout() {
                 );
               })}
             </ul>
-          </section>
-
-          <section className="flex flex-col gap-3">
-            <h2 className={EYEBROW}>How you'll pay</h2>
-            <div className="flex flex-col gap-2.5">
-              {paymentMethods.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => {
-                    haptic.select();
-                    setMethod(m.id);
-                  }}
-                  aria-pressed={method === m.id}
-                  className={cx(
-                    'flex w-full items-center gap-3.5 rounded-2xl p-4 text-left transition-colors duration-150',
-                    method === m.id
-                      ? 'bg-flame-2/14 ring-[1.5px] ring-flame-2/35 ring-inset'
-                      : 'bg-surface ring-1 ring-hairline ring-inset hover:bg-surface-2',
-                  )}
-                >
-                  <span
-                    className={cx(
-                      'grid size-5.5 shrink-0 place-items-center rounded-full text-white transition-colors duration-150',
-                      method === m.id ? 'bg-flame' : 'ring-[1.5px] ring-hairline-strong ring-inset',
-                    )}
-                    aria-hidden
-                  >
-                    {method === m.id && <Check size={13} />}
-                  </span>
-                  <span className="flex-1">
-                    <b className="block text-[14.5px] font-semibold">{m.label}</b>
-                    <span className="text-[12.5px] text-ink-4">{m.hint}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
           </section>
 
           {sessionEnded && (

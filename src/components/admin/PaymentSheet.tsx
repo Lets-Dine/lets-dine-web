@@ -595,6 +595,19 @@ export function PaymentSheet({
                   {busy && method === 'cash' ? 'Processing…' : 'Cash'}
                 </span>
               </button>
+              {/* QR: the guest paid by scanning the restaurant's own QR; staff just record it, and it settles as a card payment. */}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void finalize('qr')}
+                className="flex flex-col items-center gap-2 rounded-2xl bg-[oklch(0.879_0.033_85)] py-6 text-[oklch(0.232_0.019_70)] ring-2 ring-transparent transition-move active:scale-[0.97] disabled:opacity-40"
+              >
+                <Qr size={26} />
+                <span className="text-[13px] font-bold tracking-wide uppercase">
+                  {busy && method === 'qr' ? 'Processing…' : 'QR'}
+                </span>
+              </button>
+              {/* Scan to pay (generated QR with a waiting step), off for now:
               <button
                 type="button"
                 disabled={busy}
@@ -608,6 +621,7 @@ export function PaymentSheet({
                 <Qr size={26} />
                 <span className="text-[13px] font-bold tracking-wide uppercase">Scan to pay</span>
               </button>
+              */}
             </div>
           </div>
         )}

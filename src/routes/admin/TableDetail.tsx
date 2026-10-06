@@ -23,6 +23,9 @@ import { relativeTime } from '../../components/time';
 import { QrDialog, printSingleQr, tableUrl } from '../../components/admin/QrCard';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import type { Dish } from '../../domain/types';
+import { DishOptionsDialog, orderableOptions } from '../../components/admin/DishOptionsDialog';
+import type { DishSelection } from '../../components/admin/DishOptionsDialog';
+import { formatMoney } from '../../domain/money';
 import { DishPicker, ItemRow, Progress } from '../../components/admin/OrderLines';
 import {
   ADMIN_GHOST,
@@ -91,21 +94,45 @@ export function TableDetail() {
   const [billing, setBilling] = useState(false);
   const [pickingDish, setPickingDish] = useState(false);
   // Dishes staff are still lining up for the diner — nothing exists server-side until "Place order".
-  const [draft, setDraft] = useState<{ dish: Dish; qty: number }[]>([]);
-  const addToDraft = (dish: Dish) =>
+  // A line is a dish *and* its variant and extras: a large and a small of the same dish are two lines.
+  const [draft, setDraft] = useState<{ key: string; dish: Dish; variantId: string | null; addOnIds: string[]; qty: number }[]>([]);
+  // A dish with sizes or extras opens the options dialog first; a plain one goes straight on the ticket.
+  const [configuring, setConfiguring] = useState<Dish | null>(null);
+  const addToDraft = (dish: Dish, sel: Partial<DishSelection> = {}) => {
+    const variantId = sel.variantId ?? null;
+    const addOnIds = [...(sel.addOnIds ?? [])].sort();
+    const key = [dish.id, variantId, addOnIds.join(',')].join('|');
+    const qty = sel.quantity ?? 1;
     setDraft((d) =>
-      d.some((l) => l.dish.id === dish.id)
-        ? d.map((l) => (l.dish.id === dish.id ? { ...l, qty: l.qty + 1 } : l))
-        : [...d, { dish, qty: 1 }],
+      d.some((l) => l.key === key) ? d.map((l) => (l.key === key ? { ...l, qty: l.qty + qty } : l)) : [...d, { key, dish, variantId, addOnIds, qty }],
     );
-  const changeQty = (id: string, by: number) =>
-    setDraft((d) => d.flatMap((l) => (l.dish.id !== id ? [l] : l.qty + by > 0 ? [{ ...l, qty: l.qty + by }] : [])));
+  };
+  const pickDish = (dish: Dish) => {
+    const { variants, addOns } = orderableOptions(dish, menu);
+    if (variants.length > 0 || addOns.length > 0) setConfiguring(dish);
+    else addToDraft(dish);
+  };
+  const changeQty = (key: string, by: number) =>
+    setDraft((d) => d.flatMap((l) => (l.key !== key ? [l] : l.qty + by > 0 ? [{ ...l, qty: l.qty + by }] : [])));
+  /** "Large · +2 Extra cheese" — what makes two lines of the same dish tell apart. */
+  const describe = (l: (typeof draft)[number]) => {
+    const parts: string[] = [];
+    const variant = l.dish.variants.find((v) => v.id === l.variantId);
+    if (variant) parts.push(variant.name);
+    for (const id of new Set(l.addOnIds)) {
+      const n = l.addOnIds.filter((a) => a === id).length;
+      const name = menu.addOns.find((a) => a.id === id)?.name ?? 'Extra';
+      parts.push(n > 1 ? `${n}× ${name}` : name);
+    }
+    return parts.join(' · ');
+  };
   // The API adds one unit per call and lands on the table's open order (creating it on the first), so commit is a sequence.
   const placeDraft = () =>
     act(
       'place',
       async () => {
-        for (const { dish, qty } of draft) for (let i = 0; i < qty; i++) await addOrderItem(staff, table!.id, dish.id);
+        for (const { dish, qty, variantId, addOnIds } of draft)
+          for (let i = 0; i < qty; i++) await addOrderItem(staff, table!.id, dish.id, { variantId, addOnIds });
       },
       'Order placed for the table',
     );
@@ -220,7 +247,7 @@ export function TableDetail() {
                         busy={busy}
                         onClose={() => setPickingDish(false)}
                         keepOpen
-                        onPick={addToDraft}
+                        onPick={pickDish}
                       />
                     ) : (
                       <button type="button" className={cx(ADMIN_GHOST, 'w-full justify-center')} onClick={() => setPickingDish(true)}>
@@ -230,21 +257,28 @@ export function TableDetail() {
                     {draft.length > 0 && (
                       <div className="mt-3 rounded-xl ring-1 ring-hairline p-3">
                         <ul className="divide-y divide-hairline">
-                          {draft.map(({ dish, qty }) => (
-                            <li key={dish.id} className="flex items-center gap-2 py-1.5 text-[13.5px]">
-                              <span className="min-w-0 flex-1 truncate font-semibold">{dish.name}</span>
-                              <button type="button" className={ADMIN_TINY} aria-label={`One fewer ${dish.name}`} onClick={() => changeQty(dish.id, -1)}>
+                          {draft.map((line) => {
+                            const { dish, qty, key } = line;
+                            const detail = describe(line);
+                            return (
+                            <li key={key} className="flex items-center gap-2 py-1.5 text-[13.5px]">
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-semibold">{dish.name}</span>
+                                {detail && <span className="block truncate text-[12px] text-ink-3">{detail}</span>}
+                              </span>
+                              <button type="button" className={ADMIN_TINY} aria-label={`One fewer ${dish.name}`} onClick={() => changeQty(key, -1)}>
                                 −
                               </button>
                               <span className="w-5 text-center tnum">{qty}</span>
-                              <button type="button" className={ADMIN_TINY} aria-label={`One more ${dish.name}`} onClick={() => changeQty(dish.id, 1)}>
+                              <button type="button" className={ADMIN_TINY} aria-label={`One more ${dish.name}`} onClick={() => changeQty(key, 1)}>
                                 +
                               </button>
-                              <button type="button" className={ADMIN_TINY} onClick={() => changeQty(dish.id, -qty)}>
+                              <button type="button" className={ADMIN_TINY} onClick={() => changeQty(key, -qty)}>
                                 Remove
                               </button>
                             </li>
-                          ))}
+                            );
+                          })}
                         </ul>
                         <div className="mt-3 flex gap-2">
                           <button
@@ -419,6 +453,17 @@ export function TableDetail() {
         }}
       />
 
+      {configuring && (
+        <DishOptionsDialog
+          dish={configuring}
+          menu={menu}
+          onClose={() => setConfiguring(null)}
+          onAdd={(sel) => {
+            addToDraft(configuring, sel);
+            setConfiguring(null);
+          }}
+        />
+      )}
       <PaymentSheet
         table={billing ? table : null}
         orders={visitOrders}

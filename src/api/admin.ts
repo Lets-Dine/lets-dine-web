@@ -821,7 +821,7 @@ function forceCompleteOrder(order: Order, now: string): Order {
  * It always lands on the table's most recent order, whatever that order's
  * status.
  */
-export async function addOrderItem(actor: StaffMember, tableId: string, dishId: string): Promise<Order> {
+export async function addOrderItem(actor: StaffMember, tableId: string, dishId: string, options: ItemOptions = {}): Promise<Order> {
   authorize(actor, 'orders:advance');
   await latency();
   const store = seedQueue(readStore());
@@ -890,11 +890,32 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
   const dish = menuOf(base).dishes.find((d) => d.id === dishId);
   if (!dish) throw new ApiError(404, 'That dish is no longer on the menu.');
 
+  // Re-resolved and re-priced from the menu, same as a diner's order — never trust the caller's ids.
+  const menu = menuOf(base);
+  const addOns = (options.addOnIds ?? []).map((addOnId) => {
+    const addOn = menu.addOns.find((a) => a.id === addOnId);
+    if (!addOn || !dish.addOnIds.includes(addOnId) || addOn.isArchived || !addOn.isAvailable)
+      throw new ApiError(400, `One of the add-ons for ${dish.name} is no longer available.`);
+    return { addOnId: addOn.id, nameSnapshot: addOn.name, price: addOn.price };
+  });
+  const activeVariants = dish.variants.filter((v) => !v.isArchived);
+  const variant = options.variantId ? (activeVariants.find((v) => v.id === options.variantId && v.isAvailable) ?? null) : null;
+  if (options.variantId && !variant) throw new ApiError(400, `The selected option for ${dish.name} is no longer available.`);
+  if (!variant && activeVariants.length > 0) throw new ApiError(400, `Choose an option for ${dish.name}.`);
+  const comboKey = (ids: string[]) => [...ids].sort().join(',');
+
   const now = new Date().toISOString();
   // Merging into an already-started line would silently mark the new unit as
   // already cooked, so a second helping only merges while the existing line
-  // is still untouched — otherwise it's a fresh line, its own ticket.
-  const existing = order.items.find((i) => i.dishId === dishId && i.status === 'PENDING');
+  // is still untouched — otherwise it's a fresh line, its own ticket. A different
+  // variant or set of extras is a different line altogether.
+  const existing = order.items.find(
+    (i) =>
+      i.dishId === dishId &&
+      i.status === 'PENDING' &&
+      i.variantId === (variant?.id ?? null) &&
+      comboKey(i.addOns.map((a) => a.addOnId)) === comboKey(addOns.map((a) => a.addOnId)),
+  );
   const items: OrderItem[] = existing
     ? order.items.map((i) => (i.id === existing.id ? { ...i, quantity: i.quantity + 1 } : i))
     : [
@@ -904,15 +925,15 @@ export async function addOrderItem(actor: StaffMember, tableId: string, dishId: 
           dishId: dish.id,
           dishNameSnapshot: dish.name,
           imageUrlSnapshot: dish.imageUrl,
-          unitPrice: dish.price,
+          unitPrice: (variant ? variant.price : dish.price) + addOns.reduce((sum, a) => sum + a.price, 0),
           quantity: 1,
           notes: '',
           status: 'PENDING',
           statusUpdatedAt: now,
-          addOns: [],
-          variantId: null,
-          variantNameSnapshot: null,
-          variantPriceSnapshot: null,
+          addOns,
+          variantId: variant?.id ?? null,
+          variantNameSnapshot: variant?.name ?? null,
+          variantPriceSnapshot: variant?.price ?? null,
         },
       ];
 
@@ -1918,6 +1939,12 @@ export async function listReviews(actor: StaffMember, filter: ReviewFilter = {})
 }
 
 /* ── Settings ──────────────────────────────────────────────────────── */
+
+/** Which variant and extras a staff-added unit carries; an add-on id repeated means that many of it. */
+export interface ItemOptions {
+  variantId?: string | null;
+  addOnIds?: string[];
+}
 
 export interface SettingsPatch {
   name?: string;
