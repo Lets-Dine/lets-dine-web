@@ -233,7 +233,12 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const onPlanPage = location.pathname === '/admin/plan';
   // A closed restaurant has one door left, and only the owner has the key: the plan, to put it right.
   const items = NAV.filter((item) => (locked ? item.to === '/admin/plan' && canManagePlan : allows(item.permission) && (!item.liveOnly || BRANCHES_ENABLED)));
-  const groups = [...Map.groupBy(items, (item) => item.group)];
+  const groups: [string, NavItem[]][] = [];
+  for (const item of items) {
+    const last = groups.at(-1);
+    if (last?.[0] === item.group) last[1].push(item);
+    else groups.push([item.group, [item]]);
+  }
   const attention = needsAttention(subscription.notice);
 
   return (

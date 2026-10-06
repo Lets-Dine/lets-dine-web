@@ -25,7 +25,6 @@ import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import type { Dish } from '../../domain/types';
 import { DishOptionsDialog, orderableOptions } from '../../components/admin/DishOptionsDialog';
 import type { DishSelection } from '../../components/admin/DishOptionsDialog';
-import { formatMoney } from '../../domain/money';
 import { DishPicker, ItemRow, Progress } from '../../components/admin/OrderLines';
 import {
   ADMIN_GHOST,

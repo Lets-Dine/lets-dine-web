@@ -36,10 +36,10 @@ const QR_AUTO_MS = 8000;
  * matters for the till: a fresh reference baked in per attempt, so the code
  * on screen changes every time a payment is started, the way a real one would.
  */
-function paymentQrPayload(subject: BillSubject, amount: number, currency: string): string {
-  const ref = `${subject.qrToken.slice(0, 6)}${Date.now().toString(36)}`.toUpperCase();
-  return `FeastoX-pay://charge?table=${encodeURIComponent(subject.name)}&amount=${amount}&currency=${currency}&ref=${ref}`;
-}
+// function paymentQrPayload(subject: BillSubject, amount: number, currency: string): string {
+//   const ref = `${subject.qrToken.slice(0, 6)}${Date.now().toString(36)}`.toUpperCase();
+//   return `FeastoX-pay://charge?table=${encodeURIComponent(subject.name)}&amount=${amount}&currency=${currency}&ref=${ref}`;
+// }
 
 /** One underlying order item a displayed bill line is backed by — a served line can merge several of these. */
 interface DraftLineSource {
