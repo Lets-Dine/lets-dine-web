@@ -12,6 +12,8 @@ import { SubscriptionProvider, useSubscription } from '../../state/SubscriptionC
 import { AdminThemeToggle } from '../../state/AdminTheme';
 import { usePageTitle } from '../../state/usePageTitle';
 import { BranchSwitcher } from '../../components/admin/BranchSwitcher';
+import { FEEDBACK_ENABLED } from '../../api/feedback';
+import { FeedbackDialog } from '../../components/admin/FeedbackDialog';
 import { Loading } from '../../components/admin/kit';
 import { RestaurantCard } from '../../components/admin/RestaurantCard';
 import { LockedScreen, PlanChip, SubscriptionBanner } from '../../components/admin/SubscriptionBits';
@@ -70,6 +72,7 @@ const NAV: NavItem[] = [
   { to: '/admin/floors', label: 'Floors', icon: Layers, permission: 'tables:view' },
   { to: '/admin/customers', label: 'Customers', icon: Contact, permission: 'customers:view' },
   { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view' },
+  { to: '/admin/ledger', label: 'Cash book', icon: Cash, permission: 'ledger:view', liveOnly: true },
   // { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view' },
   // { to: '/admin/analytics', label: 'Analytics', icon: TrendUp, permission: 'analytics:view' },
   { to: '/admin/branches', label: 'Branches', icon: MapPin, permission: 'settings:view', liveOnly: true },
@@ -115,6 +118,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const [menu, setMenu] = useState<Menu | null>(null);
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const alive = useRef(true);
   /** `null` until the queue has loaded once — the first load seeds this silently, it never sounds the alert. */
   const knownOrderIds = useRef<Set<string> | null>(null);
@@ -255,7 +259,12 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
               <div className="truncate text-[13.5px] font-semibold">{staff.name}</div>
               <div className="text-[12px] text-ink-4">{ROLE_LABEL[staff.role]}</div>
             </div>
-            <AdminThemeToggle className="mt-2 w-full justify-start" />
+            {FEEDBACK_ENABLED && (
+              <button type="button" onClick={() => setFeedbackOpen(true)} className="mt-2 w-full rounded-lg px-3 py-2 text-left text-[13px] font-semibold text-ink-3 transition-colors hover:text-ink">
+                Send feedback
+              </button>
+            )}
+            <AdminThemeToggle className="mt-1 w-full justify-start" />
             <button
               type="button"
               onClick={signOut}
@@ -285,6 +294,11 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <AdminThemeToggle />
+                {FEEDBACK_ENABLED && (
+                  <button type="button" onClick={() => setFeedbackOpen(true)} className="text-[13px] font-semibold text-ink-3">
+                    Feedback
+                  </button>
+                )}
                 <button type="button" onClick={signOut} className="text-[13px] font-semibold text-ink-3">
                   Sign out
                 </button>
@@ -323,6 +337,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
           </main>
         </div>
       </div>
+      {feedbackOpen && <FeedbackDialog onClose={() => setFeedbackOpen(false)} />}
     </div>
   );
 }

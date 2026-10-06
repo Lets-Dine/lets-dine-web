@@ -26,6 +26,7 @@ import { Dashboard } from './routes/admin/Dashboard';
 import { DishEditor } from './routes/admin/DishEditor';
 import { MenuBoard } from './routes/admin/MenuBoard';
 import { Orders } from './routes/admin/Orders';
+import { Ledger } from './routes/admin/Ledger';
 import { Payments } from './routes/admin/Payments';
 import { Plan } from './routes/admin/Plan';
 import { Reviews } from './routes/admin/Reviews';
@@ -45,6 +46,7 @@ import { PlatformRestaurantDetail } from './routes/platform/RestaurantDetail';
 import { PlatformBilling } from './routes/platform/Billing';
 import { PlatformPlans } from './routes/platform/Plans';
 import { PlatformPhotos } from './routes/platform/Photos';
+import { PlatformFeedback } from './routes/platform/Feedback';
 import { PlatformActivity } from './routes/platform/Activity';
 import { PlatformSettingsPage } from './routes/platform/Settings';
 
@@ -158,6 +160,7 @@ export default function App() {
                 <Route path="floors/:floorId" element={<FloorDetail />} />
                 <Route path="customers" element={<Customers />} />
                 <Route path="payments" element={<Payments />} />
+                <Route path="ledger" element={<Ledger />} />
                 <Route path="reviews" element={<Reviews />} />
                 <Route path="analytics" element={<Analytics />} />
                 <Route path="branches" element={<Branches />} />
@@ -177,6 +180,7 @@ export default function App() {
                 <Route path="billing" element={<PlatformBilling />} />
                 <Route path="plans" element={<PlatformPlans />} />
                 <Route path="photos" element={<PlatformPhotos />} />
+                <Route path="feedback" element={<PlatformFeedback />} />
                 <Route path="activity" element={<PlatformActivity />} />
                 <Route path="settings" element={<PlatformSettingsPage />} />
               </Route>

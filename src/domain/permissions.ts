@@ -25,6 +25,9 @@ export type Permission =
   | 'payments:discount'
   | 'customers:view'
   | 'customers:edit'
+  | 'ledger:view'
+  | 'ledger:manage'
+  | 'ledger:reopen'
   | 'billing:view'
   | 'billing:manage';
 
@@ -43,6 +46,9 @@ const MANAGER: Permission[] = [
   'audit:view',
   'payments:discount',
   'customers:edit',
+  // Expenses and the cash-up: a manager keeps the books.
+  'ledger:view',
+  'ledger:manage',
   // The plan's status and usage — what the restaurant is on and when it needs attention. No money.
   'billing:view',
 ];
@@ -51,7 +57,7 @@ const GRANTS: Record<StaffRole, Permission[]> = {
   STAFF,
   MANAGER,
   // Prices, invoices and changing plan: the owner is who commits the restaurant to a plan.
-  OWNER: [...MANAGER, 'settings:edit', 'billing:manage'],
+  OWNER: [...MANAGER, 'settings:edit', 'billing:manage', 'ledger:reopen'],
 };
 
 export function can(role: StaffRole, permission: Permission): boolean {

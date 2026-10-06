@@ -10,7 +10,7 @@ import { useAsync } from '../../state/useAsync';
 import { useToast } from '../../state/ToastContext';
 import { ADMIN_PRIMARY, INPUT_BOX } from '../../components/admin/kit';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Building, Cash, Grid, History, Photo, Plus, Search, Sliders, Ticket } from '../../components/icons';
+import { Building, Cash, Grid, History, Megaphone, Photo, Plus, Search, Sliders, Ticket } from '../../components/icons';
 import { Avatar, StatusBadge } from './kit';
 
 /**
@@ -34,6 +34,7 @@ const NAV: NavItem[] = [
   { to: '/platform/billing', label: 'Billing', icon: Cash },
   { to: '/platform/plans', label: 'Plans', icon: Ticket },
   { to: '/platform/photos', label: 'Dish photos', icon: Photo },
+  { to: '/platform/feedback', label: 'Feedback', icon: Megaphone },
   { to: '/platform/activity', label: 'Activity', icon: History },
   { to: '/platform/settings', label: 'Settings', icon: Sliders },
 ];

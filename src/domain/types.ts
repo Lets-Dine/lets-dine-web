@@ -456,7 +456,8 @@ export type AuditAction =
   | 'staff_invited'
   | 'staff_role_changed'
   | 'staff_deactivated'
-  | 'staff_branches_changed';
+  | 'staff_branches_changed'
+  | 'ledger_reopened';
 
 export type CustomerSegment = 'new' | 'regular' | 'lapsed' | 'occasional';
 
