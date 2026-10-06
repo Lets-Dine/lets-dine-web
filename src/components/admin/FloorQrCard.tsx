@@ -14,28 +14,30 @@ export function floorUrl(slug: string, floor: Floor, origin?: string): string {
   return `${base}/r/${slug}/f/${floor.qrToken}`;
 }
 
-const floorSlip = (floor: Floor, url: string): SlipContent => ({ title: floor.name, hint: 'scan to order from anywhere on this floor', url });
+const floorSlip = (floor: Floor, url: string, logoUrl?: string): SlipContent => ({ title: floor.name, hint: 'scan to order from anywhere on this floor', url, logoUrl });
 
 /** Downloads the floor's slip as a vector file — the same layout as a table's. */
-export function downloadFloorQr(floor: Floor, restaurantName: string, url: string): void {
-  downloadSlip(floorSlip(floor, url), restaurantName);
+export function downloadFloorQr(floor: Floor, restaurantName: string, url: string, logoUrl?: string): Promise<void> {
+  return downloadSlip(floorSlip(floor, url, logoUrl), restaurantName);
 }
 
 /** A single floor's code, printed on the same slip as a table's. */
-export function printSingleFloorQr(floor: Floor, restaurantName: string, url: string): boolean {
-  return printSlips([floorSlip(floor, url)], restaurantName, `${floor.name} QR`);
+export function printSingleFloorQr(floor: Floor, restaurantName: string, url: string, logoUrl?: string): boolean {
+  return printSlips([floorSlip(floor, url, logoUrl)], restaurantName, `${floor.name} QR`);
 }
 
 export function FloorQrDialog({
   floor,
   url,
   restaurantName,
+  logoUrl,
   onClose,
   onCopy,
 }: {
   floor: Floor | null;
   url: string;
   restaurantName: string;
+  logoUrl?: string;
   onClose: () => void;
   onCopy: (url: string) => void;
 }) {
@@ -61,7 +63,7 @@ export function FloorQrDialog({
         <div className="my-4 border-t border-dashed border-gray-400" />
 
         <div className="mx-auto size-60 overflow-hidden rounded-xl ring-1 ring-hairline ring-inset">
-          <QrImage value={url} />
+          <QrImage value={url} logoUrl={logoUrl} />
         </div>
 
         <p className="mt-4 text-[9px] break-all text-ink-4">{url}</p>
@@ -70,7 +72,7 @@ export function FloorQrDialog({
           <button
             type="button"
             className="col-span-2 rounded-[14px] bg-flame py-3.5 text-[13px] font-bold tracking-wide transition-transform active:translate-y-px text-white"
-            onClick={() => printSingleFloorQr(floor, restaurantName, url)}
+            onClick={() => printSingleFloorQr(floor, restaurantName, url, logoUrl)}
           >
             Print QR
           </button>
@@ -84,7 +86,7 @@ export function FloorQrDialog({
         </div>
 
         <div className="mt-2 flex justify-center gap-3">
-          <button type="button" className="text-[11px] font-semibold text-ink-3 hover:text-ink" onClick={() => downloadFloorQr(floor, restaurantName, url)}>
+          <button type="button" className="text-[11px] font-semibold text-ink-3 hover:text-ink" onClick={() => downloadFloorQr(floor, restaurantName, url, logoUrl)}>
             Download
           </button>
           <button type="button" className="text-[11px] font-semibold text-ink-3 hover:text-ink" onClick={() => onCopy(url)}>

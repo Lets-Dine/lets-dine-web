@@ -9,6 +9,7 @@ import { ADMIN_QUIET, INPUT_BOX } from './kit';
 
 interface Section {
   title: string;
+  tags: string[];
   urls: string[];
 }
 
@@ -49,16 +50,17 @@ export function PhotoPickerDialog({
     const photos: LibraryPhoto[] = library.data ?? [];
     for (const photo of photos) {
       const key = photo.name.trim().toLowerCase();
-      const section = byName.get(key) ?? { title: photo.name.trim(), urls: [] };
+      const section = byName.get(key) ?? { title: photo.name.trim(), tags: [], urls: [] };
       section.urls.push(photo.imageUrl);
+      for (const tag of photo.tags) if (!section.tags.includes(tag)) section.tags.push(tag);
       byName.set(key, section);
     }
     const q = filter.trim().toLowerCase();
     const known = new Set(photos.map((p) => p.imageUrl));
     const own = menuPhotos.filter((url) => !known.has(url));
-    const result = [...byName.entries()].filter(([key]) => key.includes(q)).map(([, s]) => s);
+    const result = [...byName.values()].filter((s) => `${s.title} ${s.tags.join(' ')}`.toLowerCase().includes(q));
     // A filter is a search by dish name — the restaurant's own photos have none, so they only show unfiltered.
-    if (own.length > 0 && !q) result.push({ title: 'On your menu', urls: own });
+    if (own.length > 0 && !q) result.push({ title: 'On your menu', tags: [], urls: own });
     return result;
   }, [library.data, menuPhotos, filter]);
 
@@ -80,7 +82,7 @@ export function PhotoPickerDialog({
               className={cx(INPUT_BOX, 'h-10 py-0 pl-10')}
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              placeholder="Search photos by dish"
+              placeholder="Search by dish or other name"
             />
           </label>
           <button type="button" className={ADMIN_QUIET} onClick={onClose} aria-label="Close">

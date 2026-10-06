@@ -252,11 +252,14 @@ export function DishPicker({
   busy,
   onPick,
   onClose,
+  keepOpen = false,
 }: {
   menu: Menu;
   busy: boolean;
   onPick: (dish: Dish) => void;
   onClose: () => void;
+  /** Stay open after a pick so several dishes can be added in a row. */
+  keepOpen?: boolean;
 }) {
   const [query, setQuery] = useState('');
 
@@ -289,7 +292,7 @@ export function DishPicker({
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-surface-3 disabled:opacity-40"
                 onClick={() => {
                   onPick(dish);
-                  onClose();
+                  if (!keepOpen) onClose();
                 }}
               >
                 <Plus size={13} className="shrink-0 text-flame-1" />

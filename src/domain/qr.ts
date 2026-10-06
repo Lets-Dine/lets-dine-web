@@ -560,6 +560,14 @@ function modulePath(x: number, y: number, r: CornerRadii): string {
   );
 }
 
+/** A copy with the modules under a centre logo (and its white disc) switched off, so no stray dots poke out around it. Pair with a logo of ~24% of the code's width. */
+export function qrClearCentre(matrix: QrMatrix): QrMatrix {
+  const c = matrix.size / 2;
+  const reach = (matrix.size + 4) * 0.12 + 1.2 + 0.5;
+  const modules = matrix.modules.map((row, y) => row.map((dark, x) => dark && Math.hypot(x + 0.5 - c, y + 0.5 - c) > reach));
+  return { ...matrix, modules };
+}
+
 /** Every dark module outside the three finder eyes, rounded per `dotCorners`. */
 export function qrDotsPath(matrix: QrMatrix, margin = 2): string {
   const parts: string[] = [];

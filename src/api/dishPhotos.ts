@@ -14,6 +14,7 @@ export interface LibraryPhoto {
   id: string;
   name: string;
   imageUrl: string;
+  tags: string[];
 }
 
 const NEEDS_LIVE = new ApiError(400, 'The photo library needs a live backend.');
@@ -34,12 +35,22 @@ export async function listLibrary(): Promise<LibraryPhoto[]> {
   return apiRequest<LibraryPhoto[]>('/platform/dish-photos', { headers: platformHeaders() });
 }
 
-export async function addLibraryPhoto(name: string, imageUrl: string): Promise<LibraryPhoto> {
+export async function addLibraryPhoto(name: string, imageUrl: string, tags: string[]): Promise<LibraryPhoto> {
   if (!IS_LIVE_API) throw NEEDS_LIVE;
   return apiRequest<LibraryPhoto>('/platform/dish-photos', {
     method: 'POST',
     headers: platformHeaders(),
-    body: JSON.stringify({ name: name.trim(), imageUrl }),
+    body: JSON.stringify({ name: name.trim(), imageUrl, tags }),
+  });
+}
+
+/** Renames a dish and replaces its tags, for every photo filed under `from`. */
+export async function updateLibraryGroup(from: string, name: string, tags: string[]): Promise<void> {
+  if (!IS_LIVE_API) throw NEEDS_LIVE;
+  await apiRequest<null>('/platform/dish-photos', {
+    method: 'PATCH',
+    headers: platformHeaders(),
+    body: JSON.stringify({ from, name: name.trim(), tags }),
   });
 }
 

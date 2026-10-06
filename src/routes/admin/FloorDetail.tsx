@@ -154,7 +154,7 @@ export function FloorDetail() {
               >
                 Copy link
               </button>
-              <button type="button" className={ADMIN_GHOST} onClick={() => printSingleFloorQr(floor, menu.restaurant.name, url)}>
+              <button type="button" className={ADMIN_GHOST} onClick={() => printSingleFloorQr(floor, menu.restaurant.name, url, menu.restaurant.logoUrl || undefined)}>
                 Print this code
               </button>
               {editable && (
@@ -197,6 +197,7 @@ export function FloorDetail() {
         floor={showQr ? floor : null}
         url={url}
         restaurantName={menu.restaurant.name}
+        logoUrl={menu.restaurant.logoUrl || undefined}
         onClose={() => setShowQr(false)}
         onCopy={(copied) => {
           void navigator.clipboard?.writeText(copied);

@@ -128,6 +128,7 @@ export function Floors() {
         floor={qrFloor}
         url={qrFloor ? floorUrl(menu.restaurant.slug, qrFloor) : ''}
         restaurantName={menu.restaurant.name}
+        logoUrl={menu.restaurant.logoUrl || undefined}
         onClose={() => setQrId(null)}
         onCopy={(url) => {
           void navigator.clipboard?.writeText(url);

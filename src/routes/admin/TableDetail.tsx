@@ -22,6 +22,7 @@ import { useNow } from '../../state/useNow';
 import { relativeTime } from '../../components/time';
 import { QrDialog, printSingleQr, tableUrl } from '../../components/admin/QrCard';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
+import type { Dish } from '../../domain/types';
 import { DishPicker, ItemRow, Progress } from '../../components/admin/OrderLines';
 import {
   ADMIN_GHOST,
@@ -89,6 +90,25 @@ export function TableDetail() {
   const [showQr, setShowQr] = useState(false);
   const [billing, setBilling] = useState(false);
   const [pickingDish, setPickingDish] = useState(false);
+  // Dishes staff are still lining up for the diner — nothing exists server-side until "Place order".
+  const [draft, setDraft] = useState<{ dish: Dish; qty: number }[]>([]);
+  const addToDraft = (dish: Dish) =>
+    setDraft((d) =>
+      d.some((l) => l.dish.id === dish.id)
+        ? d.map((l) => (l.dish.id === dish.id ? { ...l, qty: l.qty + 1 } : l))
+        : [...d, { dish, qty: 1 }],
+    );
+  const changeQty = (id: string, by: number) =>
+    setDraft((d) => d.flatMap((l) => (l.dish.id !== id ? [l] : l.qty + by > 0 ? [{ ...l, qty: l.qty + by }] : [])));
+  // The API adds one unit per call and lands on the table's open order (creating it on the first), so commit is a sequence.
+  const placeDraft = () =>
+    act(
+      'place',
+      async () => {
+        for (const { dish, qty } of draft) for (let i = 0; i < qty; i++) await addOrderItem(staff, table!.id, dish.id);
+      },
+      'Order placed for the table',
+    );
 
   const act = (key: string, action: () => Promise<unknown>, message: string) =>
     void run(key, action, message).then((ok) => {
@@ -199,14 +219,51 @@ export function TableDetail() {
                         menu={menu}
                         busy={busy}
                         onClose={() => setPickingDish(false)}
-                        onPick={(dish) =>
-                          act(`add:${dish.id}`, () => addOrderItem(staff, table.id, dish.id), `${dish.name} added for the table`)
-                        }
+                        keepOpen
+                        onPick={addToDraft}
                       />
                     ) : (
                       <button type="button" className={cx(ADMIN_GHOST, 'w-full justify-center')} onClick={() => setPickingDish(true)}>
                         + Add a dish for the diner
                       </button>
+                    )}
+                    {draft.length > 0 && (
+                      <div className="mt-3 rounded-xl ring-1 ring-hairline p-3">
+                        <ul className="divide-y divide-hairline">
+                          {draft.map(({ dish, qty }) => (
+                            <li key={dish.id} className="flex items-center gap-2 py-1.5 text-[13.5px]">
+                              <span className="min-w-0 flex-1 truncate font-semibold">{dish.name}</span>
+                              <button type="button" className={ADMIN_TINY} aria-label={`One fewer ${dish.name}`} onClick={() => changeQty(dish.id, -1)}>
+                                −
+                              </button>
+                              <span className="w-5 text-center tnum">{qty}</span>
+                              <button type="button" className={ADMIN_TINY} aria-label={`One more ${dish.name}`} onClick={() => changeQty(dish.id, 1)}>
+                                +
+                              </button>
+                              <button type="button" className={ADMIN_TINY} onClick={() => changeQty(dish.id, -qty)}>
+                                Remove
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            type="button"
+                            className={cx(ADMIN_PRIMARY, 'flex-1 justify-center')}
+                            disabled={busy}
+                            onClick={() => {
+                              placeDraft();
+                              setDraft([]);
+                              setPickingDish(false);
+                            }}
+                          >
+                            {pending === 'place' ? 'Placing…' : `Place order (${draft.reduce((n, l) => n + l.qty, 0)})`}
+                          </button>
+                          <button type="button" className={ADMIN_GHOST} disabled={busy} onClick={() => setDraft([])}>
+                            Discard
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
@@ -216,7 +273,7 @@ export function TableDetail() {
                   <Loading label="Reading the visit…" />
                 ) : visitOrders.length === 0 ? (
                   <div className={cx(canOrder && 'border-t border-hairline', 'p-4')}>
-                    <Empty title="Nothing ordered yet" message="Add the diner's first dish above and it starts their order." />
+                    <Empty title="Nothing ordered yet" message="Add dishes above, then place the order when the diner is ready." />
                   </div>
                 ) : (
                   // Each order is its own separated section — a stronger divider and its own
@@ -282,7 +339,7 @@ export function TableDetail() {
               >
                 Copy link
               </button>
-              <button type="button" className={ADMIN_GHOST} onClick={() => printSingleQr(table, menu.restaurant.name, url)}>
+              <button type="button" className={ADMIN_GHOST} onClick={() => printSingleQr(table, menu.restaurant.name, url, menu.restaurant.logoUrl || undefined)}>
                 Print this code
               </button>
               {editable && (
@@ -354,6 +411,7 @@ export function TableDetail() {
         table={showQr ? table : null}
         url={url}
         restaurantName={menu.restaurant.name}
+        logoUrl={menu.restaurant.logoUrl || undefined}
         onClose={() => setShowQr(false)}
         onCopy={(copied) => {
           void navigator.clipboard?.writeText(copied);

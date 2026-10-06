@@ -50,7 +50,7 @@ export function RestaurantCard({
   if (!restaurant) return <div className={cx(className, nameClassName)}>{name}</div>;
 
   const url = `${window.location.origin}/r/${restaurant.slug}/delivery`;
-  const slip: SlipContent = { title: 'Order online', hint: 'Delivery · scan to order', url };
+  const slip: SlipContent = { title: 'Order online', hint: 'Delivery · scan to order', url, logoUrl: restaurant.logoUrl || undefined };
 
   async function copy() {
     try {
@@ -101,7 +101,7 @@ export function RestaurantCard({
           )}
 
           <div className="mx-auto mt-4 size-44 overflow-hidden rounded-xl p-2 ring-1 ring-hairline ring-inset bg-paper">
-            <QrImage value={url} />
+            <QrImage value={url} logoUrl={restaurant.logoUrl || undefined} />
           </div>
 
           <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-4">Delivery link</p>

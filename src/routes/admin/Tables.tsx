@@ -140,7 +140,7 @@ export function Tables() {
               type="button"
               className={ADMIN_GHOST}
               onClick={() => {
-                const opened = printQrSheet(active, menu.restaurant.name, menu.restaurant.slug);
+                const opened = printQrSheet(active, menu.restaurant.name, menu.restaurant.slug, menu.restaurant.logoUrl || undefined);
                 if (!opened) push('Allow pop-ups to print the QR sheet.', '⚠️');
               }}
             >
@@ -248,6 +248,7 @@ export function Tables() {
         table={qrTable}
         url={qrTable ? tableUrl(menu.restaurant.slug, qrTable) : ''}
         restaurantName={menu.restaurant.name}
+        logoUrl={menu.restaurant.logoUrl || undefined}
         onClose={() => setQrId(null)}
         onCopy={(url) => {
           void navigator.clipboard?.writeText(url);
