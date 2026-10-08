@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { changeEffect, deriveNotice, isLockedOut, meterNote, monthsFree, planSummary } from '../src/domain/subscription';
+import { changeEffect, deriveNotice, describeChange, upgradeCharge, isLockedOut, meterNote, monthsFree, planSummary } from '../src/domain/subscription';
 import type { Invoice, Plan, Subscription, Usage } from '../src/domain/subscription';
 
 const NOW = new Date('2026-10-03T12:00:00.000Z');
@@ -86,6 +86,23 @@ const starter = plan({ key: 'starter', name: 'Starter', monthlyPrice: 150000 });
 assert.equal(changeEffect(sub(), starter), 'next_period');
 assert.equal(changeEffect(sub({ plan: starter }), plan()), 'now');
 assert.equal(changeEffect(sub({ status: 'TRIAL' }), starter), 'now');
+
+// Upgrade quote: half of a 30-day period left, so half the 250000 difference.
+const small = plan({ key: 'starter', name: 'Starter', monthlyPrice: 150000, limits: { branches: 1, staffSeats: 3 } });
+const midway = sub({ plan: small, currentPeriodStart: day(-15), currentPeriodEnd: day(15) });
+assert.equal(upgradeCharge(midway, plan(), NOW), 125000);
+const quote = describeChange(midway, plan(), 'MONTHLY', null, NOW);
+assert.equal(quote.dueNow, 'Rs. 1,250');
+assert.match(quote.confirmLabel, /^Pay .* and upgrade$/);
+assert.ok(quote.deltas.some((d) => d.label === 'Branches' && d.direction === 'more'));
+
+// Downgrade: nothing today, scheduled, and blocked while usage does not fit.
+const down = describeChange(sub(), starter, 'MONTHLY', null, NOW);
+assert.equal(down.dueNow, null);
+assert.match(down.confirmLabel, /^Schedule switch/);
+const tight = plan({ key: 'starter', name: 'Starter', monthlyPrice: 150000, limits: { branches: 1, staffSeats: 3 }, extraBranchPrice: null, extraSeatPrice: null });
+const heavy = { orders: { used: 1, level: 'ok' }, branches: { used: 3, limit: 5, level: 'ok' }, seats: { used: 2, limit: 20, level: 'ok' } } as Usage;
+assert.equal(describeChange(sub(), tight, 'MONTHLY', heavy, NOW).blockers.length, 1);
 
 // Words and arithmetic.
 assert.equal(monthsFree(plan()), 2);

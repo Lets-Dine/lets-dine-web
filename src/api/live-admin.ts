@@ -510,6 +510,27 @@ export async function signIn(email: string, pin: string, branchId?: string): Pro
   return toStaff(session.profile);
 }
 
+export interface SignUpInput {
+  restaurantName: string;
+  slug: string;
+  ownerName: string;
+  email: string;
+  phone: string;
+  pin: string;
+}
+
+/** Creates the restaurant, its owner and the trial. The caller signs in afterwards with the same email and PIN. */
+export async function signUp(input: SignUpInput): Promise<void> {
+  await apiRequest('/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: input.restaurantName.trim(),
+      slug: input.slug,
+      owner: { name: input.ownerName.trim(), email: input.email.trim(), phone: input.phone, pin: input.pin.trim() },
+    }),
+  });
+}
+
 /**
  * Moves this session to another branch the member may work in. The server re-reads access from
  * the database and mints a fresh token, so the old one stops carrying that branch's scope.

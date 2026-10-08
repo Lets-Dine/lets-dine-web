@@ -32,9 +32,11 @@ export async function fetchInvoices(limit = 12): Promise<Invoice[]> {
 }
 
 export interface ChangePlanResult {
-  /** `immediately` for a trial or an upgrade; `next_period` for a downgrade, which waits for the paid period to end. */
-  effective: 'immediately' | 'next_period';
+  /** `immediately` for a trial; `on_payment` for an upgrade on a paid period; `next_period` for a downgrade, which waits for the paid period to end. */
+  effective: 'immediately' | 'next_period' | 'on_payment';
   subscription: Subscription;
+  /** `on_payment`: the prorated upgrade invoice, which must be paid before the new plan starts. */
+  invoice?: Invoice;
 }
 
 export function changePlan(planKey: string, interval?: BillingInterval): Promise<ChangePlanResult> {
@@ -43,6 +45,36 @@ export function changePlan(planKey: string, interval?: BillingInterval): Promise
     headers: authHeaders(),
     body: JSON.stringify({ planKey, ...(interval ? { interval } : null) }),
   });
+}
+
+export interface EsewaCheckout {
+  url: string;
+  fields: Record<string, string>;
+}
+
+export function startEsewa(invoiceId: string): Promise<EsewaCheckout> {
+  return apiRequest<EsewaCheckout>(`${BASE}/invoices/${invoiceId}/esewa`, { method: 'POST', headers: authHeaders() });
+}
+
+/** `data` is the base64 blob eSewa puts on the return URL; the API checks it with eSewa before settling. */
+export function confirmEsewa(data: string): Promise<Invoice> {
+  return apiRequest<Invoice>(`${BASE}/esewa/verify`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ data }) });
+}
+
+/** eSewa takes a form POST, not a link — so build one and send the payer there. */
+export function redirectToEsewa({ url, fields }: EsewaCheckout): void {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = url;
+  for (const [name, value] of Object.entries(fields)) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = value;
+    form.append(input);
+  }
+  document.body.append(form);
+  form.submit();
 }
 
 /** The API's own keys for "your plan is why this was refused" — the app turns each into a way to the plan page. */

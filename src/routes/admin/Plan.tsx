@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { changePlan, fetchPlans } from '../../api/staff';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { changePlan, confirmEsewa, fetchPlans, redirectToEsewa, startEsewa } from '../../api/staff';
 import { formatMoney } from '../../domain/money';
 import {
   PAYMENT_NOTE,
   changeEffect,
+  describeChange,
   formatDay,
   intervalLabel,
   keyDate,
+  paymentLabel,
   meterFraction,
   meterLabel,
   meterNote,
@@ -16,7 +18,7 @@ import {
   planSummary,
   statusStatement,
 } from '../../domain/subscription';
-import type { BillingInterval, Invoice, MeterKind, Plan as PlanData, Subscription, Tone, Usage, UsageMeter } from '../../domain/subscription';
+import type { BillingInterval, ChangeSummary, Invoice, MeterKind, Plan as PlanData, Subscription, Tone, Usage, UsageMeter } from '../../domain/subscription';
 import { useAuth } from '../../state/AuthContext';
 import { useSubscription } from '../../state/SubscriptionContext';
 import { useAsync } from '../../state/useAsync';
@@ -25,7 +27,7 @@ type AsyncPlans = ReturnType<typeof useAsync<PlanData[]>>;
 import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_QUIET, Empty, Loading, PANEL, PageTitle, Panel, Segmented, useCommand } from '../../components/admin/kit';
 import { PlanCompareModal } from '../../components/admin/PlanCompareModal';
 import { SubscriptionStatusPill, TonePill } from '../../components/admin/SubscriptionBits';
-import { Check, Lock } from '../../components/icons';
+import { Check, ChevronRight, Lock, X } from '../../components/icons';
 import { DISPLAY, TAG, TAG_ON, cx } from '../../components/ui';
 
 /**
@@ -47,6 +49,17 @@ export function Plan() {
   const [now] = useState(() => new Date());
   const plans = useAsync(() => fetchPlans(), []);
   const [comparing, setComparing] = useState(false);
+
+  // eSewa sends the payer back here with the result in `?data=`. The API checks it with eSewa; the page only reloads.
+  const { search } = useLocation();
+  const navigate = useNavigate();
+  const { run } = useCommand();
+  useEffect(() => {
+    const data = new URLSearchParams(search).get('data');
+    if (!data) return;
+    navigate('/admin/plan', { replace: true });
+    void run('esewa-confirm', () => confirmEsewa(data), 'Payment received. Your plan is renewed.').then(() => sub.reload());
+  }, [search]);
 
   // A banner or a toast can point at a section; the page is long enough that the link has to land on it.
   useEffect(() => {
@@ -114,7 +127,7 @@ export function Plan() {
 
         {canManage ? (
           <>
-            <ChangePlanSection subscription={subscription} plans={plans} onChanged={sub.reload} />
+            <ChangePlanSection subscription={subscription} plans={plans} usage={sub.usage} now={now} onChanged={sub.reload} />
             {!owing && invoices}
           </>
         ) : (
@@ -284,10 +297,14 @@ function IncludedSection({ subscription }: { subscription: Subscription }) {
 function ChangePlanSection({
   subscription,
   plans,
+  usage,
+  now,
   onChanged,
 }: {
   subscription: Subscription;
   plans: AsyncPlans;
+  usage: Usage | null;
+  now: Date;
   onChanged: () => Promise<void>;
 }) {
   // What the owner has picked in the toggle, or nothing yet — which means whatever they are billed on now.
@@ -298,7 +315,17 @@ function ChangePlanSection({
 
   const apply = (plan: PlanData) => {
     const success = changeEffect(subscription, plan) === 'next_period' && plan.key !== subscription.plan.key ? 'Switch scheduled' : 'Plan updated';
-    void run('change-plan', () => changePlan(plan.key, interval), success).then(async (ok) => {
+    const upgrading = subscription.status === 'ACTIVE' && changeEffect(subscription, plan) === 'now' && plan.key !== subscription.plan.key;
+    void run(
+      'change-plan',
+      async () => {
+        const result = await changePlan(plan.key, interval);
+        // An upgrade on a paid period starts when its prorated invoice is paid, so go straight to paying it.
+        if (result.invoice && result.invoice.currency === 'NPR') redirectToEsewa(await startEsewa(result.invoice.id));
+        return result;
+      },
+      upgrading ? 'Upgrade invoice created' : success,
+    ).then(async (ok) => {
       if (!ok) return;
       setChoice(null);
       setPicked(null);
@@ -310,7 +337,11 @@ function ChangePlanSection({
     <div id="change-plan" className="scroll-mt-24">
       <Panel
         title="Change plan"
-        hint="Moving up starts now and is billed from your next invoice. Moving down waits for the end of the paid period."
+        hint={
+          subscription.status === 'TRIAL'
+            ? 'Plans can be changed once your trial ends. Until then you have the full features of your trial plan.'
+            : 'Moving up is charged for the days left in this period and starts once paid. Moving down waits for the end of the paid period.'
+        }
         className="overflow-hidden"
         action={
           <Segmented
@@ -348,6 +379,8 @@ function ChangePlanSection({
                 plan={plan}
                 subscription={subscription}
                 interval={interval}
+                usage={usage}
+                now={now}
                 confirming={choice === plan.key}
                 busy={busy}
                 onChoose={() => setChoice(plan.key)}
@@ -362,10 +395,15 @@ function ChangePlanSection({
   );
 }
 
+const priceText = (amount: number | null, currency: string, interval: BillingInterval): string | null =>
+  amount === null ? null : `${formatMoney(amount, currency)} ${interval === 'ANNUAL' ? 'a year' : 'a month'}`;
+
 function PlanRow({
   plan,
   subscription,
   interval,
+  usage,
+  now,
   confirming,
   busy,
   onChoose,
@@ -375,6 +413,8 @@ function PlanRow({
   plan: PlanData;
   subscription: Subscription;
   interval: BillingInterval;
+  usage: Usage | null;
+  now: Date;
   confirming: boolean;
   busy: boolean;
   onChoose: () => void;
@@ -417,7 +457,9 @@ function PlanRow({
         )}
 
         <div className="shrink-0">
-          {action ? (
+          {action && subscription.status === 'TRIAL' && !current ? (
+            <span className="text-[13px] text-ink-4">After your trial</span>
+          ) : action ? (
             !confirming && (
               <button type="button" className={ADMIN_GHOST} onClick={onChoose}>
                 {action}
@@ -430,37 +472,138 @@ function PlanRow({
       </div>
 
       {confirming && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-2 px-3.5 py-3 ring-1 ring-hairline ring-inset">
-          <p className="min-w-0 flex-1 basis-64 text-[13px] leading-snug text-ink-2">{effectCopy(plan, subscription, interval, price)}</p>
-          <div className="flex shrink-0 gap-2">
-            <button type="button" className={ADMIN_QUIET} onClick={onCancel} disabled={busy}>
-              Not now
-            </button>
-            <button type="button" className={ADMIN_PRIMARY} onClick={onConfirm} disabled={busy}>
-              {busy ? 'Saving…' : 'Confirm'}
-            </button>
-          </div>
-        </div>
+        <ChangeConfirm
+          summary={describeChange(subscription, plan, interval, usage, now)}
+          from={{ name: subscription.plan.name, price: priceText(planPrice(subscription.plan, subscription.interval), subscription.plan.currency, subscription.interval) }}
+          to={{ name: plan.name, price: priceText(price, plan.currency, interval) }}
+          busy={busy}
+          onCancel={onCancel}
+          onConfirm={onConfirm}
+        />
       )}
     </li>
   );
 }
 
-/** What confirming will do, in the words the owner would use — decided before the click, not discovered after. */
-function effectCopy(plan: PlanData, subscription: Subscription, interval: BillingInterval, price: number | null): string {
-  const current = plan.key === subscription.plan.key;
-  if (current && subscription.pendingPlan) {
-    return `You stay on ${plan.name}. The switch to ${subscription.pendingPlan.name} on ${formatDay(subscription.currentPeriodEnd)} is cancelled.`;
-  }
-  if (current) {
-    return `Billing becomes ${interval === 'ANNUAL' ? 'yearly' : 'monthly'}, from your next invoice.`;
-  }
-  if (changeEffect(subscription, plan) === 'now') {
-    return subscription.status === 'TRIAL'
-      ? `Starts now. You are still on the trial, so you are billed from the first invoice after it ends${price !== null ? `: ${formatMoney(price, plan.currency)} ${interval === 'ANNUAL' ? 'a year' : 'a month'}` : ''}.`
-      : `Starts now, with ${plan.name}'s limits straight away. You are billed ${price !== null ? `${formatMoney(price, plan.currency)} ${interval === 'ANNUAL' ? 'a year' : 'a month'} ` : ''}from your next invoice.`;
-  }
-  return `Takes effect on ${formatDay(subscription.currentPeriodEnd)}, when the current period ends. You keep ${subscription.plan.name} until then.`;
+/**
+ * Confirming a plan change is a billing decision, so it gets the whole screen's attention: a modal over
+ * the page rather than a strip inside the list. A native `<dialog>` gives the focus trap, Escape and the
+ * inert page behind; while a request is in flight it cannot be dismissed.
+ */
+function ChangeConfirm({
+  summary,
+  from,
+  to,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  summary: ChangeSummary;
+  from: { name: string; price: string | null };
+  to: { name: string; price: string | null };
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const blocked = summary.blockers.length > 0;
+  const sameplan = from.name === to.name;
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
+
+  return (
+    <dialog
+      ref={ref}
+      onClose={onCancel}
+      onCancel={(e) => busy && e.preventDefault()}
+      onClick={(e) => e.target === ref.current && !busy && ref.current?.close()}
+      aria-labelledby="change-plan-title"
+      className={cx(
+        PANEL,
+        'm-auto flex max-h-[calc(100dvh-1.5rem)] w-[min(36rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-0 shadow-2xl shadow-black/40',
+        'backdrop:bg-black/60 backdrop:backdrop-blur-sm',
+      )}
+    >
+      <header className="flex items-start justify-between gap-4 border-b border-hairline px-5 py-5 sm:px-6">
+        <div className="min-w-0">
+          <h2 id="change-plan-title" className={cx(DISPLAY, 'text-[26px] sm:text-[30px]')}>
+            {summary.heading}
+          </h2>
+          {!sameplan && (
+            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-ink-3">
+              <span>
+                {from.name}
+                {from.price && <span className="tnum"> · {from.price}</span>}
+              </span>
+              <ChevronRight size={12} className="shrink-0 text-ink-4" aria-hidden />
+              <span className="font-semibold text-ink">
+                {to.name}
+                {to.price && <span className="tnum"> · {to.price}</span>}
+              </span>
+            </p>
+          )}
+        </div>
+        <button type="button" onClick={() => ref.current?.close()} disabled={busy} aria-label="Close" className="-mr-1.5 grid size-9 shrink-0 place-items-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40">
+          <X size={18} />
+        </button>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        <p className="text-[14.5px] leading-snug text-ink">{summary.title}</p>
+
+        <dl className="mt-4 grid gap-x-5 gap-y-3 text-[13px] sm:grid-cols-[9.5rem_1fr]">
+          {summary.facts.map((fact) => {
+            const due = fact.label === 'You pay today' && summary.dueNow !== null;
+            return (
+              <div key={fact.label} className="contents">
+                <dt className="text-ink-3">{fact.label}</dt>
+                <dd className={cx('min-w-0 text-ink-2', due && 'text-[14px] font-semibold text-ink')}>{fact.value}</dd>
+              </div>
+            );
+          })}
+        </dl>
+
+        {summary.deltas.length > 0 && (
+          <div className="mt-5 border-t border-hairline pt-4">
+            <p className="text-[12.5px] font-semibold text-ink-3">What changes in what you can use</p>
+            <ul className="mt-2.5 grid gap-2">
+              {summary.deltas.map((delta) => (
+                <li key={delta.label} className="flex flex-wrap items-baseline gap-x-2 text-[13px]">
+                  <span className="w-32 shrink-0 text-ink-3">{delta.label}</span>
+                  <span className="tnum text-ink-3">{delta.from}</span>
+                  <ChevronRight size={12} className="shrink-0 self-center text-ink-4" aria-hidden />
+                  <span className={cx('tnum font-semibold', delta.direction === 'more' ? 'text-leaf' : 'text-berry-ink')}>{delta.to}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {blocked && (
+          <div role="alert" className="mt-5 rounded-lg bg-berry/10 px-3.5 py-3 text-[13px] leading-snug text-berry-ink ring-1 ring-berry/30 ring-inset">
+            <p className="font-semibold">You can't switch yet</p>
+            <ul className="mt-1 grid gap-1">
+              {summary.blockers.map((blocker) => (
+                <li key={blocker}>{blocker}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <footer className="flex flex-wrap justify-end gap-2 border-t border-hairline px-5 py-4 sm:px-6">
+        <button type="button" className={ADMIN_QUIET} onClick={() => ref.current?.close()} disabled={busy}>
+          Not now
+        </button>
+        <button type="button" className={ADMIN_PRIMARY} onClick={onConfirm} disabled={busy || blocked}>
+          {busy ? 'Working…' : summary.confirmLabel}
+        </button>
+      </footer>
+    </dialog>
+  );
 }
 
 /* ── Invoices (owner) ──────────────────────────────────────────────── */
@@ -489,26 +632,106 @@ function InvoicesSection({ invoices, now }: { invoices: Invoice[] | null; now: D
 }
 
 function InvoiceRow({ invoice, now }: { invoice: Invoice; now: Date }) {
+  const { busy, run } = useCommand();
+  const [expanded, setExpanded] = useState(false);
   const open = invoice.status === 'OPEN';
   const overdue = open && Date.parse(invoice.dueAt) < now.getTime();
   const tone: Tone = invoice.status === 'PAID' ? 'good' : invoice.status === 'VOID' ? 'muted' : overdue ? 'warn' : 'info';
   const label = invoice.status === 'PAID' ? 'Paid' : invoice.status === 'VOID' ? 'Replaced' : overdue ? 'Overdue' : 'Open';
   const when =
     invoice.status === 'PAID' && invoice.paidAt ? `Paid ${formatDay(invoice.paidAt)}` : open ? `Due ${formatDay(invoice.dueAt)}` : 'Replaced by a newer invoice';
+  const detailsId = `invoice-${invoice.id}`;
 
   return (
-    <li className={cx('flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-hairline px-4 py-3.5 last:border-0 sm:px-5', open && 'bg-flame-dim')}>
-      <div className="min-w-0 flex-1 basis-48">
-        <div className="text-[14px] font-semibold tnum">{invoice.number}</div>
-        <div className="text-[12.5px] text-ink-3 tnum">
-          {formatDay(invoice.periodStart)} – {formatDay(invoice.periodEnd)}
+    <li className={cx('border-b border-hairline last:border-0', open && 'bg-flame-dim')}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3.5 sm:px-5">
+        <div className="min-w-0 flex-1 basis-48">
+          <div className="text-[14px] font-semibold tnum">{invoice.number}</div>
+          <div className="text-[12.5px] text-ink-3 tnum">
+            {formatDay(invoice.periodStart)} – {formatDay(invoice.periodEnd)}
+          </div>
+        </div>
+        <div className="text-[12.5px] text-ink-3 tnum">{when}</div>
+        <div className="w-28 shrink-0 text-right text-[14px] font-semibold tnum">{formatMoney(invoice.amount, invoice.currency)}</div>
+        <TonePill tone={tone} className="w-24 justify-center">
+          {label}
+        </TonePill>
+        {open && invoice.currency === 'NPR' && (
+          <button
+            type="button"
+            className={ADMIN_PRIMARY}
+            disabled={busy}
+            onClick={() => void run('esewa-start', async () => redirectToEsewa(await startEsewa(invoice.id)))}
+          >
+            {busy ? 'Opening eSewa…' : 'Pay with eSewa'}
+          </button>
+        )}
+        <button
+          type="button"
+          className={cx(ADMIN_QUIET, 'gap-1')}
+          aria-expanded={expanded}
+          aria-controls={detailsId}
+          aria-label={`${expanded ? 'Hide' : 'Show'} details of ${invoice.number}`}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          Details
+          <ChevronRight size={14} className={cx('transition-transform duration-200 ease-out', expanded && 'rotate-90')} />
+        </button>
+      </div>
+      {expanded && <InvoiceDetails id={detailsId} invoice={invoice} />}
+    </li>
+  );
+}
+
+/** What the invoice is made of, as it was issued, and how it was settled. Opens under its row so the list stays in view. */
+function InvoiceDetails({ id, invoice }: { id: string; invoice: Invoice }) {
+  const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
+  const paid = invoice.status === 'PAID';
+  const facts: [string, string][] = [
+    ['Billing period', `${formatDay(invoice.periodStart)} – ${formatDay(invoice.periodEnd)}`],
+    ['Due', formatDay(invoice.dueAt)],
+    ...(paid && invoice.paidAt ? ([['Paid', formatDay(invoice.paidAt)]] as [string, string][]) : []),
+    ...(paid && invoice.paymentMethod ? ([['Paid with', paymentLabel(invoice.paymentMethod)]] as [string, string][]) : []),
+    ...(paid && invoice.paymentRef ? ([['Reference', invoice.paymentRef]] as [string, string][]) : []),
+  ];
+
+  return (
+    <div id={id} className="mx-4 mb-4 grid gap-4 rounded-xl bg-surface-2/70 p-4 ring-1 ring-hairline ring-inset sm:mx-5 sm:grid-cols-[1.4fr_1fr] sm:gap-6">
+      <div>
+        <h3 className="text-[11.5px] font-semibold uppercase tracking-[0.09em] text-ink-4">Charges</h3>
+        {lines.length === 0 ? (
+          <p className="mt-2 text-[13px] text-ink-3">No breakdown was kept for this invoice.</p>
+        ) : (
+          <ul className="mt-1.5">
+            {lines.map((line, i) => (
+              <li key={i} className="flex items-baseline justify-between gap-4 border-b border-hairline py-2.5">
+                <div className="min-w-0">
+                  <div className="text-[13.5px] font-medium">{line.description}</div>
+                  {line.quantity > 1 && (
+                    <div className="text-[12px] text-ink-4 tnum">
+                      {line.quantity} × {formatMoney(line.unitAmount, invoice.currency)}
+                    </div>
+                  )}
+                </div>
+                <div className="shrink-0 text-[13.5px] tnum">{formatMoney(line.amount, invoice.currency)}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex items-baseline justify-between gap-4 pt-3">
+          <span className="text-[13.5px] font-semibold">Total</span>
+          <span className="text-[16px] font-semibold tnum">{formatMoney(invoice.amount, invoice.currency)}</span>
         </div>
       </div>
-      <div className="text-[12.5px] text-ink-3 tnum">{when}</div>
-      <div className="w-28 shrink-0 text-right text-[14px] font-semibold tnum">{formatMoney(invoice.amount, invoice.currency)}</div>
-      <TonePill tone={tone} className="w-24 justify-center">
-        {label}
-      </TonePill>
-    </li>
+
+      <dl className="grid content-start gap-3">
+        {facts.map(([term, value]) => (
+          <div key={term}>
+            <dt className="text-[11.5px] font-semibold uppercase tracking-[0.09em] text-ink-4">{term}</dt>
+            <dd className="mt-0.5 break-words text-[13.5px] font-medium tnum">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }

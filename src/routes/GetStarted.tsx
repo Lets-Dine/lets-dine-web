@@ -1,5 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { signUp } from '../api/staff';
+import { IS_LIVE_API } from '../api/http';
+import { ApiError } from '../api/store';
+import { useAuth } from '../state/AuthContext';
 import { usePageTitle } from '../state/usePageTitle';
 import { cx } from '../components/ui';
 import { Check, ChevronLeft, ChevronRight } from '../components/icons';
@@ -8,7 +12,7 @@ import { CircleButton, DISPLAY_LG, GhostButton, PrimaryButton, PrimaryCta } from
 const PAPER = '#f6f1e7';
 const DINER = '#12100e';
 
-type FieldId = 'restaurantName' | 'city' | 'ownerName' | 'email' | 'phone';
+type FieldId = 'restaurantName' | 'city' | 'ownerName' | 'email' | 'phone' | 'pin' | 'pinConfirm';
 
 interface Question {
   id: FieldId;
@@ -16,9 +20,9 @@ interface Question {
   question: string;
   helper?: string;
   placeholder: string;
-  type: 'text' | 'email' | 'tel';
+  type: 'text' | 'email' | 'tel' | 'password';
   autoComplete: string;
-  validate: (value: string) => string | undefined;
+  validate: (value: string, all: Record<FieldId, string>) => string | undefined;
 }
 
 const QUESTIONS: Question[] = [
@@ -70,12 +74,35 @@ const QUESTIONS: Question[] = [
     autoComplete: 'tel',
     validate: (v) => (v.replace(/[^\d+]/g, '').length < 7 ? 'Enter a number we can reach you on.' : undefined),
   },
+  {
+    id: 'pin',
+    group: 'owner',
+    question: 'Choose a PIN for logging in.',
+    helper: "4 to 8 digits. You'll sign in with your email and this PIN.",
+    placeholder: '••••',
+    type: 'password',
+    autoComplete: 'new-password',
+    validate: (v) => (/^\d{4,8}$/.test(v) ? undefined : 'Use 4 to 8 digits.'),
+  },
+  {
+    id: 'pinConfirm',
+    group: 'owner',
+    question: 'Type it once more to confirm.',
+    placeholder: '••••',
+    type: 'password',
+    autoComplete: 'new-password',
+    validate: (v, all) => (v === all.pin ? undefined : "That doesn't match your PIN."),
+  },
 ];
 
 const CONFIRM_STEP = QUESTIONS.length;
 const SUCCESS_STEP = QUESTIONS.length + 1;
 
 const GROUPS = ['Restaurant', 'Owner', 'Confirm'] as const;
+
+function slugify(name: string) {
+  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70) || 'restaurant';
+}
 
 function groupForStep(step: number) {
   if (step <= 1) return 0;
@@ -111,6 +138,7 @@ function ProgressRail({ step }: { step: number }) {
 function QuestionStage({
   question,
   value,
+  values,
   onChange,
   onNext,
   onBack,
@@ -119,6 +147,7 @@ function QuestionStage({
 }: {
   question: Question;
   value: string;
+  values: Record<FieldId, string>;
   onChange: (value: string) => void;
   onNext: () => void;
   onBack: () => void;
@@ -133,7 +162,7 @@ function QuestionStage({
   }, []);
 
   const filled = value.trim().length > 0;
-  const error = question.validate(value);
+  const error = question.validate(value, values);
   const showError = touched && Boolean(error);
 
   function attemptAdvance() {
@@ -158,7 +187,7 @@ function QuestionStage({
           <input
             ref={inputRef}
             type={question.type}
-            inputMode={question.type === 'tel' ? 'tel' : undefined}
+            inputMode={question.type === 'tel' ? 'tel' : question.type === 'password' ? 'numeric' : undefined}
             autoComplete={question.autoComplete}
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -204,12 +233,14 @@ function ConfirmStage({
   onBack,
   onSubmit,
   submitting,
+  error,
 }: {
   values: Record<FieldId, string>;
   onEdit: (step: number) => void;
   onBack: () => void;
   onSubmit: () => void;
   submitting: boolean;
+  error?: string;
 }) {
   const rows: { label: string; value: string; step: number }[] = [
     { label: 'Restaurant', value: values.restaurantName, step: 0 },
@@ -217,6 +248,7 @@ function ConfirmStage({
     { label: 'Owner', value: values.ownerName, step: 2 },
     { label: 'Email', value: values.email, step: 3 },
     { label: 'Phone', value: values.phone, step: 4 },
+    { label: 'Login PIN', value: '•'.repeat(values.pin.length), step: 5 },
   ];
 
   return (
@@ -244,6 +276,12 @@ function ConfirmStage({
         ))}
       </dl>
 
+      {error && (
+        <p role="alert" className="text-[13.5px] text-berry-ink">
+          {error}
+        </p>
+      )}
+
       <div className="flex items-center gap-3">
         <GhostButton onClick={onBack}>
           <ChevronLeft size={16} />
@@ -267,7 +305,7 @@ function SuccessStage({ restaurantName }: { restaurantName: string }) {
       <div>
         <h1 className={cx(DISPLAY_LG, 'text-balance text-ink')}>You're in, {restaurantName}.</h1>
         <p className="mx-auto mt-3 max-w-[38ch] text-[15px] leading-relaxed text-ink-3">
-          We've sent your dashboard login to your email. Set up your menu and tables next, and you'll be ready to seat
+          Sign in with your email and the PIN you chose. Set up your menu and tables next, and you'll be ready to seat
           your first table.
         </p>
       </div>
@@ -279,11 +317,11 @@ function SuccessStage({ restaurantName }: { restaurantName: string }) {
 }
 
 /**
- * Public restaurant sign-up — UI/UX only. One question at a time rather than
+ * Public restaurant sign-up. One question at a time rather than
  * a dense intake form, inheriting the landing page's printed-paper identity
  * the same way `Landing.tsx` does (`data-page="landing"` for the length of
  * the mount). Field shape mirrors `registerRestaurant` in `src/api/platform.ts`,
- * with a phone number standing in for that flow's PIN.
+ * with the owner's own PIN and a phone number (one trial per person).
  */
 export function GetStarted() {
   usePageTitle(
@@ -310,8 +348,13 @@ export function GetStarted() {
     ownerName: '',
     email: '',
     phone: '',
+    pin: '',
+    pinConfirm: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>();
+  const { signIn } = useAuth();
+  const navigate = useNavigate();
 
   const question = step < QUESTIONS.length ? QUESTIONS[step] : undefined;
 
@@ -319,12 +362,32 @@ export function GetStarted() {
     setValues((prev) => ({ ...prev, [id]: value }));
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     setSubmitting(true);
-    window.setTimeout(() => {
+    setError(undefined);
+    if (!IS_LIVE_API) {
+      window.setTimeout(() => {
+        setSubmitting(false);
+        setStep(SUCCESS_STEP);
+      }, 650);
+      return;
+    }
+
+    const base = slugify(values.restaurantName);
+    try {
+      try {
+        await signUp({ ...values, slug: base });
+      } catch (err) {
+        // The name is taken by somebody else: retry once with a suffix rather than make the owner invent a slug.
+        if (!(err instanceof ApiError) || err.key !== 'RESTAURANT_SLUG_ALREADY_EXISTS') throw err;
+        await signUp({ ...values, slug: `${base}-${Math.random().toString(36).slice(2, 6)}` });
+      }
+      await signIn(values.email, values.pin);
+      navigate('/admin', { replace: true });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
       setSubmitting(false);
-      setStep(SUCCESS_STEP);
-    }, 650);
+    }
   }
 
   return (
@@ -353,6 +416,7 @@ export function GetStarted() {
             key={question.id}
             question={question}
             value={values[question.id]}
+            values={values}
             onChange={(value) => setField(question.id, value)}
             onNext={() => setStep((s) => s + 1)}
             onBack={() => setStep((s) => Math.max(s - 1, 0))}
@@ -367,6 +431,7 @@ export function GetStarted() {
             onBack={() => setStep((s) => Math.max(s - 1, 0))}
             onSubmit={handleCreate}
             submitting={submitting}
+            error={error}
           />
         )}
         {step === SUCCESS_STEP && <SuccessStage restaurantName={values.restaurantName} />}

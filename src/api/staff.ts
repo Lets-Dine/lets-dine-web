@@ -21,10 +21,12 @@ import { IS_LIVE_API } from './http';
 import * as live from './live-admin';
 
 export type { StaffDraft, UploadTarget } from './admin';
-export type { BranchDraft } from './live-admin';
+export type { BranchDraft, SignUpInput } from './live-admin';
+export const signUp = live.signUp;
 export {
   SUBSCRIPTION_ENABLED,
   changePlan,
+  confirmEsewa,
   fetchInvoices,
   fetchPlans,
   fetchSubscription,
@@ -32,6 +34,8 @@ export {
   isFeatureLocked,
   isPlanError,
   isSuspension,
+  redirectToEsewa,
+  startEsewa,
 } from './subscription';
 export type { ChangePlanResult } from './subscription';
 

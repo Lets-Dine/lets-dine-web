@@ -940,6 +940,20 @@ export async function issueInvoice(tenantId: string, amount: Minor, memo: string
   log('billing', 'Issued invoice', t, memo || null);
 }
 
+/** The restaurant's next renewal invoice, now — whatever the lead window says. The API refuses if one is already open. */
+export async function generateInvoice(tenantId: string): Promise<void> {
+  if (IS_LIVE_API) {
+    await apiRequest(`/platform/billing/restaurants/${tenantId}/invoices`, { method: 'POST', headers: platformHeaders() });
+    return;
+  }
+  const t = need(tenantId);
+  if (invoices.some((i) => i.tenantId === t.id && (i.state === 'OPEN' || i.state === 'OVERDUE'))) {
+    throw new ApiError(400, 'This restaurant already has an open invoice');
+  }
+  const plan = planFor(t);
+  await issueInvoice(t.id, (t.interval === 'ANNUAL' ? plan.annualPrice : plan.monthlyPrice) ?? 0, `${plan.name} — ${t.interval === 'ANNUAL' ? 'yearly' : 'monthly'}`);
+}
+
 export async function savePlans(next: Plan[]): Promise<void> {
   if (IS_LIVE_API) {
     await apiRequest('/platform/billing/plans', { method: 'PUT', headers: platformHeaders(), body: JSON.stringify({ plans: next }) });

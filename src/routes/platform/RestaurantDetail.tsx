@@ -8,6 +8,7 @@ import {
   changeTenantPlan,
   extendTrial,
   getTenant,
+  generateInvoice,
   issueInvoice,
   listPlans,
   planFor,
@@ -512,9 +513,19 @@ function BillingTab({ tenant, detail, onChange }: { tenant: Tenant; detail: Tena
         title="Invoices"
         hint={detail.invoices.length ? `${rupees(paidTotal)} paid to date · payments are recorded by hand` : 'Payments are recorded by hand'}
         action={
-          <button type="button" className={ADMIN_GHOST} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-            <Plus size={14} /> One-off invoice
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={ADMIN_GHOST}
+              disabled={busy}
+              onClick={() => void run('generate', () => generateInvoice(tenant.id), 'Invoice generated.').then((ok) => ok && onChange())}
+            >
+              Generate invoice
+            </button>
+            <button type="button" className={ADMIN_GHOST} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+              <Plus size={14} /> One-off invoice
+            </button>
+          </div>
         }
         bare
       >
