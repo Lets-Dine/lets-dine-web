@@ -150,7 +150,7 @@ let plans: Plan[] = [
     extraSeatPrice: rs(300),
     currency: 'NPR',
     limits: { branches: 1, staffSeats: 5, ordersPerMonth: 1500 },
-    features: { analyticsTier: 'basic', exports: false, auditRetentionDays: 30 },
+    features: { analyticsTier: 'basic', exports: false, autoStockConsumption: false, auditRetentionDays: 30 },
   },
   {
     key: 'growth',
@@ -161,7 +161,7 @@ let plans: Plan[] = [
     extraSeatPrice: rs(250),
     currency: 'NPR',
     limits: { branches: 3, staffSeats: 15, ordersPerMonth: 6000 },
-    features: { analyticsTier: 'full', exports: true, auditRetentionDays: 180 },
+    features: { analyticsTier: 'full', exports: true, autoStockConsumption: true, auditRetentionDays: 180 },
   },
   {
     key: 'scale',
@@ -172,7 +172,7 @@ let plans: Plan[] = [
     extraSeatPrice: rs(200),
     currency: 'NPR',
     limits: { branches: 10, staffSeats: 60 },
-    features: { analyticsTier: 'full', exports: true },
+    features: { analyticsTier: 'full', exports: true, autoStockConsumption: true },
   },
 ];
 
@@ -940,18 +940,25 @@ export async function issueInvoice(tenantId: string, amount: Minor, memo: string
   log('billing', 'Issued invoice', t, memo || null);
 }
 
-/** The restaurant's next renewal invoice, now — whatever the lead window says. The API refuses if one is already open. */
-export async function generateInvoice(tenantId: string): Promise<void> {
+/** Records that the next period was paid. Creates the charge if none is open, then settles it. A plan that costs nothing just rolls forward. */
+export async function recordRenewal(tenantId: string, method: PayMethod, reference: string): Promise<void> {
   if (IS_LIVE_API) {
-    await apiRequest(`/platform/billing/restaurants/${tenantId}/invoices`, { method: 'POST', headers: platformHeaders() });
+    await apiRequest(`/platform/billing/restaurants/${tenantId}/renewal`, {
+      method: 'POST',
+      headers: platformHeaders(),
+      body: JSON.stringify({ paymentMethod: method.toLowerCase(), ...(reference ? { paymentRef: reference } : null) }),
+    });
     return;
   }
+  await latency();
   const t = need(tenantId);
-  if (invoices.some((i) => i.tenantId === t.id && (i.state === 'OPEN' || i.state === 'OVERDUE'))) {
-    throw new ApiError(400, 'This restaurant already has an open invoice');
-  }
-  const plan = planFor(t);
-  await issueInvoice(t.id, (t.interval === 'ANNUAL' ? plan.annualPrice : plan.monthlyPrice) ?? 0, `${plan.name} — ${t.interval === 'ANNUAL' ? 'yearly' : 'monthly'}`);
+  if (t.status === 'CANCELLED') throw new ApiError(400, "This restaurant's subscription is cancelled, so it can't be renewed.");
+  const end = Date.parse(t.periodEnd);
+  const base = Number.isFinite(end) && end > Date.now() ? end : Date.now();
+  t.periodEnd = new Date(base + 30 * DAY).toISOString();
+  t.status = 'ACTIVE';
+  t.pastDueSince = null;
+  log('billing', 'Recorded renewal', t, `${PAY_METHOD_LABEL[method]}${reference ? ` · ${reference}` : ''}`);
 }
 
 export async function savePlans(next: Plan[]): Promise<void> {

@@ -28,6 +28,7 @@ const LIMITS: { label: string; cell: (p: Plan) => Cell }[] = [
 const FEATURES: { label: string; cell: (p: Plan) => Cell }[] = [
   { label: 'Analytics', cell: (p) => (p.features.analyticsTier === 'full' ? { text: 'Full analytics', icon: 'yes' } : { text: 'Basic analytics', icon: 'no', muted: true }) },
   { label: 'Data exports', cell: (p) => (p.features.exports ? { text: 'Included', icon: 'yes' } : { text: 'Not included', icon: 'no', muted: true }) },
+  { label: 'Automatic stock use', cell: (p) => (p.features.autoStockConsumption ? { text: 'Included', icon: 'yes' } : { text: 'Not included', icon: 'no', muted: true }) },
   { label: 'Audit history', cell: (p) => ({ text: p.features.auditRetentionDays ? `${p.features.auditRetentionDays} days` : 'Full history', icon: 'yes' }) },
 ];
 

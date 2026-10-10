@@ -8,7 +8,7 @@ import {
   changeTenantPlan,
   extendTrial,
   getTenant,
-  generateInvoice,
+  recordRenewal,
   issueInvoice,
   listPlans,
   planFor,
@@ -19,7 +19,7 @@ import {
   tenantMrr,
   usageLimits,
 } from '../../api/platformConsole';
-import type { Person, PlanKey, Tenant, TenantDetail } from '../../api/platformConsole';
+import type { PayMethod, Person, PlanKey, Tenant, TenantDetail } from '../../api/platformConsole';
 import { changeEffect, formatDay, monthsFree, planPrice, planSummary } from '../../domain/subscription';
 import type { BillingInterval, Subscription } from '../../domain/subscription';
 import { useAsync } from '../../state/useAsync';
@@ -503,9 +503,13 @@ function PersonRow({ tenantId, person, onChange }: { tenantId: string; person: P
 function BillingTab({ tenant, detail, onChange }: { tenant: Tenant; detail: TenantDetail; onChange: () => void }) {
   const { busy, run } = useCommand();
   const [open, setOpen] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [method, setMethod] = useState<PayMethod>('BANK');
+  const [reference, setReference] = useState('');
   const [amount, setAmount] = useState<number | ''>('');
   const [memo, setMemo] = useState('');
   const paidTotal = detail.invoices.filter((i) => i.state === 'PAID').reduce((s, i) => s + i.amount, 0);
+  const methods = (Object.keys(PAY_METHOD_LABEL) as PayMethod[]).map((value) => ({ value, label: PAY_METHOD_LABEL[value] }));
 
   return (
     <div className="grid gap-5">
@@ -514,13 +518,8 @@ function BillingTab({ tenant, detail, onChange }: { tenant: Tenant; detail: Tena
         hint={detail.invoices.length ? `${rupees(paidTotal)} paid to date · payments are recorded by hand` : 'Payments are recorded by hand'}
         action={
           <div className="flex gap-2">
-            <button
-              type="button"
-              className={ADMIN_GHOST}
-              disabled={busy}
-              onClick={() => void run('generate', () => generateInvoice(tenant.id), 'Invoice generated.').then((ok) => ok && onChange())}
-            >
-              Generate invoice
+            <button type="button" className={ADMIN_GHOST} disabled={busy} onClick={() => setRecording((value) => !value)} aria-expanded={recording}>
+              Record renewal
             </button>
             <button type="button" className={ADMIN_GHOST} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
               <Plus size={14} /> One-off invoice
@@ -529,6 +528,31 @@ function BillingTab({ tenant, detail, onChange }: { tenant: Tenant; detail: Tena
         }
         bare
       >
+        {recording && (
+          <form
+            className="grid gap-3 border-b border-hairline bg-surface-2/40 px-4 py-4 sm:grid-cols-[1fr_1.4fr_auto] sm:items-end sm:px-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void run('renewal', () => recordRenewal(tenant.id, method, reference.trim()), 'Renewal recorded.').then((ok) => {
+                if (ok) {
+                  setRecording(false);
+                  setReference('');
+                  onChange();
+                }
+              });
+            }}
+          >
+            <Field label="Received by">
+              <Select value={method} onChange={setMethod} options={methods} />
+            </Field>
+            <Field label="Reference" hint="Optional. Transaction or voucher number.">
+              <TextInput value={reference} onChange={setReference} maxLength={60} placeholder="TXN483320" />
+            </Field>
+            <button type="submit" disabled={busy} className={ADMIN_PRIMARY}>
+              {busy ? 'Saving…' : 'Record renewal'}
+            </button>
+          </form>
+        )}
         {open && (
           <form
             className="grid gap-3 border-b border-hairline bg-surface-2/40 px-4 py-4 sm:grid-cols-[1fr_1.6fr_auto] sm:items-end sm:px-5"
@@ -557,7 +581,7 @@ function BillingTab({ tenant, detail, onChange }: { tenant: Tenant; detail: Tena
           </form>
         )}
         {detail.invoices.length === 0 ? (
-          <Empty emoji="🧾" title="No invoices yet" message={tenant.status === 'TRIAL' ? 'The first invoice is issued when the trial ends.' : 'Invoices appear here once billing begins.'} />
+          <Empty emoji="🧾" title="No payments yet" message={tenant.status === 'TRIAL' ? 'A renewal is recorded when the trial ends and the restaurant pays.' : 'Renewals appear here once a payment is recorded.'} />
         ) : (
           <InvoiceList invoices={detail.invoices} showTenant={false} onChange={onChange} />
         )}

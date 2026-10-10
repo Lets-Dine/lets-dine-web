@@ -6,12 +6,29 @@ import { ApiError } from './store';
 
 /**
  * A restaurant's own plan: what it is on, how much of it is used, and — for an
- * owner — the invoices and the plan switch. It exists only on the live backend;
+ * owner — renewal and the plan switch. It exists only on the live backend;
  * the offline demo has no billing to show, so every plan screen is gated on this.
  */
 export const SUBSCRIPTION_ENABLED = IS_LIVE_API;
 
 const BASE = '/restaurant/billing';
+
+export interface Referral {
+  id: string;
+  name: string;
+  joinedAt: string;
+  /** Set once their first payment has added a month to the inviter. */
+  rewardedAt: string | null;
+}
+
+export interface Referrals {
+  code: string;
+  referrals: Referral[];
+}
+
+export function fetchReferrals(): Promise<Referrals> {
+  return apiRequest<Referrals>(`${BASE}/referrals`, { headers: authHeaders() });
+}
 
 export function fetchSubscription(): Promise<Subscription> {
   return apiRequest<Subscription>(`${BASE}/subscription`, { headers: authHeaders() });
@@ -24,6 +41,17 @@ export function fetchUsage(): Promise<Usage> {
 /** The plans an owner may switch to on their own, cheapest first. */
 export function fetchPlans(): Promise<Plan[]> {
   return apiRequest<Plan[]>(`${BASE}/plans`, { headers: authHeaders() });
+}
+
+/** The same public plans, for the pricing page. No account required. */
+export interface PublicPlanCatalogue {
+  plans: Plan[];
+  trialDays: number;
+  trialPlanKey: string;
+}
+
+export function fetchPublicPlans(): Promise<PublicPlanCatalogue> {
+  return apiRequest<PublicPlanCatalogue>('/public/plans');
 }
 
 export async function fetchInvoices(limit = 12): Promise<Invoice[]> {
@@ -50,6 +78,17 @@ export function changePlan(planKey: string, interval?: BillingInterval): Promise
 export interface EsewaCheckout {
   url: string;
   fields: Record<string, string>;
+}
+
+export interface RenewResult {
+  /** Nothing was owed, so the period was extended without a payment. */
+  settled: boolean;
+  /** Set when the owner should be sent to eSewa. */
+  checkout: EsewaCheckout | null;
+}
+
+export function renewPlan(): Promise<RenewResult> {
+  return apiRequest<RenewResult>(`${BASE}/renew`, { method: 'POST', headers: authHeaders() });
 }
 
 export function startEsewa(invoiceId: string): Promise<EsewaCheckout> {

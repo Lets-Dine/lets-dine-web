@@ -21,6 +21,7 @@ import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useNow } from '../../state/useNow';
 import { Empty, Loading, PageTitle, Panel, Row, Segmented, StatTile, useCommand } from '../../components/admin/kit';
+import { LowStockPanel } from '../../components/admin/LowStockPanel';
 import { PassCard } from '../../components/admin/PassCard';
 import { RevenueTrendChart } from '../../components/admin/RevenueTrendChart';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
@@ -248,6 +249,8 @@ export function Dashboard() {
           variant="primary"
         />
       </div>
+
+      <LowStockPanel />
 
       {compareBranches && (
         <Panel title="Branches" hint="Last 30 days, by revenue" bare className="mb-4">

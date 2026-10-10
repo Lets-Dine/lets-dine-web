@@ -1,3 +1,4 @@
+import type { BillLine } from '../domain/types';
 import type { AddOnDraft, DishDraft, ItemOptions, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
@@ -103,6 +104,7 @@ interface ApiBranch extends BranchRef {
   serviceChargeRate: number | null;
   taxRate: number | null;
   deliveryFeeAmount: number | null;
+  autoConsumeStock?: boolean | null;
   isActive: boolean;
   hours?: BranchHours[];
 }
@@ -126,6 +128,7 @@ interface ApiRestaurant {
   taxRate: number;
   deliveryFeeAmount?: number | null;
   vatPanNumber?: string | null;
+  autoConsumeStock?: boolean;
 }
 
 interface ApiCategory {
@@ -157,6 +160,7 @@ interface ApiDish {
   imageUrl: string | null;
   price: number;
   isAvailable: boolean;
+  autoConsumeStock?: boolean | null;
   isArchived: boolean;
   isFeatured: boolean;
   sortOrder: number;
@@ -327,6 +331,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     taxRate: api.taxRate,
     deliveryFeeAmount: api.deliveryFeeAmount ?? null,
     vatPanNumber: api.vatPanNumber ?? null,
+    autoConsumeStock: api.autoConsumeStock ?? true,
   };
 }
 
@@ -366,6 +371,7 @@ function toDish(api: ApiDish, currency: string): Dish {
     price: api.price,
     currency,
     isAvailable: api.isAvailable,
+    autoConsumeStock: api.autoConsumeStock ?? null,
     isArchived: api.isArchived,
     isFeatured: api.isFeatured,
     sortOrder: api.sortOrder,
@@ -517,6 +523,8 @@ export interface SignUpInput {
   email: string;
   phone: string;
   pin: string;
+  /** Another restaurant's slug, from /get-started?ref= */
+  referralCode?: string;
 }
 
 /** Creates the restaurant, its owner and the trial. The caller signs in afterwards with the same email and PIN. */
@@ -527,6 +535,7 @@ export async function signUp(input: SignUpInput): Promise<void> {
       name: input.restaurantName.trim(),
       slug: input.slug,
       owner: { name: input.ownerName.trim(), email: input.email.trim(), phone: input.phone, pin: input.pin.trim() },
+      ...(input.referralCode ? { referralCode: input.referralCode } : {}),
     }),
   });
 }
@@ -566,6 +575,8 @@ export interface BranchDraft {
   taxRate: number | null;
   /** Minor units, or null to inherit. */
   deliveryFeeAmount: number | null;
+  /** `null` follows the restaurant. */
+  autoConsumeStock?: boolean | null;
   /** On create only: start this branch's menu as a copy of another branch's. Without it the menu starts empty. */
   copyMenuFrom?: string;
 }
@@ -583,6 +594,7 @@ function branchBody(draft: Partial<BranchDraft>): Record<string, unknown> {
     ...(draft.serviceChargeRate !== undefined && { serviceChargeRate: draft.serviceChargeRate }),
     ...(draft.taxRate !== undefined && { taxRate: draft.taxRate }),
     ...(draft.deliveryFeeAmount !== undefined && { deliveryFeeAmount: draft.deliveryFeeAmount }),
+    ...(draft.autoConsumeStock !== undefined && { autoConsumeStock: draft.autoConsumeStock }),
     ...(draft.copyMenuFrom && { copyMenuFrom: draft.copyMenuFrom }),
   };
 }
@@ -803,6 +815,7 @@ function dishBody(draft: Partial<DishDraft>): Record<string, unknown> {
   if (draft.spiceLevel !== undefined) body.spiceLevel = draft.spiceLevel;
   if (draft.isAvailable !== undefined) body.isAvailable = draft.isAvailable;
   if (draft.isFeatured !== undefined) body.isFeatured = draft.isFeatured;
+  if (draft.autoConsumeStock !== undefined) body.autoConsumeStock = draft.autoConsumeStock;
   return body;
 }
 
@@ -1124,7 +1137,7 @@ export async function settleTable(tableId: string): Promise<Order[]> {
  */
 export async function completePayment(
   sessionId: string,
-  items: { dishId: string; quantity: number }[],
+  items: BillLine[],
   method: PaymentMethod,
   discount: number,
   endSession: boolean,

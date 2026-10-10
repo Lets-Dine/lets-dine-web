@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { cx } from '../../components/ui';
 import { RAIL } from './kit';
 import { scrollToSection } from './motion';
@@ -11,6 +11,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
       { label: 'Table ordering', href: '#how-it-works' },
       { label: 'Reviews', href: '#reviews' },
       { label: 'Analytics', href: '#dashboard' },
+      { label: 'Pricing', href: '/pricing' },
     ],
   },
   {
@@ -43,6 +44,8 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
  * the top, the index underneath it, the small print along the bottom.
  */
 export function LandingFooter() {
+  const onHome = useLocation().pathname === '/';
+
   return (
     <footer className="rule-t bg-stock">
       <div className={cx(RAIL, 'py-16 lg:py-20')}>
@@ -67,7 +70,7 @@ export function LandingFooter() {
               <ul className="mt-4 flex flex-col gap-2.5">
                 {column.links.map((link) => (
                   <li key={link.label}>
-                    {link.href.startsWith('#') ? (
+                    {link.href.startsWith('#') && onHome ? (
                       <a
                         href={link.href}
                         onClick={(e) => {
@@ -79,7 +82,10 @@ export function LandingFooter() {
                         {link.label}
                       </a>
                     ) : (
-                      <Link to={link.href} className="-my-1 inline-block py-1 text-[14px] text-ink-2 transition-colors hover:text-flame-1">
+                      <Link
+                        to={link.href.startsWith('#') ? `/${link.href}` : link.href}
+                        className="-my-1 inline-block py-1 text-[14px] text-ink-2 transition-colors hover:text-flame-1"
+                      >
                         {link.label}
                       </Link>
                     )}

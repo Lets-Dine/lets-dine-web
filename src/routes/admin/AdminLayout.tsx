@@ -18,7 +18,7 @@ import { Loading } from '../../components/admin/kit';
 import { RestaurantCard } from '../../components/admin/RestaurantCard';
 import { LockedScreen, PlanChip, SubscriptionBanner } from '../../components/admin/SubscriptionBits';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Cash, ChevronRight, Contact, Folder, Grid, History, Layers, MapPin, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
+import { Box, Building, Cash, ChevronRight, Contact, Eye, Folder, Grid, History, Layers, MapPin, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
 import { playNewOrderSound } from '../../platform/sound';
 
 /**
@@ -73,6 +73,9 @@ const NAV: NavItem[] = [
   { to: '/admin/menu', label: 'Menu', icon: Plate, permission: 'menu:view', group: 'Menu' },
   { to: '/admin/add-ons', label: 'Add-ons', icon: Sparkle, permission: 'menu:edit', group: 'Menu' },
   { to: '/admin/categories', label: 'Categories', icon: Folder, permission: 'menu:edit', group: 'Menu' },
+  { to: '/admin/inventory', label: 'Stock', icon: Box, permission: 'inventory:view', end: true, liveOnly: true, group: 'Inventory' },
+  { to: '/admin/inventory/buy-list', label: 'Buy list', icon: Receipt, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
+  { to: '/admin/inventory/watchlist', label: 'Watchlist', icon: Eye, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view', group: 'Money' },
   { to: '/admin/ledger', label: 'Cash book', icon: Cash, permission: 'ledger:view', liveOnly: true, group: 'Money' },
   // { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view', group: 'Insights' },
@@ -81,6 +84,7 @@ const NAV: NavItem[] = [
   { to: '/admin/staff', label: 'Staff', icon: Users, permission: 'settings:view', group: 'Business' },
   { to: '/admin/audit', label: 'Audit log', icon: History, permission: 'audit:view', group: 'Business' },
   { to: '/admin/plan', label: 'Plan', icon: Ticket, permission: 'billing:view', liveOnly: true, group: 'Business' },
+  { to: '/admin/referrals', label: 'Referrals', icon: Building, permission: 'billing:manage', liveOnly: true, group: 'Business' },
   { to: '/admin/payment-modes', label: 'Payment modes', icon: Qr, permission: 'settings:view', liveOnly: true, group: 'Business' },
   { to: '/admin/settings', label: 'Settings', icon: Sliders, permission: 'settings:view', group: 'Business' },
 ];
@@ -231,8 +235,11 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const locked = subscription.locked;
   const canManagePlan = allows('billing:manage');
   const onPlanPage = location.pathname === '/admin/plan';
+  const onBillingPage = onPlanPage || location.pathname === '/admin/referrals';
   // A closed restaurant has one door left, and only the owner has the key: the plan, to put it right.
-  const items = NAV.filter((item) => (locked ? item.to === '/admin/plan' && canManagePlan : allows(item.permission) && (!item.liveOnly || BRANCHES_ENABLED)));
+  const items = NAV.filter((item) =>
+    locked ? (item.to === '/admin/plan' || item.to === '/admin/referrals') && canManagePlan : allows(item.permission) && (!item.liveOnly || BRANCHES_ENABLED),
+  );
   const groups: [string, NavItem[]][] = [];
   for (const item of items) {
     const last = groups.at(-1);
@@ -328,7 +335,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
             {!locked && !onPlanPage && subscription.notice && <SubscriptionBanner notice={subscription.notice} onDismiss={subscription.dismissNotice} />}
             {locked ? (
               canManagePlan ? (
-                onPlanPage ? (
+                onBillingPage ? (
                   <Outlet />
                 ) : (
                   <Navigate to="/admin/plan" replace />

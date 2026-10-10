@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { SUBSCRIPTION_ENABLED, fetchInvoices, fetchSubscription, fetchUsage, isSuspension } from '../api/staff';
+import { SUBSCRIPTION_ENABLED, fetchSubscription, fetchUsage, isSuspension } from '../api/staff';
 import { deriveNotice, isLockedOut } from '../domain/subscription';
-import type { Invoice, Notice, Subscription, Usage } from '../domain/subscription';
+import type { Notice, Subscription, Usage } from '../domain/subscription';
 import { useAuth } from './AuthContext';
 
 /**
@@ -29,8 +29,6 @@ interface SubscriptionValue {
   phase: Phase;
   subscription: Subscription | null;
   usage: Usage | null;
-  /** Owners only. */
-  invoices: Invoice[] | null;
   /** Closed to staff: suspended, cancelled, or refused as such by the API. */
   locked: boolean;
   /** The one thing worth a banner right now, unless it was dismissed. */
@@ -62,7 +60,6 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<Phase>(canView ? 'loading' : 'ready');
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
-  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [refused, setRefused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<string[]>(readDismissed);
@@ -78,8 +75,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(async () => {
     if (!canView) return;
 
-    // The subscription is the one that matters; usage and invoices are worth having but never worth failing over.
-    const [sub, use, inv] = await Promise.allSettled([fetchSubscription(), fetchUsage(), canManage ? fetchInvoices() : Promise.resolve(null)]);
+    // The subscription is the one that matters; usage is worth having but never worth failing over.
+    const [sub, use] = await Promise.allSettled([fetchSubscription(), fetchUsage()]);
     if (!alive.current) return;
 
     if (sub.status === 'rejected') {
@@ -95,11 +92,10 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
     setSubscription(sub.value);
     setUsage(use.status === 'fulfilled' ? use.value : null);
-    setInvoices(inv.status === 'fulfilled' ? inv.value : null);
     setRefused(false);
     setError(null);
     setPhase('ready');
-  }, [canView, canManage]);
+  }, [canView]);
 
   useEffect(() => {
     void reload();
@@ -121,8 +117,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const locked = refused || (subscription !== null && isLockedOut(subscription.status));
 
   const candidate = useMemo(
-    () => (subscription ? deriveNotice({ subscription, usage, invoices, canManage, now: new Date() }) : null),
-    [subscription, usage, invoices, canManage],
+    () => (subscription ? deriveNotice({ subscription, usage, canManage, now: new Date() }) : null),
+    [subscription, usage, canManage],
   );
   const notice = candidate && !(candidate.dismissible && dismissed.includes(candidate.id)) ? candidate : null;
 
@@ -140,8 +136,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }, [candidate]);
 
   const value = useMemo<SubscriptionValue>(
-    () => ({ enabled: canView, phase, subscription, usage, invoices, locked, notice, error, dismissNotice, reload, markLocked }),
-    [canView, phase, subscription, usage, invoices, locked, notice, error, dismissNotice, reload, markLocked],
+    () => ({ enabled: canView, phase, subscription, usage, locked, notice, error, dismissNotice, reload, markLocked }),
+    [canView, phase, subscription, usage, locked, notice, error, dismissNotice, reload, markLocked],
   );
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;

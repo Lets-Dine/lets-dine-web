@@ -14,6 +14,11 @@ import type { DishDraft } from '../../api/admin';
 import { suggestPhotos } from '../../api/dishPhotos';
 import type { LibraryPhoto } from '../../api/dishPhotos';
 import { useAsync } from '../../state/useAsync';
+import { INVENTORY_ENABLED } from '../../api/inventory';
+import { AutoConsumeChoice, AutoConsumeLockedNote } from '../../components/admin/AutoConsumeChoice';
+import { planAllowsAutoStock } from '../../domain/subscription';
+import { useSubscription } from '../../state/SubscriptionContext';
+import { RecipePanel } from '../../components/admin/RecipePanel';
 import { formatMoney } from '../../domain/money';
 import type { DietaryType, DishVariant } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
@@ -58,6 +63,7 @@ export function DishEditor() {
   const navigate = useNavigate();
   const { menu, reloadMenu } = useDashboard();
   const { pending, busy, run } = useCommand();
+  const planAllowsStockUse = planAllowsAutoStock(useSubscription().subscription);
   const act = (key: string, action: () => Promise<unknown>, message: string) => void run(key, action, message).then(reloadMenu);
 
   const existing = dishId === 'new' ? null : menu.dishes.find((d) => d.id === dishId);
@@ -73,6 +79,7 @@ export function DishEditor() {
     spiceLevel: existing?.spiceLevel ?? 0,
     isAvailable: existing?.isAvailable ?? true,
     isFeatured: existing?.isFeatured ?? false,
+    autoConsumeStock: existing?.autoConsumeStock ?? null,
   }));
   const [addOnIds, setAddOnIds] = useState<string[]>(() => existing?.addOnIds ?? []);
   const toggleAddOn = (id: string) =>
@@ -133,6 +140,7 @@ export function DishEditor() {
     draft.spiceLevel !== existing.spiceLevel ||
     draft.isAvailable !== existing.isAvailable ||
     draft.isFeatured !== existing.isFeatured ||
+    (draft.autoConsumeStock ?? null) !== (existing.autoConsumeStock ?? null) ||
     addOnIdsChanged;
 
   const save = () => {
@@ -594,6 +602,22 @@ export function DishEditor() {
               hint="Adds a badge on the diner menu. Ratings still decide the ranking."
             />
           </Panel>
+
+          {existing && INVENTORY_ENABLED && allows('inventory:view') && (
+            <>
+              <RecipePanel dish={existing} menu={menu} />
+              <Panel title="Stock use" hint="Whether starting this dish takes its recipe off stock">
+                {planAllowsStockUse ? (
+                  <fieldset disabled={!canEdit} className="disabled:opacity-60">
+                    <AutoConsumeChoice value={draft.autoConsumeStock ?? null} onChange={(v) => patch('autoConsumeStock', v)} inheritLabel="Branch setting" />
+                    <p className="mt-2 text-[12.5px] leading-relaxed text-ink-3">Saved with the dish. Off means stock is never touched for this dish, whatever the branch or restaurant says.</p>
+                  </fieldset>
+                ) : (
+                  <AutoConsumeLockedNote />
+                )}
+              </Panel>
+            </>
+          )}
 
           {existing && (
             <Panel title="What diners said" hint="Read-only — ratings come from completed orders">

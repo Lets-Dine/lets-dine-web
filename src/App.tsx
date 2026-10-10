@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { BrowserRouter, Route, Routes, useLocation, useNavigationType } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigationType } from 'react-router-dom';
 import { AuthProvider } from './state/AuthContext';
 import { AdminThemeProvider } from './state/AdminTheme';
 import { ToastProvider } from './state/ToastContext';
@@ -8,6 +8,7 @@ import { Checkout } from './routes/Checkout';
 import { DishDetail } from './routes/DishDetail';
 import { GetStarted } from './routes/GetStarted';
 import { Landing } from './routes/Landing';
+import { Pricing } from './routes/Pricing';
 import { Menu } from './routes/Menu';
 import { NotFound } from './routes/NotFound';
 import { OrderHistory } from './routes/OrderHistory';
@@ -26,10 +27,15 @@ import { Dashboard } from './routes/admin/Dashboard';
 import { DishEditor } from './routes/admin/DishEditor';
 import { MenuBoard } from './routes/admin/MenuBoard';
 import { Orders } from './routes/admin/Orders';
+import { StockTake } from './routes/admin/StockTake';
+import { BuyList } from './routes/admin/BuyList';
+import { Watchlist } from './routes/admin/Watchlist';
+import { Inventory } from './routes/admin/Inventory';
 import { Ledger } from './routes/admin/Ledger';
 import { PaymentModes } from './routes/admin/PaymentModes';
 import { Payments } from './routes/admin/Payments';
 import { Plan } from './routes/admin/Plan';
+import { Referrals } from './routes/admin/Referrals';
 import { Reviews } from './routes/admin/Reviews';
 import { Settings } from './routes/admin/Settings';
 import { SignIn } from './routes/admin/SignIn';
@@ -111,6 +117,7 @@ export default function App() {
               <Route path="/" element={<Landing />} />
               {/* The public, self-serve restaurant sign-up — what the landing page's "Get started" CTA points at. */}
               <Route path="/get-started" element={<GetStarted />} />
+              <Route path="/pricing" element={<Pricing />} />
               {/* Stands in for the physical QR code on the table — the live product starts at /r/:slug/t/:token. */}
               {/* <Route path="/demo" element={<Entry />} /> */}
               {/* The QR encodes only the restaurant slug and an opaque table token. */}
@@ -163,6 +170,12 @@ export default function App() {
                 <Route path="payments" element={<Payments />} />
                 <Route path="payment-modes" element={<PaymentModes />} />
                 <Route path="ledger" element={<Ledger />} />
+                <Route path="inventory" element={<Inventory />} />
+                <Route path="inventory/count" element={<StockTake />} />
+                <Route path="inventory/buy-list" element={<BuyList />} />
+                <Route path="inventory/watchlist" element={<Watchlist />} />
+                <Route path="inventory/margins" element={<Navigate to="/admin/inventory/watchlist" replace />} />
+                <Route path="inventory/quality" element={<Navigate to="/admin/inventory/watchlist" replace />} />
                 <Route path="reviews" element={<Reviews />} />
                 <Route path="analytics" element={<Analytics />} />
                 <Route path="branches" element={<Branches />} />
@@ -170,6 +183,7 @@ export default function App() {
                 <Route path="staff" element={<Staff />} />
                 <Route path="audit" element={<AuditLog />} />
                 <Route path="plan" element={<Plan />} />
+                <Route path="referrals" element={<Referrals />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
 

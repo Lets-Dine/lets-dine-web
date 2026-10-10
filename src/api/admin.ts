@@ -1,3 +1,4 @@
+import type { BillLine } from '../domain/types';
 import { HISTORY_REF_CEILING, orderHistory } from '../data/history';
 import { SEED_REVIEWS } from '../data/reviews';
 import { DEMO_PIN } from '../data/staff';
@@ -594,6 +595,29 @@ export async function settleTable(actor: StaffMember, tableId: string): Promise<
 }
 
 /**
+ * A bill line priced the way an order is: the variant's own price replaces the dish's, and each
+ * add-on stacks on top. Matches the live server, so the offline demo charges what the bill showed.
+ */
+function priceBillLine(dishes: Dish[], addOns: AddOn[], line: BillLine) {
+  const dish = dishes.find((d) => d.id === line.dishId);
+  if (!dish) throw new ApiError(404, 'One of these dishes is no longer on the menu.');
+  const variant = line.variantId ? dish.variants.find((v) => v.id === line.variantId) : undefined;
+  if (line.variantId && !variant) throw new ApiError(404, "One of these dishes' sizes is no longer on the menu.");
+  const extras = (line.addOnIds ?? []).map((id) => {
+    const addOn = addOns.find((a) => a.id === id);
+    if (!addOn) throw new ApiError(404, 'One of these extras is no longer on the menu.');
+    return addOn;
+  });
+  const name = [dish.name, variant ? ` · ${variant.name}` : '', extras.length ? ` + ${extras.map((a) => a.name).join(', ')}` : ''].join('');
+  return {
+    dishId: dish.id,
+    dishNameSnapshot: name,
+    unitPrice: (variant ? variant.price : dish.price) + extras.reduce((sum, a) => sum + a.price, 0),
+    quantity: line.quantity,
+  };
+}
+
+/**
  * The till. Identified by the session being paid off, not the table — all
  * that's checked up front is that the session still exists. Which dishes and
  * how many is the cashier's call (read off the bill after any corrections),
@@ -608,7 +632,7 @@ export async function settleTable(actor: StaffMember, tableId: string): Promise<
 export async function completePayment(
   actor: StaffMember,
   sessionId: string,
-  items: { dishId: string; quantity: number }[],
+  items: BillLine[],
   method: PaymentMethod,
   discount: number,
   endSession: boolean,
@@ -623,11 +647,7 @@ export async function completePayment(
 
   const dishes = menuOf(store).dishes;
   const restaurant = restaurantOf(store);
-  const paymentItems = items.map(({ dishId, quantity }) => {
-    const dish = dishes.find((d) => d.id === dishId);
-    if (!dish) throw new ApiError(404, 'One of these dishes is no longer on the menu.');
-    return { dishId: dish.id, dishNameSnapshot: dish.name, unitPrice: dish.price, quantity };
-  });
+  const paymentItems = items.map((line) => priceBillLine(dishes, menuOf(store).addOns, line));
   const subtotal = sumLines(paymentItems);
   const discountedSubtotal = subtotal - discount;
   const serviceCharge = percentOf(discountedSubtotal, restaurant.serviceChargeRate);
@@ -688,7 +708,7 @@ export async function completePayment(
 export async function completeOrderPayment(
   actor: StaffMember,
   orderId: string,
-  items: { dishId: string; quantity: number }[],
+  items: BillLine[],
   method: PaymentMethod,
   discount: number,
 ): Promise<Payment> {
@@ -705,11 +725,7 @@ export async function completeOrderPayment(
 
   const dishes = menuOf(store).dishes;
   const restaurant = restaurantOf(store);
-  const paymentItems = items.map(({ dishId, quantity }) => {
-    const dish = dishes.find((d) => d.id === dishId);
-    if (!dish) throw new ApiError(404, 'One of these dishes is no longer on the menu.');
-    return { dishId: dish.id, dishNameSnapshot: dish.name, unitPrice: dish.price, quantity };
-  });
+  const paymentItems = items.map((line) => priceBillLine(dishes, menuOf(store).addOns, line));
   const subtotal = sumLines(paymentItems);
   const discountedSubtotal = subtotal - discount;
   const serviceCharge = percentOf(discountedSubtotal, restaurant.serviceChargeRate);
@@ -1008,6 +1024,8 @@ export interface DishDraft {
   spiceLevel: 0 | 1 | 2 | 3;
   isAvailable: boolean;
   isFeatured: boolean;
+  /** `null` follows the branch. Live backend only. */
+  autoConsumeStock?: boolean | null;
 }
 
 function slugify(name: string): string {
@@ -1960,6 +1978,8 @@ export interface SettingsPatch {
   deliveryFeeAmount?: number | null;
   /** VAT/PAN number for receipts; `null`/`''` clears it. */
   vatPanNumber?: string | null;
+  /** Whether starting a dish takes its recipe off stock. */
+  autoConsumeStock?: boolean;
 }
 
 export async function updateSettings(actor: StaffMember, patch: SettingsPatch): Promise<Restaurant> {

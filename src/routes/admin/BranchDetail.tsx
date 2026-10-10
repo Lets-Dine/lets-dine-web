@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { INVENTORY_ENABLED } from '../../api/inventory';
+import { AutoConsumeChoice, AutoConsumeLockedNote } from '../../components/admin/AutoConsumeChoice';
+import { planAllowsAutoStock } from '../../domain/subscription';
+import { useSubscription } from '../../state/SubscriptionContext';
 import { copyBranchMenu, fetchBranch, listBranches, setBranchHours, updateBranch } from '../../api/staff';
 import type { Branch, BranchHours } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
@@ -76,6 +80,8 @@ function DetailsPanel({ branch, canEdit, onSaved }: { branch: Branch; canEdit: b
   const [service, setService] = useState(toPercent(branch.serviceChargeRate));
   const [tax, setTax] = useState(toPercent(branch.taxRate));
   const [delivery, setDelivery] = useState(toMajor(branch.deliveryFeeAmount));
+  const [autoConsume, setAutoConsume] = useState<boolean | null>(branch.autoConsumeStock ?? null);
+  const planAllowsStockUse = planAllowsAutoStock(useSubscription().subscription);
   const [active, setActive] = useState(branch.isActive);
 
   const save = () =>
@@ -90,6 +96,7 @@ function DetailsPanel({ branch, canEdit, onSaved }: { branch: Branch; canEdit: b
           serviceChargeRate: fromPercent(service),
           taxRate: fromPercent(tax),
           deliveryFeeAmount: fromMajor(delivery),
+          ...(INVENTORY_ENABLED && planAllowsStockUse && { autoConsumeStock: autoConsume }),
           ...(branch.isDefault ? {} : { isActive: active }),
         }),
       'Branch saved',
@@ -133,6 +140,14 @@ function DetailsPanel({ branch, canEdit, onSaved }: { branch: Branch; canEdit: b
             </Field>
           </div>
         </div>
+        {INVENTORY_ENABLED && (
+          <div>
+            <p className="mb-2 text-[12.5px] leading-snug text-ink-3">
+              Whether starting a dish takes its recipe off this branch's stock. A dish can still override it.
+            </p>
+            {planAllowsStockUse ? <AutoConsumeChoice value={autoConsume} onChange={setAutoConsume} inheritLabel="Restaurant setting" /> : <AutoConsumeLockedNote />}
+          </div>
+        )}
         <Toggle
           checked={active}
           onChange={setActive}

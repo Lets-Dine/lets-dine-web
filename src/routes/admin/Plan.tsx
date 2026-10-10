@@ -1,32 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { changePlan, confirmEsewa, fetchPlans, redirectToEsewa, startEsewa } from '../../api/staff';
+import { changePlan, confirmEsewa, fetchPlans, redirectToEsewa, renewPlan, startEsewa } from '../../api/staff';
 import { formatMoney } from '../../domain/money';
 import {
   PAYMENT_NOTE,
   changeEffect,
+  daysUntil,
   describeChange,
   formatDay,
   intervalLabel,
   keyDate,
-  paymentLabel,
   meterFraction,
   meterLabel,
   meterNote,
   monthsFree,
   planPrice,
   planSummary,
+  renewalDue,
   statusStatement,
 } from '../../domain/subscription';
-import type { BillingInterval, ChangeSummary, Invoice, MeterKind, Plan as PlanData, Subscription, Tone, Usage, UsageMeter } from '../../domain/subscription';
+import type { BillingInterval, ChangeSummary, MeterKind, Plan as PlanData, Subscription, Usage, UsageMeter } from '../../domain/subscription';
 import { useAuth } from '../../state/AuthContext';
+import { useToast } from '../../state/ToastContext';
 import { useSubscription } from '../../state/SubscriptionContext';
 import { useAsync } from '../../state/useAsync';
 
 type AsyncPlans = ReturnType<typeof useAsync<PlanData[]>>;
 import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_QUIET, Empty, Loading, PANEL, PageTitle, Panel, Segmented, useCommand } from '../../components/admin/kit';
 import { PlanCompareModal } from '../../components/admin/PlanCompareModal';
-import { SubscriptionStatusPill, TonePill } from '../../components/admin/SubscriptionBits';
+import { SubscriptionStatusPill } from '../../components/admin/SubscriptionBits';
 import { Check, ChevronRight, Lock, X } from '../../components/icons';
 import { DISPLAY, TAG, TAG_ON, cx } from '../../components/ui';
 
@@ -84,15 +86,13 @@ export function Plan() {
     );
   }
 
-  // When money is owed, the invoice is the thing to get to; otherwise it is the reference at the end.
-  const owing = canManage && ['PAST_DUE', 'RESTRICTED', 'SUSPENDED', 'CANCELLED'].includes(subscription.status);
-  const invoices = <InvoicesSection invoices={sub.invoices} now={now} />;
+  const due = canManage && renewalDue(subscription, now);
 
   return (
     <>
       <PageTitle
         title="Plan"
-        subtitle={canManage ? 'Your subscription, usage and invoices' : 'What this restaurant is on, and how much of it is used'}
+        subtitle={canManage ? 'Your subscription and how much of it is used' : 'What this restaurant is on, and how much of it is used'}
         action={
           <button type="button" className={ADMIN_GHOST} onClick={() => setComparing(true)}>
             Compare plans
@@ -118,7 +118,7 @@ export function Plan() {
 
       <div className="grid gap-4">
         <StatusBand subscription={subscription} canManage={canManage} now={now} />
-        {owing && invoices}
+        {due && <RenewSection subscription={subscription} now={now} onRenewed={sub.reload} />}
 
         <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr] lg:items-start">
           <UsageSection usage={sub.usage} />
@@ -128,13 +128,12 @@ export function Plan() {
         {canManage ? (
           <>
             <ChangePlanSection subscription={subscription} plans={plans} usage={sub.usage} now={now} onChanged={sub.reload} />
-            {!owing && invoices}
           </>
         ) : (
           <Panel variant="subtle">
             <p className="text-[13.5px] leading-relaxed text-ink-3">
-              Plan changes and invoices are handled by the owner. This page shows where the restaurant stands, so a trial running out or a limit coming
-              up is no surprise.
+              Plan changes and renewal are handled by the owner. This page shows where the restaurant stands, so a trial running out or a limit coming up is
+              no surprise.
             </p>
           </Panel>
         )}
@@ -264,6 +263,11 @@ function IncludedSection({ subscription }: { subscription: Subscription }) {
     },
     { included: features.exports, label: 'Data exports', note: features.exports ? 'Part of this plan.' : 'Not part of this plan.' },
     {
+      included: features.autoStockConsumption,
+      label: 'Automatic stock use',
+      note: features.autoStockConsumption ? 'Stock comes off by itself when the kitchen starts a dish.' : 'Not part of this plan. Stock is changed by hand.',
+    },
+    {
       included: true,
       label: 'Audit history',
       note: features.auditRetentionDays ? `Changes are kept for ${features.auditRetentionDays} days.` : 'The full history is kept.',
@@ -320,11 +324,11 @@ function ChangePlanSection({
       'change-plan',
       async () => {
         const result = await changePlan(plan.key, interval);
-        // An upgrade on a paid period starts when its prorated invoice is paid, so go straight to paying it.
+        // An upgrade on a paid period starts when the price difference is paid, so go straight to paying it.
         if (result.invoice && result.invoice.currency === 'NPR') redirectToEsewa(await startEsewa(result.invoice.id));
         return result;
       },
-      upgrading ? 'Upgrade invoice created' : success,
+      upgrading ? 'Opening payment to switch plans' : success,
     ).then(async (ok) => {
       if (!ok) return;
       setChoice(null);
@@ -606,132 +610,44 @@ function ChangeConfirm({
   );
 }
 
-/* ── Invoices (owner) ──────────────────────────────────────────────── */
+/* ── Renew (owner) ─────────────────────────────────────────────────── */
 
-function InvoicesSection({ invoices, now }: { invoices: Invoice[] | null; now: Date }) {
-  const hasOpen = (invoices ?? []).some((invoice) => invoice.status === 'OPEN');
-
-  return (
-    <div id="invoices" className="scroll-mt-24">
-      <Panel title="Invoices" hint="Newest first" className="overflow-hidden" bare>
-        {invoices === null ? (
-          <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">Invoices could not be read just now. Reload the page to try again.</p>
-        ) : invoices.length === 0 ? (
-          <Empty title="No invoices yet" message="The first one is issued about a week before the trial ends, or before the current period does." />
-        ) : (
-          <ul>
-            {invoices.map((invoice) => (
-              <InvoiceRow key={invoice.id} invoice={invoice} now={now} />
-            ))}
-          </ul>
-        )}
-        {hasOpen && <p className="border-t border-hairline px-4 py-3.5 text-[13px] leading-relaxed text-ink-3 sm:px-5">{PAYMENT_NOTE}</p>}
-      </Panel>
-    </div>
-  );
-}
-
-function InvoiceRow({ invoice, now }: { invoice: Invoice; now: Date }) {
+function RenewSection({ subscription, now, onRenewed }: { subscription: Subscription; now: Date; onRenewed: () => Promise<void> }) {
   const { busy, run } = useCommand();
-  const [expanded, setExpanded] = useState(false);
-  const open = invoice.status === 'OPEN';
-  const overdue = open && Date.parse(invoice.dueAt) < now.getTime();
-  const tone: Tone = invoice.status === 'PAID' ? 'good' : invoice.status === 'VOID' ? 'muted' : overdue ? 'warn' : 'info';
-  const label = invoice.status === 'PAID' ? 'Paid' : invoice.status === 'VOID' ? 'Replaced' : overdue ? 'Overdue' : 'Open';
-  const when =
-    invoice.status === 'PAID' && invoice.paidAt ? `Paid ${formatDay(invoice.paidAt)}` : open ? `Due ${formatDay(invoice.dueAt)}` : 'Replaced by a newer invoice';
-  const detailsId = `invoice-${invoice.id}`;
+  const push = useToast();
+  const left = daysUntil(subscription.currentPeriodEnd, now);
+  const ended = left < 0;
+  const price = planPrice(subscription.plan, subscription.interval);
+  const when = ended ? `ended on ${formatDay(subscription.currentPeriodEnd)}` : left === 0 ? 'ends today' : `ends on ${formatDay(subscription.currentPeriodEnd)}`;
 
   return (
-    <li className={cx('border-b border-hairline last:border-0', open && 'bg-flame-dim')}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3.5 sm:px-5">
-        <div className="min-w-0 flex-1 basis-48">
-          <div className="text-[14px] font-semibold tnum">{invoice.number}</div>
-          <div className="text-[12.5px] text-ink-3 tnum">
-            {formatDay(invoice.periodStart)} – {formatDay(invoice.periodEnd)}
-          </div>
-        </div>
-        <div className="text-[12.5px] text-ink-3 tnum">{when}</div>
-        <div className="w-28 shrink-0 text-right text-[14px] font-semibold tnum">{formatMoney(invoice.amount, invoice.currency)}</div>
-        <TonePill tone={tone} className="w-24 justify-center">
-          {label}
-        </TonePill>
-        {open && invoice.currency === 'NPR' && (
+    <div id="renew" className="scroll-mt-24">
+      <Panel title={ended ? 'Renew to continue' : 'Time to renew'}>
+        <p className="text-[14px] leading-relaxed text-ink-2">
+          {subscription.plan.name} {when}. Renew to keep the same plan.
+          {price !== null && ` ${formatMoney(price, subscription.plan.currency)} ${subscription.interval === 'ANNUAL' ? 'for the year' : 'for the month'}.`}
+        </p>
+        <div className="mt-4">
           <button
             type="button"
             className={ADMIN_PRIMARY}
             disabled={busy}
-            onClick={() => void run('esewa-start', async () => redirectToEsewa(await startEsewa(invoice.id)))}
+            onClick={() =>
+              void run('renew', async () => {
+                const result = await renewPlan();
+                if (result.settled) push('Plan renewed.');
+                if (result.checkout) redirectToEsewa(result.checkout);
+                return result;
+              }).then(async (ok) => {
+                if (ok) await onRenewed();
+              })
+            }
           >
-            {busy ? 'Opening eSewa…' : 'Pay with eSewa'}
+            {busy ? 'Opening payment…' : 'Renew'}
           </button>
-        )}
-        <button
-          type="button"
-          className={cx(ADMIN_QUIET, 'gap-1')}
-          aria-expanded={expanded}
-          aria-controls={detailsId}
-          aria-label={`${expanded ? 'Hide' : 'Show'} details of ${invoice.number}`}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          Details
-          <ChevronRight size={14} className={cx('transition-transform duration-200 ease-out', expanded && 'rotate-90')} />
-        </button>
-      </div>
-      {expanded && <InvoiceDetails id={detailsId} invoice={invoice} />}
-    </li>
-  );
-}
-
-/** What the invoice is made of, as it was issued, and how it was settled. Opens under its row so the list stays in view. */
-function InvoiceDetails({ id, invoice }: { id: string; invoice: Invoice }) {
-  const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
-  const paid = invoice.status === 'PAID';
-  const facts: [string, string][] = [
-    ['Billing period', `${formatDay(invoice.periodStart)} – ${formatDay(invoice.periodEnd)}`],
-    ['Due', formatDay(invoice.dueAt)],
-    ...(paid && invoice.paidAt ? ([['Paid', formatDay(invoice.paidAt)]] as [string, string][]) : []),
-    ...(paid && invoice.paymentMethod ? ([['Paid with', paymentLabel(invoice.paymentMethod)]] as [string, string][]) : []),
-    ...(paid && invoice.paymentRef ? ([['Reference', invoice.paymentRef]] as [string, string][]) : []),
-  ];
-
-  return (
-    <div id={id} className="mx-4 mb-4 grid gap-4 rounded-xl bg-surface-2/70 p-4 ring-1 ring-hairline ring-inset sm:mx-5 sm:grid-cols-[1.4fr_1fr] sm:gap-6">
-      <div>
-        <h3 className="text-[11.5px] font-semibold uppercase tracking-[0.09em] text-ink-4">Charges</h3>
-        {lines.length === 0 ? (
-          <p className="mt-2 text-[13px] text-ink-3">No breakdown was kept for this invoice.</p>
-        ) : (
-          <ul className="mt-1.5">
-            {lines.map((line, i) => (
-              <li key={i} className="flex items-baseline justify-between gap-4 border-b border-hairline py-2.5">
-                <div className="min-w-0">
-                  <div className="text-[13.5px] font-medium">{line.description}</div>
-                  {line.quantity > 1 && (
-                    <div className="text-[12px] text-ink-4 tnum">
-                      {line.quantity} × {formatMoney(line.unitAmount, invoice.currency)}
-                    </div>
-                  )}
-                </div>
-                <div className="shrink-0 text-[13.5px] tnum">{formatMoney(line.amount, invoice.currency)}</div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="flex items-baseline justify-between gap-4 pt-3">
-          <span className="text-[13.5px] font-semibold">Total</span>
-          <span className="text-[16px] font-semibold tnum">{formatMoney(invoice.amount, invoice.currency)}</span>
         </div>
-      </div>
-
-      <dl className="grid content-start gap-3">
-        {facts.map(([term, value]) => (
-          <div key={term}>
-            <dt className="text-[11.5px] font-semibold uppercase tracking-[0.09em] text-ink-4">{term}</dt>
-            <dd className="mt-0.5 break-words text-[13.5px] font-medium tnum">{value}</dd>
-          </div>
-        ))}
-      </dl>
+        <p className="mt-3 text-[13px] leading-relaxed text-ink-3">{PAYMENT_NOTE}</p>
+      </Panel>
     </div>
   );
 }

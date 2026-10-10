@@ -114,6 +114,14 @@ export function PlatformPlans() {
                   </label>
                 )}
               </Line>
+              <Line plans={draft} label="Automatic stock use" hint="Stock comes off when a dish is started">
+                {(p, i) => (
+                  <label className="inline-flex cursor-pointer items-center gap-2.5">
+                    <input type="checkbox" className="size-4 accent-[var(--color-flame-2)]" checked={p.features.autoStockConsumption} onChange={(e) => patch(i, (x) => ({ ...x, features: { ...x.features, autoStockConsumption: e.target.checked } }))} />
+                    <span className="text-ink-2">{p.features.autoStockConsumption ? 'Included' : 'Not included'}</span>
+                  </label>
+                )}
+              </Line>
               <Line plans={draft} label="Audit history" hint="Days kept. Empty keeps all">
                 {(p, i) => <LimitCell unit="days" value={p.features.auditRetentionDays} onChange={(v) => patch(i, (x) => ({ ...x, features: { ...x.features, auditRetentionDays: v } }))} />}
               </Line>

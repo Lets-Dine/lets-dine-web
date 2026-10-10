@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { INVENTORY_ENABLED } from '../../api/inventory';
 import { listAudit, updateSettings } from '../../api/staff';
 import { ROLE_LABEL, ROLE_SCOPE } from '../../domain/permissions';
 import type { AuditEntry } from '../../domain/types';
+import { planAllowsAutoStock } from '../../domain/subscription';
+import { AutoConsumeLockedNote } from '../../components/admin/AutoConsumeChoice';
+import { useSubscription } from '../../state/SubscriptionContext';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../../components/time';
-import { ADMIN_PRIMARY, Field, MoneyInput, PageTitle, Panel, PercentInput, TextArea, TextInput, useCommand } from '../../components/admin/kit';
+import { ADMIN_PRIMARY, Field, MoneyInput, PageTitle, Panel, PercentInput, TextArea, TextInput, Toggle, useCommand } from '../../components/admin/kit';
 import { ImageUpload } from '../../components/admin/ImageUpload';
 import { RestaurantMark } from '../../components/RestaurantMark';
 import { History } from '../../components/icons';
@@ -38,6 +42,8 @@ export function Settings() {
   const [tax, setTax] = useState((restaurant.taxRate * 100).toFixed(1));
   const [vatPan, setVatPan] = useState(restaurant.vatPanNumber ?? '');
   const [deliveryFee, setDeliveryFee] = useState(restaurant.deliveryFeeAmount ?? 0);
+  const [autoConsume, setAutoConsume] = useState(restaurant.autoConsumeStock ?? true);
+  const planAllowsStockUse = planAllowsAutoStock(useSubscription().subscription);
 
   const audit = useAsync(async () => (await listAudit(staff, 5)).rows, [staff]);
 
@@ -50,7 +56,8 @@ export function Settings() {
     vatPan.trim() !== (restaurant.vatPanNumber ?? '') ||
     Number(service) / 100 !== restaurant.serviceChargeRate ||
     Number(tax) / 100 !== restaurant.taxRate ||
-    Math.round(Number(deliveryFee) * 100) !== (restaurant.deliveryFeeAmount ?? 0);
+    Math.round(Number(deliveryFee) * 100) !== (restaurant.deliveryFeeAmount ?? 0) ||
+    autoConsume !== (restaurant.autoConsumeStock ?? true);
 
   const save = () =>
     void run(
@@ -66,6 +73,7 @@ export function Settings() {
           serviceChargeRate: Number(service) / 100,
           taxRate: Number(tax) / 100,
           deliveryFeeAmount: deliveryFee,
+          ...(INVENTORY_ENABLED && planAllowsStockUse && { autoConsumeStock: autoConsume }),
         }),
       'Settings saved',
     ).then(() => {
@@ -157,6 +165,23 @@ export function Settings() {
               here applies to the next order placed — including one already sitting in somebody's cart.
             </p>
           </Panel>
+
+          {INVENTORY_ENABLED && (
+            <Panel title="Stock" hint={canEdit ? undefined : 'Only an owner can change this'}>
+              {planAllowsStockUse ? (
+                <fieldset disabled={!canEdit} className="disabled:opacity-60">
+                  <Toggle
+                    checked={autoConsume}
+                    onChange={setAutoConsume}
+                    label="Take stock off automatically"
+                    hint="When the kitchen starts a dish, its recipe comes off stock. A branch or a single dish can override this."
+                  />
+                </fieldset>
+              ) : (
+                <AutoConsumeLockedNote />
+              )}
+            </Panel>
+          )}
 
           {canEdit && (
             <div className="flex items-center justify-between gap-3">

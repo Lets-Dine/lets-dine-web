@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { changeEffect, deriveNotice, describeChange, upgradeCharge, isLockedOut, meterNote, monthsFree, planSummary } from '../src/domain/subscription';
-import type { Invoice, Plan, Subscription, Usage } from '../src/domain/subscription';
+import type { Plan, Subscription, Usage } from '../src/domain/subscription';
 
 const NOW = new Date('2026-10-03T12:00:00.000Z');
 const day = (n: number) => new Date(NOW.getTime() + n * 86_400_000).toISOString();
@@ -14,7 +14,7 @@ const plan = (over: Partial<Plan> = {}): Plan => ({
   extraSeatPrice: null,
   currency: 'NPR',
   limits: { branches: 5, staffSeats: 20, ordersPerMonth: 10000 },
-  features: { analyticsTier: 'full', exports: true, auditRetentionDays: 365 },
+  features: { analyticsTier: 'full', exports: true, autoStockConsumption: true, auditRetentionDays: 365 },
   ...over,
 });
 
@@ -34,8 +34,8 @@ const sub = (over: Partial<Subscription> = {}): Subscription => ({
 });
 
 const usage = (orders: Usage['orders']): Usage => ({ orders, branches: { used: 1, limit: 5, level: 'ok' }, seats: { used: 2, limit: 20, level: 'ok' } });
-const notice = (s: Subscription, extra: { usage?: Usage | null; invoices?: Invoice[] | null; canManage?: boolean } = {}) =>
-  deriveNotice({ subscription: s, usage: extra.usage ?? null, invoices: extra.invoices ?? null, canManage: extra.canManage ?? true, now: NOW });
+const notice = (s: Subscription, extra: { usage?: Usage | null; canManage?: boolean } = {}) =>
+  deriveNotice({ subscription: s, usage: extra.usage ?? null, canManage: extra.canManage ?? true, now: NOW });
 
 // A healthy restaurant is not interrupted.
 assert.equal(notice(sub()), null);
@@ -64,10 +64,16 @@ assert.equal(notice(sub({ status: 'SUSPENDED' })), null);
 assert.equal(isLockedOut('SUSPENDED') && isLockedOut('CANCELLED'), true);
 assert.equal(isLockedOut('RESTRICTED') || isLockedOut('PAST_DUE'), false);
 
-// Only an owner is told about an open invoice, with its amount.
-const open: Invoice = { id: 'i1', number: 'INV-1', amount: 400000, currency: 'NPR', periodStart: day(2), periodEnd: day(32), dueAt: day(2), status: 'OPEN', paidAt: null };
-assert.match(notice(sub(), { invoices: [open] })!.title, /INV-1/);
-assert.equal(notice(sub(), { invoices: [open], canManage: false }), null);
+// A renewal reminder starts a week before the period ends, and stays after it has ended.
+assert.equal(notice(sub({ currentPeriodEnd: day(20) })), null);
+const upcoming = notice(sub({ currentPeriodEnd: day(5) }));
+assert.match(upcoming!.title, /ends in 5 days/);
+assert.equal(upcoming!.cta.to, '/admin/plan#renew');
+assert.equal(upcoming!.dismissible, true);
+const ending = notice(sub({ currentPeriodEnd: day(1) }));
+assert.equal(ending!.dismissible, false);
+assert.match(notice(sub({ currentPeriodEnd: day(-1) }))!.title, /has ended/);
+assert.equal(notice(sub({ currentPeriodEnd: day(5) }), { canManage: false })!.cta.to, '/admin/plan');
 
 // Orders over the allowance nudge, never block; a new month is a new notice.
 const over = notice(sub(), { usage: usage({ used: 1043, limit: 1000, level: 'over' }) });

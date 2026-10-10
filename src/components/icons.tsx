@@ -162,6 +162,13 @@ export const Plate = ({ size = 16, className }: IconProps) => (
   </svg>
 );
 
+export const Box = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 3l8 4v10l-8 4-8-4V7l8-4z" strokeLinejoin="round" />
+    <path d="M4 7l8 4 8-4M12 11v10" />
+  </svg>
+);
+
 export const Folder = ({ size = 16, className }: IconProps) => (
   <svg {...base(size)} className={className}>
     <path d="M4 7a1 1 0 011-1h4l2 2h8a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V7z" strokeLinejoin="round" />

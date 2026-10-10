@@ -1,4 +1,5 @@
-import { useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { usePageTitle } from '../state/usePageTitle';
 import { LandingNav } from './landing/Nav';
 import { Hero } from './landing/Hero';
@@ -16,7 +17,7 @@ import { GrowthLoop } from './landing/GrowthLoop';
 import { RestaurantTypes } from './landing/RestaurantTypes';
 import { FinalCta } from './landing/FinalCta';
 import { LandingFooter } from './landing/LandingFooter';
-import { ScrollTrigger, useRefreshOnLoad, useSmoothScroll } from './landing/motion';
+import { ScrollTrigger, scrollToSection, useRefreshOnLoad, useSmoothScroll } from './landing/motion';
 
 const PAPER = '#f6f1e7';
 const DINER = '#12100e';
@@ -33,6 +34,8 @@ const DINER = '#12100e';
  * diner routes are never left holding it.
  */
 export function Landing() {
+  const { hash } = useLocation();
+
   usePageTitle(
     'FeastoX · A smarter way to dine, a smarter way to run a restaurant',
     'Digital menus, QR table ordering and dish level ratings, built from real orders. See what your customers actually think about every dish.',
@@ -55,6 +58,15 @@ export function Landing() {
 
   useSmoothScroll();
   useRefreshOnLoad();
+
+  // Nav links from other marketing routes arrive as `/#section`. The app shell
+  // scrolls to the top on every navigation, so this runs a frame later and
+  // lands on the section that link named.
+  useEffect(() => {
+    if (!hash) return;
+    const frame = requestAnimationFrame(() => scrollToSection(hash));
+    return () => cancelAnimationFrame(frame);
+  }, [hash]);
 
   return (
     <div className="min-h-dvh bg-bg text-ink">

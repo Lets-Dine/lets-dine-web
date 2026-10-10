@@ -22,6 +22,8 @@ export interface PlanLimits {
 export interface PlanFeatures {
   analyticsTier: 'basic' | 'full';
   exports: boolean;
+  /** Whether starting a dish can take its recipe off stock by itself. */
+  autoStockConsumption: boolean;
   /** Missing means the full history is kept. */
   auditRetentionDays?: number;
 }
@@ -52,6 +54,8 @@ export interface Subscription {
   plan: Plan;
   /** The downgrade queued for the end of the paid period, if any. */
   pendingPlan: Plan | null;
+  /** This restaurant's slug. Sharing it invites another restaurant; their first payment adds a month here. */
+  referralCode?: string;
 }
 
 export interface UsageMeter {
@@ -98,7 +102,16 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Shown wherever an owner is told how to pay. */
 export const PAYMENT_NOTE =
-  "Pay an open invoice with eSewa and your plan renews as soon as the payment is confirmed. Prefer another way? Contact the FeastoX team and they will mark it paid once received.";
+  "Renew with eSewa and the plan continues as soon as the payment is confirmed. Prefer another way? Contact the FeastoX team and they will record it once the money arrives.";
+
+/** Matches the backend lead: the reminder starts this many days before the period ends. */
+export const RENEWAL_LEAD_DAYS = 7;
+
+/** True once the paid window ends within the lead, or has already ended. A trial uses its own notice. */
+export function renewalDue(subscription: Subscription, now: Date): boolean {
+  if (subscription.status === 'CANCELLED' || subscription.status === 'TRIAL') return false;
+  return daysUntil(subscription.currentPeriodEnd, now) <= RENEWAL_LEAD_DAYS;
+}
 
 /* ── Status ────────────────────────────────────────────────────────── */
 
@@ -248,6 +261,14 @@ function planDeltas(from: Plan, to: Plan): ChangeDelta[] {
   if (from.features.exports !== to.features.exports) {
     rows.push({ label: 'Exports', from: from.features.exports ? 'Included' : 'Not included', to: to.features.exports ? 'Included' : 'Not included', direction: to.features.exports ? 'more' : 'less' });
   }
+  if (from.features.autoStockConsumption !== to.features.autoStockConsumption) {
+    rows.push({
+      label: 'Automatic stock use',
+      from: from.features.autoStockConsumption ? 'Included' : 'Not included',
+      to: to.features.autoStockConsumption ? 'Included' : 'Not included',
+      direction: to.features.autoStockConsumption ? 'more' : 'less',
+    });
+  }
   return rows;
 }
 
@@ -380,8 +401,8 @@ export function meterNote(kind: MeterKind, meter: UsageMeter): string | null {
   }
   if (meter.limit === undefined) return null;
   const [one, many] = kind === 'branches' ? ['branch', 'branches'] : ['staff seat', 'staff seats'];
-  if (meter.used > meter.limit) return `More ${many} are in use than the plan includes. They keep working, and the extra ones are added to your next invoice.`;
-  if (meter.used === meter.limit) return `At the plan's ${one} limit. Adding another is allowed and is added to your next invoice.`;
+  if (meter.used > meter.limit) return `More ${many} are in use than the plan includes. They keep working, and the extra ones are added when you renew.`;
+  if (meter.used === meter.limit) return `At the plan's ${one} limit. Adding another is allowed and is added when you renew.`;
   return `Close to the plan's ${one} limit.`;
 }
 
@@ -401,11 +422,11 @@ export function statusStatement(subscription: Subscription, canManage: boolean, 
     case 'ACTIVE':
       return `Renews on ${formatDay(subscription.currentPeriodEnd)}.${pendingPlan ? ` It switches to ${pendingPlan.name} then.` : ''}`;
     case 'PAST_DUE':
-      return `The renewal${subscription.pastDueSince ? ` due ${formatDay(subscription.pastDueSince)}` : ''} has not been paid. Everything still works, but editing will lock soon.`;
+      return `The plan ended${subscription.pastDueSince ? ` on ${formatDay(subscription.pastDueSince)}` : ''} and has not been renewed. Everything still works, but editing will lock soon.`;
     case 'RESTRICTED':
-      return `Overdue${subscription.pastDueSince ? ` since ${formatDay(subscription.pastDueSince)}` : ''}. Menu, table, branch and settings changes are paused until it is paid; orders and payments still work.`;
+      return `Overdue${subscription.pastDueSince ? ` since ${formatDay(subscription.pastDueSince)}` : ''}. Menu, table, branch and settings changes are paused until it is renewed; orders and payments still work.`;
     case 'SUSPENDED':
-      return 'This restaurant is suspended. Staff cannot sign in until the overdue invoice is paid.';
+      return 'This restaurant is suspended. Staff cannot sign in until the plan is renewed.';
     case 'CANCELLED':
       return `This subscription was cancelled${subscription.cancelledAt ? ` on ${formatDay(subscription.cancelledAt)}` : ''}.`;
   }
@@ -440,7 +461,7 @@ export function chipStatus(subscription: Subscription, now: Date): string {
 /* ── The alert banner ──────────────────────────────────────────────── */
 
 export interface Notice {
-  /** Stable, so dismissing one stays dismissed — and a new month or a new invoice is a new notice. */
+  /** Stable, so dismissing one stays dismissed — and a new period or a new month is a new notice. */
   id: string;
   tone: 'info' | 'warn' | 'bad';
   title: string;
@@ -452,8 +473,6 @@ export interface Notice {
 export interface NoticeInput {
   subscription: Subscription;
   usage: Usage | null;
-  /** Owners only — a manager is never told amounts. */
-  invoices: Invoice[] | null;
   canManage: boolean;
   now: Date;
 }
@@ -466,7 +485,7 @@ export const TRIAL_URGENT_DAYS = 2;
  * is nothing: a banner that is always there is a banner nobody reads. Suspended
  * and cancelled restaurants never get here — they are closed, not warned.
  */
-export function deriveNotice({ subscription, usage, invoices, canManage, now }: NoticeInput): Notice | null {
+export function deriveNotice({ subscription, usage, canManage, now }: NoticeInput): Notice | null {
   const { status } = subscription;
   if (isLockedOut(status)) return null;
 
@@ -479,8 +498,8 @@ export function deriveNotice({ subscription, usage, invoices, canManage, now }: 
       title: 'Changes are locked until the overdue payment is made',
       body: canManage
         ? 'Menu, table, branch and settings edits are paused. Orders and payments keep working.'
-        : 'Menu, table, branch and settings edits are paused. Orders and payments keep working. Ask the owner to settle the overdue invoice.',
-      cta: canManage ? { label: 'View invoices', to: '/admin/plan#invoices' } : seePlan,
+        : 'Menu, table, branch and settings edits are paused. Orders and payments keep working. Ask the owner to renew the plan.',
+      cta: canManage ? { label: 'Renew', to: '/admin/plan#renew' } : seePlan,
       dismissible: false,
     };
   }
@@ -491,9 +510,9 @@ export function deriveNotice({ subscription, usage, invoices, canManage, now }: 
       tone: 'warn',
       title: 'The plan payment is overdue',
       body: canManage
-        ? 'Pay the renewal soon, or editing the menu, tables and settings will be locked. Orders keep working either way.'
-        : 'Ask the owner to settle the renewal before editing the menu, tables and settings gets locked. Orders keep working either way.',
-      cta: canManage ? { label: 'View invoices', to: '/admin/plan#invoices' } : seePlan,
+        ? 'Renew soon, or editing the menu, tables and settings will be locked. Orders keep working either way.'
+        : 'Ask the owner to renew before editing the menu, tables and settings gets locked. Orders keep working either way.',
+      cta: canManage ? { label: 'Renew', to: '/admin/plan#renew' } : seePlan,
       dismissible: false,
     };
   }
@@ -515,16 +534,19 @@ export function deriveNotice({ subscription, usage, invoices, canManage, now }: 
     }
   }
 
-  const open = (invoices ?? []).filter((invoice) => invoice.status === 'OPEN').sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))[0];
-  if (open && canManage) {
-    const overdue = Date.parse(open.dueAt) < now.getTime();
+  if (subscription.status === 'ACTIVE' && renewalDue(subscription, now)) {
+    const left = daysUntil(subscription.currentPeriodEnd, now);
+    const urgent = left <= 2;
+    const title = left < 0 ? 'Your plan has ended' : left === 0 ? 'Your plan ends today' : `Your plan ends in ${plural(left, 'day')}`;
     return {
-      id: `invoice-${open.id}`,
-      tone: overdue ? 'warn' : 'info',
-      title: overdue ? `Invoice ${open.number} is overdue` : `Invoice ${open.number} is due ${formatDay(open.dueAt)}`,
-      body: `${formatMoney(open.amount, open.currency)} for ${formatDay(open.periodStart)} – ${formatDay(open.periodEnd)}.`,
-      cta: { label: 'View invoice', to: '/admin/plan#invoices' },
-      dismissible: !overdue,
+      id: `renew-${subscription.currentPeriodEnd}`,
+      tone: urgent ? 'warn' : 'info',
+      title,
+      body: canManage
+        ? 'Renew to keep this plan. Orders keep going either way.'
+        : 'The owner needs to renew to keep this plan. Orders keep going either way.',
+      cta: canManage ? { label: 'Renew', to: '/admin/plan#renew' } : seePlan,
+      dismissible: !urgent,
     };
   }
 
@@ -558,3 +580,6 @@ export function deriveNotice({ subscription, usage, invoices, canManage, now }: 
 
 /** Whether a notice should also mark the Plan item in the navigation. */
 export const needsAttention = (notice: Notice | null): boolean => notice !== null && notice.tone !== 'info';
+
+/** Whether the plan includes automatic stock use. With no plan on hand (billing off or not loaded yet) it counts as included, so nothing is locked by a missing answer. */
+export const planAllowsAutoStock = (subscription: Subscription | null): boolean => subscription?.plan.features.autoStockConsumption !== false;

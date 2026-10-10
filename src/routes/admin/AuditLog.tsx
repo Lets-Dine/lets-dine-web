@@ -79,6 +79,8 @@ const CATEGORY_OF: Record<AuditAction, Exclude<Category, 'all'>> = {
   staff_deactivated: 'settings',
   staff_branches_changed: 'settings',
   ledger_reopened: 'orders',
+  stock_taken: 'orders',
+  stock_transferred: 'orders',
 };
 
 const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
@@ -141,6 +143,8 @@ const ACTION_TONE: Record<AuditAction, string> = {
   staff_deactivated: 'text-berry',
   staff_branches_changed: 'text-ink-3',
   ledger_reopened: 'text-ink-3',
+  stock_taken: 'text-gold',
+  stock_transferred: 'text-ink-3',
 };
 
 function matchesQuery(entry: AuditEntry, q: string): boolean {

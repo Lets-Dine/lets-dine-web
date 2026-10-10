@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { cx } from '../../components/ui';
 import { X } from '../../components/icons';
 import { scrollToSection } from './motion';
@@ -14,7 +14,39 @@ const LINKS = [
 
 const isAnchor = (href: string) => href.startsWith('#');
 
-/** The wordmark. Two weights of one typeface and a printed rule — no logo art. */
+function NavLink({
+  link,
+  onHome,
+  pathname,
+  onClick,
+  className,
+}: {
+  link: (typeof LINKS)[number];
+  onHome: boolean;
+  pathname: string;
+  onClick: (event: React.MouseEvent) => void;
+  className: string;
+}) {
+  const current = link.href === pathname;
+  const cls = cx(className, current && 'text-ink');
+
+  if (isAnchor(link.href) && onHome) {
+    return (
+      <a href={link.href} onClick={onClick} className={cls}>
+        {link.label}
+      </a>
+    );
+  }
+
+  const to = isAnchor(link.href) ? `/${link.href}` : link.href;
+  return (
+    <Link to={to} onClick={onClick} aria-current={current ? 'page' : undefined} className={cls}>
+      {link.label}
+    </Link>
+  );
+}
+
+/** The wordmark. Two weights of one typeface and a printed rule, no logo art. */
 function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cx('font-display text-[19px] font-semibold tracking-[-0.03em] text-ink', className)}>
@@ -25,6 +57,8 @@ function Wordmark({ className }: { className?: string }) {
 }
 
 export function LandingNav() {
+  const { pathname } = useLocation();
+  const onHome = pathname === '/';
   const [compact, setCompact] = useState(false);
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -68,8 +102,9 @@ export function LandingNav() {
   }, [open]);
 
   const jump = (href: string) => (event: React.MouseEvent) => {
-    event.preventDefault();
     setOpen(false);
+    if (!isAnchor(href) || !onHome) return;
+    event.preventDefault();
     scrollToSection(href);
   };
 
@@ -105,22 +140,13 @@ export function LandingNav() {
           <ul className="hidden items-center gap-1 lg:flex">
             {LINKS.map((link) => (
               <li key={link.label}>
-                {isAnchor(link.href) ? (
-                  <a
-                    href={link.href}
-                    onClick={jump(link.href)}
-                    className="rounded-full px-3.5 py-2 text-[14.5px] font-medium text-ink-2 transition-colors hover:text-ink"
-                  >
-                    {link.label}
-                  </a>
-                ) : (
-                  <Link
-                    to={link.href}
-                    className="rounded-full px-3.5 py-2 text-[14.5px] font-medium text-ink-2 transition-colors hover:text-ink"
-                  >
-                    {link.label}
-                  </Link>
-                )}
+                <NavLink
+                  link={link}
+                  onHome={onHome}
+                  pathname={pathname}
+                  onClick={jump(link.href)}
+                  className="rounded-full px-3.5 py-2 text-[14.5px] font-medium text-ink-2 transition-colors hover:text-ink"
+                />
               </li>
             ))}
           </ul>
@@ -185,15 +211,13 @@ export function LandingNav() {
             <ul className="mt-5 flex flex-col divide-y divide-hairline border-y border-hairline">
               {LINKS.map((link) => (
                 <li key={link.label}>
-                  {isAnchor(link.href) ? (
-                    <a href={link.href} onClick={jump(link.href)} className="block py-3.5 text-[17px] font-medium text-ink">
-                      {link.label}
-                    </a>
-                  ) : (
-                    <Link to={link.href} onClick={() => setOpen(false)} className="block py-3.5 text-[17px] font-medium text-ink">
-                      {link.label}
-                    </Link>
-                  )}
+                  <NavLink
+                    link={link}
+                    onHome={onHome}
+                    pathname={pathname}
+                    onClick={jump(link.href)}
+                    className="block py-3.5 text-[17px] font-medium text-ink"
+                  />
                 </li>
               ))}
             </ul>

@@ -1,3 +1,4 @@
+import type { BillLine } from '../domain/types';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import type {
   AuditEntry,
@@ -28,7 +29,9 @@ export {
   changePlan,
   confirmEsewa,
   fetchInvoices,
+  renewPlan,
   fetchPlans,
+  fetchReferrals,
   fetchSubscription,
   fetchUsage,
   isFeatureLocked,
@@ -37,7 +40,7 @@ export {
   redirectToEsewa,
   startEsewa,
 } from './subscription';
-export type { ChangePlanResult } from './subscription';
+export type { ChangePlanResult, Referral, Referrals, RenewResult } from './subscription';
 
 /**
  * Branches exist only on the live backend. The offline demo is a single-location restaurant, so every
@@ -228,7 +231,7 @@ export function settleTable(actor: StaffMember, tableId: string): Promise<Order[
 export function completePayment(
   actor: StaffMember,
   sessionId: string,
-  items: { dishId: string; quantity: number }[],
+  items: BillLine[],
   method: PaymentMethod,
   discount: number,
   endSession: boolean,
@@ -247,7 +250,7 @@ export function completePayment(
 export function completeOrderPayment(
   actor: StaffMember,
   order: Order,
-  items: { dishId: string; quantity: number }[],
+  items: BillLine[],
   method: PaymentMethod,
   discount: number,
 ): Promise<Payment> {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { isTableOpen } from '../../api/admin';
 import { STATUS_LABEL } from '../../domain/orderStatus';
-import type { Dish, Order, OrderStatus, PaymentMethod } from '../../domain/types';
+import type { BillLine, Dish, Order, OrderStatus, PaymentMethod } from '../../domain/types';
 import { formatMoney, percentOf, symbolFor } from '../../domain/money';
 import { can } from '../../domain/permissions';
 import { useStaff } from '../../state/AuthContext';
@@ -51,6 +51,9 @@ interface DraftLineSource {
 interface DraftLine {
   rowId: string;
   dishId: string;
+  /** The size and extras this line was ordered with — what it is priced by, and what it must be charged as. */
+  variantId: string | null;
+  addOnIds: string[];
   dishNameSnapshot: string;
   notes: string;
   /** For the "each" display only — a merged served line shows its first source's price. */
@@ -67,7 +70,7 @@ interface DraftLine {
 }
 
 interface PendingBillChanges {
-  items: { dishId: string; quantity: number }[];
+  items: BillLine[];
   method: PaymentMethod;
   discount: number;
   endSession: boolean;
@@ -76,10 +79,15 @@ interface PendingBillChanges {
 /** What's actually being charged, frozen the moment "Take payment" is tapped — so an in-flight QR
  *  wait (or the reload that follows a successful cash payment) can never shift the total underfoot. */
 interface CommittedBill {
-  items: { dishId: string; quantity: number }[];
+  items: BillLine[];
   lines: ReceiptLine[];
   totals: ReceiptTotals;
   customerName: string | null;
+}
+
+/** What makes two bill lines the same thing to charge: the dish *and* the size and extras it came with. */
+function lineKey(line: { dishId: string; variantId: string | null; addOnIds: string[] }): string {
+  return `${line.dishId}|${line.variantId ?? ''}|${[...line.addOnIds].sort().join(',')}`;
 }
 
 type PayStep = 'bill' | 'method' | 'qr' | 'done';
@@ -199,6 +207,8 @@ export function PaymentSheet({
     orderId: string;
     itemId: string | null;
     dishId: string;
+    variantId: string | null;
+    addOnIds: string[];
     dishNameSnapshot: string;
     notes: string;
     unitPrice: number;
@@ -221,7 +231,14 @@ export function PaymentSheet({
         orderId: order.id,
         itemId: item.id,
         dishId: item.dishId,
-        dishNameSnapshot: item.dishNameSnapshot,
+        variantId: item.variantId,
+        addOnIds: item.addOns.map((a) => a.addOnId),
+        // The same dish ordered as Large and as Small must not read as one line.
+        dishNameSnapshot: [
+          item.dishNameSnapshot,
+          item.variantNameSnapshot ? ` · ${item.variantNameSnapshot}` : '',
+          item.addOns.length ? ` + ${item.addOns.map((a) => a.nameSnapshot).join(', ')}` : '',
+        ].join(''),
         notes: item.notes,
         unitPrice: item.unitPrice,
         quantity: remaining + added,
@@ -241,6 +258,8 @@ export function PaymentSheet({
         orderId: latestOrder.id,
         itemId: null,
         dishId,
+        variantId: null,
+        addOnIds: [],
         dishNameSnapshot: dish.name,
         notes: '',
         unitPrice: dish.price,
@@ -263,6 +282,8 @@ export function PaymentSheet({
       draftLines.push({
         rowId: raw.itemId ?? `draft-${raw.dishId}-${raw.orderId}`,
         dishId: raw.dishId,
+        variantId: raw.variantId,
+        addOnIds: raw.addOnIds,
         dishNameSnapshot: raw.dishNameSnapshot,
         notes: raw.notes,
         unitPrice: raw.unitPrice,
@@ -275,15 +296,17 @@ export function PaymentSheet({
       continue;
     }
 
-    const group = servedGroups.get(raw.dishId);
+    const group = servedGroups.get(lineKey(raw));
     if (group) {
       group.quantity += raw.quantity;
       group.total += raw.unitPrice * raw.quantity;
       group.sources.push({ orderId: raw.orderId, itemId: raw.itemId, quantity: raw.quantity });
     } else {
       const line: DraftLine = {
-        rowId: `served-${raw.dishId}`,
+        rowId: `served-${lineKey(raw)}`,
         dishId: raw.dishId,
+        variantId: raw.variantId,
+        addOnIds: raw.addOnIds,
         dishNameSnapshot: raw.dishNameSnapshot,
         // Notes belong to one round, not the merged total — dropped rather than misattributed.
         notes: '',
@@ -294,7 +317,7 @@ export function PaymentSheet({
         served: true,
         sources: [{ orderId: raw.orderId, itemId: raw.itemId, quantity: raw.quantity }],
       };
-      servedGroups.set(raw.dishId, line);
+      servedGroups.set(lineKey(raw), line);
       draftLines.push(line);
     }
   }
@@ -524,9 +547,14 @@ export function PaymentSheet({
               // tied to a specific order row, since the cashier's edits are what defines the bill.
               // Frozen into `committed` rather than settled right away: the next step is picking
               // cash or QR, and neither should let the live bill shift underneath the total shown.
-              const merged = new Map<string, number>();
-              for (const line of draftLines) merged.set(line.dishId, (merged.get(line.dishId) ?? 0) + line.quantity);
-              const items = [...merged.entries()].map(([dishId, quantity]) => ({ dishId, quantity }));
+              const merged = new Map<string, BillLine>();
+              for (const line of draftLines) {
+                const key = lineKey(line);
+                const seen = merged.get(key);
+                if (seen) seen.quantity += line.quantity;
+                else merged.set(key, { dishId: line.dishId, variantId: line.variantId, addOnIds: line.addOnIds, quantity: line.quantity });
+              }
+              const items = [...merged.values()];
 
               setCommitted({
                 items,

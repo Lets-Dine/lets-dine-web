@@ -134,12 +134,14 @@ export function PrimaryCta({
   children,
   size = 'md',
   icon,
+  className,
 }: {
   to: string;
   children: ReactNode;
   size?: 'md' | 'lg';
   /** Overrides the default "→" glyph — pass a drawn icon where one already governs the surface's icon system. */
   icon?: ReactNode;
+  className?: string;
 }) {
   return (
     <Link
@@ -148,6 +150,7 @@ export function PrimaryCta({
         ACTION,
         size === 'lg' ? 'h-13 w-full px-7 text-[16px] sm:h-14 sm:w-auto sm:px-8 sm:text-[16.5px]' : 'h-12.5 px-6.5 text-[15.5px]',
         'bg-flame text-white shadow-flame hover:shadow-flame-lg',
+        className,
       )}
     >
       {children}
@@ -158,7 +161,17 @@ export function PrimaryCta({
   );
 }
 
-export function SecondaryCta({ to, children, size = 'md' }: { to: string; children: ReactNode; size?: 'md' | 'lg' }) {
+export function SecondaryCta({
+  to,
+  children,
+  size = 'md',
+  className,
+}: {
+  to: string;
+  children: ReactNode;
+  size?: 'md' | 'lg';
+  className?: string;
+}) {
   return (
     <Link
       to={to}
@@ -166,6 +179,7 @@ export function SecondaryCta({ to, children, size = 'md' }: { to: string; childr
         ACTION,
         size === 'lg' ? 'h-13 w-full px-7 text-[16px] sm:h-14 sm:w-auto sm:px-8 sm:text-[16.5px]' : 'h-12.5 px-6.5 text-[15.5px]',
         'bg-transparent text-ink ring-1 ring-hairline-strong ring-inset hover:bg-surface-2',
+        className,
       )}
     >
       {children}

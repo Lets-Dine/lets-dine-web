@@ -40,6 +40,8 @@ export interface Restaurant {
   deliveryFeeAmount: number | null;
   /** VAT/PAN registration number printed on receipts. `null` = none on file. */
   vatPanNumber: string | null;
+  /** Whether starting a dish takes its recipe off stock. A branch or a dish can override it. Live backend only. */
+  autoConsumeStock?: boolean;
 }
 
 export interface DiningTable {
@@ -99,6 +101,8 @@ export interface Branch extends BranchRef {
   serviceChargeRate: number | null;
   taxRate: number | null;
   deliveryFeeAmount: number | null;
+  /** `null` = follow the restaurant. */
+  autoConsumeStock?: boolean | null;
   isActive: boolean;
   /** Present only on a single-branch read — an empty schedule means "always open". */
   hours?: BranchHours[];
@@ -186,6 +190,8 @@ export interface Dish {
   price: Minor;
   currency: string;
   isAvailable: boolean;
+  /** `null` = follow the branch. */
+  autoConsumeStock?: boolean | null;
   /** §28: dishes with order history are archived, never hard-deleted. */
   isArchived: boolean;
   isFeatured: boolean;
@@ -279,6 +285,14 @@ export interface OrderItem {
   variantId: string | null;
   variantNameSnapshot: string | null;
   variantPriceSnapshot: Minor | null;
+}
+
+/** One line of a bill: the dish, and the size and extras it was ordered with. Priced on the server, never sent with a price. */
+export interface BillLine {
+  dishId: string;
+  variantId?: string | null;
+  addOnIds?: string[];
+  quantity: number;
 }
 
 export type PaymentMethod = 'CASH' | 'CARD';
@@ -457,7 +471,9 @@ export type AuditAction =
   | 'staff_role_changed'
   | 'staff_deactivated'
   | 'staff_branches_changed'
-  | 'ledger_reopened';
+  | 'ledger_reopened'
+  | 'stock_taken'
+  | 'stock_transferred';
 
 export type CustomerSegment = 'new' | 'regular' | 'lapsed' | 'occasional';
 

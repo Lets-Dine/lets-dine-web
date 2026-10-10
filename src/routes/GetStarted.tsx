@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signUp } from '../api/staff';
 import { IS_LIVE_API } from '../api/http';
 import { ApiError } from '../api/store';
@@ -11,6 +11,12 @@ import { CircleButton, DISPLAY_LG, GhostButton, PrimaryButton, PrimaryCta } from
 
 const PAPER = '#f6f1e7';
 const DINER = '#12100e';
+const REFERRAL_CODE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function referralCodeFrom(raw: string | null): string | undefined {
+  const code = raw?.trim().toLowerCase() ?? '';
+  return REFERRAL_CODE.test(code) ? code : undefined;
+}
 
 type FieldId = 'restaurantName' | 'city' | 'ownerName' | 'email' | 'phone' | 'pin' | 'pinConfirm';
 
@@ -69,10 +75,11 @@ const QUESTIONS: Question[] = [
     id: 'phone',
     group: 'owner',
     question: 'And a phone number, in case we need to reach you fast?',
-    placeholder: '+977 98XXXXXXXX',
+    helper: 'Your phone number',
+    placeholder: '9800000000',
     type: 'tel',
     autoComplete: 'tel',
-    validate: (v) => (v.replace(/[^\d+]/g, '').length < 7 ? 'Enter a number we can reach you on.' : undefined),
+    validate: (v) => (/^\d{10}$/.test(v) ? undefined : 'Enter a 10 digit phone number.'),
   },
   {
     id: 'pin',
@@ -187,10 +194,11 @@ function QuestionStage({
           <input
             ref={inputRef}
             type={question.type}
-            inputMode={question.type === 'tel' ? 'tel' : question.type === 'password' ? 'numeric' : undefined}
+            inputMode={question.id === 'phone' || question.type === 'password' ? 'numeric' : undefined}
             autoComplete={question.autoComplete}
+            maxLength={question.id === 'phone' ? 10 : undefined}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => onChange(question.id === 'phone' ? e.target.value.replace(/\D/g, '').slice(0, 10) : e.target.value)}
             onBlur={() => setTouched(true)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -229,6 +237,7 @@ function QuestionStage({
 
 function ConfirmStage({
   values,
+  referralCode,
   onEdit,
   onBack,
   onSubmit,
@@ -236,6 +245,7 @@ function ConfirmStage({
   error,
 }: {
   values: Record<FieldId, string>;
+  referralCode?: string;
   onEdit: (step: number) => void;
   onBack: () => void;
   onSubmit: () => void;
@@ -256,6 +266,12 @@ function ConfirmStage({
       <div>
         <h1 className={cx(DISPLAY_LG, 'text-balance text-ink')}>Look right?</h1>
         <p className="mt-3 text-[15px] text-ink-3">You can change anything before we create your account.</p>
+        {referralCode && (
+          <p className="mt-2 text-[15px] text-ink-2">
+            You are joining with an invitation from <span className="font-medium text-ink">{referralCode}</span>. They get one extra month once you pay
+            for a plan.
+          </p>
+        )}
       </div>
 
       <dl className="flex flex-col divide-y divide-hairline border-y border-hairline">
@@ -341,6 +357,8 @@ export function GetStarted() {
     };
   }, []);
 
+  const [params] = useSearchParams();
+  const referralCode = referralCodeFrom(params.get('ref'));
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<Record<FieldId, string>>({
     restaurantName: '',
@@ -376,11 +394,11 @@ export function GetStarted() {
     const base = slugify(values.restaurantName);
     try {
       try {
-        await signUp({ ...values, slug: base });
+        await signUp({ ...values, slug: base, referralCode });
       } catch (err) {
         // The name is taken by somebody else: retry once with a suffix rather than make the owner invent a slug.
         if (!(err instanceof ApiError) || err.key !== 'RESTAURANT_SLUG_ALREADY_EXISTS') throw err;
-        await signUp({ ...values, slug: `${base}-${Math.random().toString(36).slice(2, 6)}` });
+        await signUp({ ...values, slug: `${base}-${Math.random().toString(36).slice(2, 6)}`, referralCode });
       }
       await signIn(values.email, values.pin);
       navigate('/admin', { replace: true });
@@ -427,6 +445,7 @@ export function GetStarted() {
         {step === CONFIRM_STEP && (
           <ConfirmStage
             values={values}
+            referralCode={referralCode}
             onEdit={(target) => setStep(target)}
             onBack={() => setStep((s) => Math.max(s - 1, 0))}
             onSubmit={handleCreate}

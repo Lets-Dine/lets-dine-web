@@ -112,12 +112,17 @@ export function CollapsiblePanel({
   );
 }
 
-export function PageTitle({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+/** `purpose` is the page's job in a few words, set in stronger type ahead of the longer `subtitle`. */
+export function PageTitle({ title, purpose, subtitle, action }: { title: string; purpose?: string; subtitle?: string; action?: ReactNode }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 className={cx(DISPLAY, 'text-[26px] sm:text-[30px]')}>{title}</h1>
-        {subtitle && <p className="mt-1 text-[13.5px] text-ink-3">{subtitle}</p>}
+        {(purpose || subtitle) && (
+          <p className="mt-1 max-w-[68ch] text-[13.5px] leading-relaxed text-ink-3">
+            {purpose && <span className="font-semibold text-ink">{purpose}</span>} {subtitle}
+          </p>
+        )}
       </div>
       {action && <div className="flex items-center gap-2">{action}</div>}
     </div>
@@ -435,6 +440,22 @@ export function MoneyInput({
         onBlur={() => setText(value ? (value / 100).toFixed(2) : '')}
       />
     </span>
+  );
+}
+
+/** A whole-number field. Quantities are integers of the base unit, so there is nothing to round. */
+export function IntInput({ value, onChange, placeholder }: { value: number | ''; onChange: (next: number | '') => void; placeholder?: string }) {
+  return (
+    <input
+      className={cx(INPUT_BOX, 'tnum')}
+      inputMode="numeric"
+      value={value}
+      placeholder={placeholder ?? '0'}
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, '');
+        onChange(digits === '' ? '' : Number.parseInt(digits, 10));
+      }}
+    />
   );
 }
 

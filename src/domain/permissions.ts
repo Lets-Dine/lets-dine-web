@@ -28,6 +28,8 @@ export type Permission =
   | 'ledger:view'
   | 'ledger:manage'
   | 'ledger:reopen'
+  | 'inventory:view'
+  | 'inventory:manage'
   | 'billing:view'
   | 'billing:manage';
 
@@ -49,6 +51,9 @@ const MANAGER: Permission[] = [
   // Expenses and the cash-up: a manager keeps the books.
   'ledger:view',
   'ledger:manage',
+  // Stock is bought and counted by whoever keeps the books.
+  'inventory:view',
+  'inventory:manage',
   // The plan's status and usage — what the restaurant is on and when it needs attention. No money.
   'billing:view',
 ];

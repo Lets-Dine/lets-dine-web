@@ -112,6 +112,8 @@
   --animate-dock-in: dock-in 460ms var(--ease-spring) both;
   --animate-settle: settle 1.4s var(--ease-out-quart) both;
   --animate-sink: sink 200ms var(--ease-out-quart) both;
+  --animate-swap: swap 240ms var(--ease-out-quart) both;
+  --animate-flash: flash 1300ms var(--ease-out-quart) both;
 
   @keyframes rise {
     from { opacity: 0; transform: translate3d(0, 14px, 0); }
@@ -148,6 +150,16 @@
   @keyframes settle {
     from { opacity: 0.4; transform: scale(1.14); }
     to { opacity: 1; transform: scale(1.04); }
+  }
+  /* One view replacing another in place: arrives from just below, so the change reads as new content, not a jump. */
+  @keyframes swap {
+    from { opacity: 0; transform: translate3d(0, 8px, 0); }
+    to { opacity: 1; transform: none; }
+  }
+  /* A row that just changed: a wash of its state colour that fades away, so the eye finds what moved. */
+  @keyframes flash {
+    from { background-color: color-mix(in oklab, var(--flash-color, var(--color-mint)) 26%, transparent); }
+    to { background-color: transparent; }
   }
   /* Things leave the way they arrived — down and small, never sideways. */
   @keyframes sink {
@@ -410,10 +422,43 @@ html[data-page='landing'].lenis-stopped {
   to { opacity: 0; }
 }
 
+/* Stock-style sheets (native <dialog>): a bottom sheet on phones, a drawer from the right on wider screens.
+   They leave the way they came, then the dialog closes on animationend. No overshoot: an edge-anchored
+   panel that springs past its edge shows a gap. */
+@keyframes sheet-up {
+  from { opacity: 0; transform: translate3d(0, 48px, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sheet-down {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translate3d(0, 48px, 0); }
+}
+@keyframes drawer-in {
+  from { opacity: 0; transform: translate3d(32px, 0, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes drawer-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translate3d(32px, 0, 0); }
+}
+.sheet { animation: sheet-up 340ms var(--ease-out-quart) both; }
+.sheet[data-closing] { animation: sheet-down 200ms var(--ease-out-quart) both; }
+.sheet::backdrop { animation: fade-in-only 260ms linear both; }
+.sheet[data-closing]::backdrop { animation: fade-out-only 200ms linear both; }
+@media (min-width: 640px) {
+  .sheet { animation-name: drawer-in; }
+  .sheet[data-closing] { animation-name: drawer-out; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .sheet::backdrop { animation: fade-in-only 140ms linear both !important; }
+  .sheet[data-closing], .sheet[data-closing]::backdrop { animation: fade-out-only 120ms linear both !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto !important; }
 
   .animate-rise,
+  .animate-swap,
   .animate-rise-slow,
   .animate-pop,
   .animate-dock-in,

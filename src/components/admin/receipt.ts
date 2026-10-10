@@ -5,6 +5,7 @@ import type { PaymentMethod } from '../../domain/types';
  * The one paper artifact the till produces — a settle-table charge (Tables.tsx)
  * and a re-print from the ledger (Payments.tsx) are the same document, so
  * both build it from here rather than keeping their own copy of the markup.
+ * It is a guest copy, not an IRD tax invoice.
  */
 
 export interface ReceiptLine {
@@ -81,6 +82,7 @@ export function printReceipt(
     .items td { padding: 6px 0; vertical-align: top; overflow-wrap: anywhere; }
     .items th.num, .items td.num { text-align: right; white-space: nowrap; padding-left: 10px; }
     .total { font-weight: 900; font-size: 20px; }
+    .notice { margin: 0 0 8px; font-size: 11px; font-weight: 700; line-height: 1.4; }
     @page { margin: 0; }
     @media print {
       body { padding: 0; }
@@ -109,6 +111,7 @@ export function printReceipt(
     <div class="row"><span>Tax</span><span>${formatMoney(tax, currency)}</span></div>
     <div class="row" style="align-items:baseline"><span style="font-size:16px;font-weight:900">Total</span><span class="total">${formatMoney(total, currency)}</span></div>
     <div class="rule"></div>
+    <p class="center notice">This is not a tax invoice. Please collect the original bill from the counter.</p>
     <p class="center muted">Thank you · ${new Date().toLocaleString()}</p>
   </div>
   <script>window.onload = function () { setTimeout(function () { window.print(); }, 350); };</script>
