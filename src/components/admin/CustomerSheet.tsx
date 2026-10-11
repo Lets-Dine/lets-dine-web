@@ -4,9 +4,11 @@ import { DIETARY_TAGS, since } from '../../data/customers';
 import type { Customer, NewCustomer } from '../../data/customers';
 import type { CustomerListItem } from '../../domain/types';
 import { formatMoney } from '../../domain/money';
+import { IS_LIVE_API } from '../../api/http';
 import { X } from '../icons';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../ui';
 import { ADMIN_GHOST, ADMIN_PRIMARY, Confirm, Field, TextArea, TextInput, Toggle } from './kit';
+import { LoyaltyPanel } from './Loyalty';
 
 /** Hash a name to a hue so the same person always gets the same warm-to-cool tint. */
 const hueOf = (name: string) => [...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 7);
@@ -219,6 +221,12 @@ function Profile({ item, detail, sample, currency, canEdit, onNotes, onRemove }:
           <Figure label="Last seen" value={since(item.lastVisitAt)} small />
         </dl>
 
+        {IS_LIVE_API && (
+          <Section title="Points">
+            <LoyaltyPanel customerId={item.id} />
+          </Section>
+        )}
+
         <Section title="Rhythm" hint="Last ten weeks">
           <Tally weeks={item.visitWeeks} className="gap-2 [&>span]:size-3" />
         </Section>
@@ -291,7 +299,7 @@ function Profile({ item, detail, sample, currency, canEdit, onNotes, onRemove }:
 function Figure({ label, value, small }: { label: string; value: string; small?: boolean }) {
   return (
     <div className="px-3 py-3.5 text-center">
-      <dt className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-ink-4">{label}</dt>
+      <dt className="text-[10px] font-semibold uppercase tracking-[0.09em] text-ink-4">{label}</dt>
       <dd className={cx(DISPLAY, 'mt-1 tnum', small ? 'text-[15px] leading-[1.5]' : 'text-[19px]')}>{value}</dd>
     </div>
   );

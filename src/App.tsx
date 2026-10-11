@@ -22,7 +22,9 @@ import { AuditLog } from './routes/admin/AuditLog';
 import { BranchDetail } from './routes/admin/BranchDetail';
 import { Branches } from './routes/admin/Branches';
 import { Categories } from './routes/admin/Categories';
+import { CourierDetail } from './routes/admin/CourierDetail';
 import { Customers } from './routes/admin/Customers';
+import { Delivery } from './routes/admin/Delivery';
 import { Dashboard } from './routes/admin/Dashboard';
 import { DishEditor } from './routes/admin/DishEditor';
 import { MenuBoard } from './routes/admin/MenuBoard';
@@ -166,6 +168,9 @@ export default function App() {
                 <Route path="tables/:tableId" element={<TableDetail />} />
                 <Route path="floors" element={<Floors />} />
                 <Route path="floors/:floorId" element={<FloorDetail />} />
+                <Route path="delivery" element={<Delivery />} />
+                <Route path="delivery/partners/:id" element={<CourierDetail kind="partner" />} />
+                <Route path="delivery/riders/:id" element={<CourierDetail kind="rider" />} />
                 <Route path="customers" element={<Customers />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="payment-modes" element={<PaymentModes />} />

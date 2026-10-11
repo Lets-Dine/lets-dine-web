@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { IS_LIVE_API } from '../../api/http';
 import { INVENTORY_ENABLED } from '../../api/inventory';
 import { listAudit, updateSettings } from '../../api/staff';
 import { ROLE_LABEL, ROLE_SCOPE } from '../../domain/permissions';
@@ -12,6 +13,7 @@ import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../../components/time';
 import { ADMIN_PRIMARY, Field, MoneyInput, PageTitle, Panel, PercentInput, TextArea, TextInput, Toggle, useCommand } from '../../components/admin/kit';
 import { ImageUpload } from '../../components/admin/ImageUpload';
+import { LoyaltySettings } from '../../components/admin/Loyalty';
 import { RestaurantMark } from '../../components/RestaurantMark';
 import { History } from '../../components/icons';
 import { useDashboard } from './AdminLayout';
@@ -166,6 +168,8 @@ export function Settings() {
             </p>
           </Panel>
 
+          {IS_LIVE_API && allows('settings:view') && <LoyaltySettings currency={restaurant.currency} canEdit={canEdit} onSaved={audit.reload} />}
+
           {INVENTORY_ENABLED && (
             <Panel title="Stock" hint={canEdit ? undefined : 'Only an owner can change this'}>
               {planAllowsStockUse ? (
@@ -240,7 +244,7 @@ function ActivityRow({ entry }: { entry: AuditEntry }) {
     <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-hairline px-4 py-2.5 last:border-0 sm:px-5">
       <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-4">{entry.action.replace(/_/g, ' ')}</span>
       <span className="text-[13.5px] font-semibold">{entry.subject}</span>
-      <span className="ml-auto whitespace-nowrap text-[11.5px] text-ink-4">
+      <span className="ml-auto whitespace-nowrap text-[12px] text-ink-4">
         {entry.actorName} · {relativeTime(entry.at)}
       </span>
     </li>

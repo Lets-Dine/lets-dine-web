@@ -235,9 +235,10 @@ export function completePayment(
   method: PaymentMethod,
   discount: number,
   endSession: boolean,
+  redeemPoints = 0,
 ): Promise<Payment> {
   return IS_LIVE_API
-    ? live.completePayment(sessionId, items, method, discount, endSession)
+    ? live.completePayment(sessionId, items, method, discount, endSession, undefined, redeemPoints)
     : mock.completePayment(actor, sessionId, items, method, discount, endSession);
 }
 
@@ -253,9 +254,10 @@ export function completeOrderPayment(
   items: BillLine[],
   method: PaymentMethod,
   discount: number,
+  redeemPoints = 0,
 ): Promise<Payment> {
   return IS_LIVE_API
-    ? live.completePayment(order.sessionId, items, method, discount, false, order.id)
+    ? live.completePayment(order.sessionId, items, method, discount, false, order.id, redeemPoints)
     : mock.completeOrderPayment(actor, order.id, items, method, discount);
 }
 
@@ -291,9 +293,9 @@ export function advanceDeliveryOrder(actor: StaffMember, orderId: string, expect
   return IS_LIVE_API ? live.advanceDeliveryOrder(orderId, expected) : mock.advanceDeliveryOrder(actor, orderId, expected);
 }
 
-/** Delivery's equivalent of settling a table — charges and completes this one order. */
-export function settleDeliveryOrder(actor: StaffMember, orderId: string): Promise<Order> {
-  return IS_LIVE_API ? live.settleDeliveryOrder(orderId) : mock.settleDeliveryOrder(actor, orderId);
+/** Delivery hand-over: `OUT_FOR_DELIVERY -> SETTLE`. Settling the money is `settleDelivery` in `api/delivery.ts`. */
+export function deliverOrder(actor: StaffMember, orderId: string): Promise<Order> {
+  return IS_LIVE_API ? live.deliverOrder(orderId) : mock.deliverOrder(actor, orderId);
 }
 
 /** No-op in mock mode — `AdminLayout.tsx` falls back to its own polling interval when this does nothing. */

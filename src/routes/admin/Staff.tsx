@@ -100,7 +100,7 @@ export function Staff() {
                       </span>
                     )}
                   </span>
-                  <span className="shrink-0 rounded-full bg-surface-2 px-2.5 py-1 text-[11.5px] font-semibold text-ink-3 ring-1 ring-hairline ring-inset">
+                  <span className="shrink-0 rounded-full bg-surface-2 px-2.5 py-1 text-[12px] font-semibold text-ink-3 ring-1 ring-hairline ring-inset">
                     {ROLE_LABEL[member.role]}
                   </span>
                   {pickBranches && canEdit && member.role !== 'OWNER' && member.id !== staff.id && (

@@ -181,7 +181,7 @@ export function Reviews() {
                           {review.dishName}
                         </Link>
                       </div>
-                      <span className="text-[11.5px] text-ink-4">{relativeTime(review.createdAt)}</span>
+                      <span className="text-[12px] text-ink-4">{relativeTime(review.createdAt)}</span>
                     </header>
 
                     {review.comment && <p className="text-[14px] leading-relaxed">{review.comment}</p>}
@@ -189,14 +189,14 @@ export function Reviews() {
                     {review.tags.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {review.tags.map((tag) => (
-                          <span key={tag} className={cx(TAG, TAG_OFF, 'h-6.5 px-2.5 text-[11.5px]')}>
+                          <span key={tag} className={cx(TAG, TAG_OFF, 'h-6.5 px-2.5 text-[12px]')}>
                             {tag}
                           </span>
                         ))}
                       </div>
                     )}
 
-                    <footer className="mt-2.5 flex flex-wrap items-center gap-3 text-[11.5px]">
+                    <footer className="mt-2.5 flex flex-wrap items-center gap-3 text-[12px]">
                       <span className="inline-flex items-center gap-1 rounded-full bg-mint/15 py-1 pl-1.5 pr-2 font-semibold text-mint">
                         <Check size={11} />
                         Verified diner

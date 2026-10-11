@@ -32,8 +32,9 @@ Not a generic QR-ordering system. Core claim: "A traditional menu tells a diner 
 
 ## Capabilities and Constraints
 
+- Delivery is now in scope for restaurants that run it: branch-level riders and delivery partners with money tracked as accounts (fees owed, cash held, settlements) on `/admin/delivery`. Couriers have no login and there is no live tracking.
 - MVP scope: restaurants create/manage menus, create tables/QR codes, receive/manage orders, get basic analytics.
-- Explicit non-goals: social network, marketplace/city-wide discovery, delivery, reservations, loyalty points, complex payments, native apps, AI-generated or anonymous reviews.
+- Explicit non-goals: social network, marketplace/city-wide discovery, reservations, loyalty points, complex payments, native apps, AI-generated or anonymous reviews.
 - This surface is **UI/UX only for now** — no backend/API wiring. It must capture, in the interface, both restaurant basics and a named owner user (name, email, phone number), mirroring the shape of the existing internal `registerRestaurant` flow but as a public, self-serve, multi-step experience rather than an internal key-gated form.
 - Restaurant-side fields are intentionally minimal at sign-up (name + city/location); deeper setup (menu, tables, tax, currency, timezone) happens after signup inside `/admin`, not on this page.
 - Decided build shape (confirmed with user): bold landing-page visual identity carried through the whole flow (not a plain utilitarian form); multi-step wizard (restaurant basics → owner info → confirm); minimal restaurant fields (name + city).

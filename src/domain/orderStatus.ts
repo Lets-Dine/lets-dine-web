@@ -16,17 +16,19 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   PREPARING: 'Preparing',
   READY: 'Ready',
   OUT_FOR_DELIVERY: 'Out for delivery',
+  SETTLE: 'Settle',
   UNPAID: 'Unpaid',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
 };
 
-/** Delivery-only manual transitions — `READY → OUT_FOR_DELIVERY → COMPLETED` — kept separate from
+/** Delivery-only manual transitions — `READY → OUT_FOR_DELIVERY → SETTLE → COMPLETED` — kept separate from
  *  `NEXT_STATUS`/`ADVANCE_LABEL` below (dine-in's one remaining manual step) so neither order type's
  *  buttons can leak onto the other's ticket. */
-export const DELIVERY_ADVANCE_LABEL: Record<'READY' | 'OUT_FOR_DELIVERY', string> = {
+export const DELIVERY_ADVANCE_LABEL: Record<'READY' | 'OUT_FOR_DELIVERY' | 'SETTLE', string> = {
   READY: 'Out for delivery',
   OUT_FOR_DELIVERY: 'Mark delivered',
+  SETTLE: 'Settle',
 };
 
 /** The one remaining manual order-level transition — everything else now follows the items. */
@@ -53,7 +55,7 @@ export function canCancelOrder(order: Pick<Order, 'status' | 'items'>): boolean 
   return order.items.every((i) => i.status === 'PENDING' || i.status === 'CANCELLED');
 }
 
-export const STATUS_ORDER: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'UNPAID', 'COMPLETED'];
+export const STATUS_ORDER: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'SETTLE', 'UNPAID', 'COMPLETED'];
 
 export function statusIndex(status: OrderStatus): number {
   return STATUS_ORDER.indexOf(status);
@@ -84,7 +86,7 @@ export const ITEM_ADVANCE_LABEL: Partial<Record<ItemStatus, string>> = {
 /**
  * A delivery order has no server to hand a plated dish to — the driver takes
  * every line at once, so no single item goes SERVED on its own (mirrors the
- * backend's `OrderItemEntity`). `settleDeliveryOrder` moves every READY item
+ * backend's `OrderItemEntity`). `deliverOrder` moves every READY item
  * to SERVED together once the order itself is marked delivered.
  */
 export function nextItemStatus(status: ItemStatus, orderType: OrderType = 'DINE_IN'): ItemStatus | null {
@@ -184,6 +186,8 @@ export const DINER_STATUS_LABEL: Record<OrderStatus, string> = {
   PREPARING: 'Preparing',
   READY: 'Ready',
   OUT_FOR_DELIVERY: 'Out for delivery',
+  // Settling the courier's money is the restaurant's business; the diner's order has arrived.
+  SETTLE: 'Delivered',
   // Whether the bill has actually been paid is a staff/till concern — a diner who was served
   // every dish has nothing left to track, so this reads identically to `COMPLETED`.
   UNPAID: 'Completed',
@@ -197,6 +201,7 @@ export const DINER_STATUS_HINT: Record<OrderStatus, string> = {
   PREPARING: 'On the grill',
   READY: 'Coming to your table',
   OUT_FOR_DELIVERY: 'On its way to you',
+  SETTLE: 'Enjoy your meal',
   UNPAID: 'Enjoy your meal',
   COMPLETED: 'Enjoy your meal',
   CANCELLED: 'Nothing was sent to the kitchen',
@@ -212,6 +217,8 @@ export function dinerStatusToast(status: OrderStatus): { message: string; icon: 
       return { message: 'Your order is ready', icon: '🔔' };
     case 'OUT_FOR_DELIVERY':
       return { message: 'Your order is on its way', icon: '🛵' };
+    case 'SETTLE':
+      return { message: 'Your order has arrived — enjoy!', icon: '🍽️' };
     case 'UNPAID':
       return { message: 'All served — enjoy!', icon: '🍽️' };
     case 'COMPLETED':
@@ -342,7 +349,8 @@ export function itemFocus(item: OrderItem, order: Pick<Order, 'acceptedAt'>, now
  * spoiling and the second is only late.
  */
 export function orderFocus(order: Order, now: number = Date.now()): Focus | null {
-  if (order.status === 'COMPLETED' || order.status === 'CANCELLED' || order.status === 'UNPAID') return null;
+  // A delivered order awaiting settlement is a money task, not a kitchen one — nothing on the pass to nag about.
+  if (order.status === 'COMPLETED' || order.status === 'CANCELLED' || order.status === 'UNPAID' || order.status === 'SETTLE') return null;
 
   const live = billableItems(order.items);
   const candidates: (Focus | null)[] = [];

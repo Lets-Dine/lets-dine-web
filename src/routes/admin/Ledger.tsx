@@ -186,7 +186,7 @@ export function Ledger() {
           <Loading label="Reading the tape…" />
         ) : (
           <>
-            <div className="hidden grid-cols-[4.5rem_1fr_7rem_7rem_7rem] gap-x-3 px-6 pt-4 pb-2 text-[10.5px] font-bold tracking-[0.1em] text-docket-inksoft uppercase sm:grid">
+            <div className="hidden grid-cols-[4.5rem_1fr_7rem_7rem_7rem] gap-x-3 px-6 pt-4 pb-2 text-[10px] font-bold tracking-[0.1em] text-docket-inksoft uppercase sm:grid">
               <span>Time</span>
               <span>Line</span>
               <span className="text-right">Amount</span>
@@ -411,7 +411,7 @@ function Total({ label, value, active, onClick }: { label: string; value: string
     <>
       <dt className="text-[11px] font-bold tracking-wide text-docket-inksoft uppercase">{label}</dt>
       <dd className="font-display mt-0.5 text-[18px] font-black tnum sm:text-[20px]">{value}</dd>
-      {onClick && <span className="mt-0.5 block text-[11.5px] text-docket-inksoft underline underline-offset-2">See breakdown</span>}
+      {onClick && <span className="mt-0.5 block text-[12px] text-docket-inksoft underline underline-offset-2">See breakdown</span>}
     </>
   );
   if (!onClick) return <div>{body}</div>;
@@ -516,7 +516,7 @@ function FlowDialog({ flow, lines, total, money, onClose }: { flow: Flow; lines:
                   <span className="size-2.5 translate-y-px rounded-[3px]" style={{ background: colorOf(i) }} aria-hidden />
                   <span className="min-w-0 truncate" title={g.name}>
                     {g.name}
-                    <span className="ml-1.5 text-[11.5px] text-ink-4">×{g.count}</span>
+                    <span className="ml-1.5 text-[12px] text-ink-4">×{g.count}</span>
                   </span>
                   <span className="text-right font-semibold tnum">
                     {money(g.total)}
@@ -596,10 +596,10 @@ function TapeLine({
   const opening = e.kind === 'opening';
   const expense = e.kind === 'expense';
   const transfer = e.kind === 'transfer';
-  const removable = expense || e.kind === 'income' || transfer;
+  const removable = (expense || e.kind === 'income' || transfer) && !e.locked;
   // Where the money went — implied for the opening and for a transfer, whose label already says it.
   const via = opening || transfer ? '' : e.method === 'CASH' ? 'Cash' : 'Bank';
-  const detail = [via, opening ? `Drawer ${money(e.cashDelta)} · Bank ${money(e.bankDelta)}` : '', e.detail].filter(Boolean).join(' · ');
+  const detail = [via, opening ? `Drawer ${money(e.cashDelta)} · Bank ${money(e.bankDelta)}` : '', e.detail, e.locked ? 'Delivery settlement' : ''].filter(Boolean).join(' · ');
   return (
     <div className="grid grid-cols-[3.75rem_1fr_auto] items-start gap-x-3 gap-y-0.5 px-6 py-3.5 sm:grid-cols-[4.5rem_1fr_7rem_7rem_7rem] sm:items-baseline">
       <time className="text-[12.5px] font-semibold text-docket-inksoft tnum" dateTime={e.at}>

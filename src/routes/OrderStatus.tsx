@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { cancelOrder } from '../api/client';
-import { cancelOrderItem, getOrder } from '../api/diner';
+import { cancelOrderItem, getOrder, getOrderLoyalty } from '../api/diner';
+import type { OrderLoyalty } from '../api/live';
 import { IS_LIVE_API } from '../api/http';
 import { formatMoney } from '../domain/money';
 import {
@@ -57,6 +58,25 @@ export function OrderStatus() {
   }, [orderId, session.anonymousSessionToken, orders, rememberOrder]);
 
   const order: Order | null = orders.find((o) => o.id === orderId) ?? null;
+
+  // Points are a nicety: read again when the order's status or payment moves, say nothing if it fails, and
+  // never show one order's points on another's page (the page stays mounted between orders).
+  const [loyaltyRead, setLoyaltyRead] = useState<{ orderId: string; data: OrderLoyalty | null } | null>(null);
+  const loyalty = loyaltyRead?.orderId === orderId ? loyaltyRead.data : null;
+  const settled = order?.paidAt ?? null;
+  const orderStatus = order?.status;
+  const orderTotal = order?.total; // moves when a dish is cancelled, which leaves the status as it was
+  useEffect(() => {
+    // Nothing can be earned before an order is served or paid, so the early statuses need no request.
+    if (!orderStatus || orderStatus === 'PENDING' || orderStatus === 'CANCELLED') return;
+    let stale = false;
+    getOrderLoyalty(orderId, session.anonymousSessionToken)
+      .then((data) => !stale && setLoyaltyRead({ orderId, data }))
+      .catch(() => undefined); // a failed read keeps what is on screen
+    return () => {
+      stale = true;
+    };
+  }, [orderId, session.anonymousSessionToken, orderStatus, settled, orderTotal]);
 
   if (error) return <ErrorScreen title="Order not found" message={error.message} />;
 
@@ -116,9 +136,30 @@ export function OrderStatus() {
                 <span className="text-[12.5px] leading-snug text-ink-3">
                   Rate {pendingReviews.length} served {pendingReviews.length === 1 ? 'dish' : 'dishes'} — it takes 20
                   seconds and helps the next diner. No need to wait for the rest of the order.
+                  {loyalty && loyalty.reviewBonus > 0 && <b className="text-flame-1"> Earn {loyalty.reviewBonus} {loyalty.reviewBonus === 1 ? 'point' : 'points'} for rating.</b>}
                 </span>
               </span>
             </Link>
+          )}
+
+          {loyalty && (loyalty.earned > 0 || loyalty.expected > 0 || loyalty.reviewBonusGiven) && !cancelled && (
+            <p role="status" className="mb-4 flex items-center gap-2.5 rounded-2xl bg-surface px-4 py-3 text-[13.5px] ring-1 ring-hairline ring-inset">
+              <Sparkle size={16} className="shrink-0 text-flame-1" aria-hidden />
+              <span>
+                {loyalty.earned > 0 ? (
+                  <>
+                    This bill earned <b className="tnum">{loyalty.earned}</b> {loyalty.earned === 1 ? 'point' : 'points'}.
+                  </>
+                ) : (
+                  loyalty.expected > 0 && (
+                    <>
+                      You'll earn about <b className="tnum">{loyalty.expected}</b> {loyalty.expected === 1 ? 'point' : 'points'} once your bill is paid.
+                    </>
+                  )
+                )}
+                {loyalty.reviewBonusGiven && <span className="text-ink-3"> Thanks for rating your meal.</span>}
+              </span>
+            </p>
           )}
 
           <div className="rounded-3xl bg-surface px-4.5 pb-3 pt-5 ring-1 ring-hairline ring-inset">
@@ -139,6 +180,7 @@ export function OrderStatus() {
                 {order.acceptedAt &&
                   order.status !== 'COMPLETED' &&
                   order.status !== 'UNPAID' &&
+                  order.status !== 'SETTLE' &&
                   order.status !== 'OUT_FOR_DELIVERY' && (
                   <Headline
                     done={false}
@@ -150,7 +192,7 @@ export function OrderStatus() {
                 )}
                 {order.orderType === 'DELIVERY' && order.acceptedAt && (
                   <Headline
-                    done={order.status === 'OUT_FOR_DELIVERY' || order.status === 'COMPLETED'}
+                    done={order.status === 'OUT_FOR_DELIVERY' || order.status === 'SETTLE' || order.status === 'COMPLETED'}
                     active={order.status === 'OUT_FOR_DELIVERY'}
                     label="Out for delivery"
                     hint={DINER_STATUS_HINT.OUT_FOR_DELIVERY}
@@ -158,7 +200,7 @@ export function OrderStatus() {
                   />
                 )}
                 <Headline
-                  done={order.status === 'COMPLETED' || order.status === 'UNPAID'}
+                  done={order.status === 'COMPLETED' || order.status === 'UNPAID' || order.status === 'SETTLE'}
                   active={false}
                   label="Completed"
                   hint={DINER_STATUS_HINT.COMPLETED}
@@ -168,7 +210,7 @@ export function OrderStatus() {
             )}
           </div>
 
-          {!cancelled && order.status !== 'COMPLETED' && order.status !== 'UNPAID' && (
+          {!cancelled && order.status !== 'COMPLETED' && order.status !== 'UNPAID' && order.status !== 'SETTLE' && (
             <p className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-3">
               <Clock size={14} />
               {order.status === 'OUT_FOR_DELIVERY'

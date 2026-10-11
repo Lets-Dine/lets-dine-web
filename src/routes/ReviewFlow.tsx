@@ -75,7 +75,7 @@ export function ReviewFlow() {
   /** Once anything has been served, ratings are open — the rest of the order can keep cooking. */
   const everServed = order ? order.items.some((i) => i.status === 'SERVED') : false;
   const moreToCome = order
-    ? order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && order.status !== 'UNPAID'
+    ? order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && order.status !== 'UNPAID' && order.status !== 'SETTLE'
     : false;
 
   if (error) return <ErrorScreen title="Order not found" message={error.message} />;

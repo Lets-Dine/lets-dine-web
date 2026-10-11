@@ -190,7 +190,7 @@ function StatusBand({ subscription, canManage, now }: { subscription: Subscripti
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="border-hairline px-5 py-3.5 not-first:border-t sm:flex-1 sm:px-6 sm:not-first:border-t-0 sm:not-first:border-l">
-      <dt className="text-[11.5px] font-semibold uppercase tracking-[0.09em] text-ink-4">{label}</dt>
+      <dt className="text-[12px] font-semibold uppercase tracking-[0.09em] text-ink-4">{label}</dt>
       <dd className="mt-0.5 text-[14px] font-semibold tnum">{value}</dd>
     </div>
   );
@@ -445,8 +445,8 @@ function PlanRow({
         <div className="min-w-0 flex-1 basis-56">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[15px] font-semibold">{plan.name}</span>
-            {current && <span className={cx(TAG, TAG_ON, 'h-6 px-2.5 text-[11.5px]')}>Your plan</span>}
-            {queued && <span className={cx(TAG, TAG_ON, 'h-6 px-2.5 text-[11.5px]')}>From {formatDay(subscription.currentPeriodEnd)}</span>}
+            {current && <span className={cx(TAG, TAG_ON, 'h-6 px-2.5 text-[12px]')}>Your plan</span>}
+            {queued && <span className={cx(TAG, TAG_ON, 'h-6 px-2.5 text-[12px]')}>From {formatDay(subscription.currentPeriodEnd)}</span>}
           </div>
           <p className="mt-0.5 text-[12.5px] leading-snug text-ink-3">{planSummary(plan)}</p>
         </div>

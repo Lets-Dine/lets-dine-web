@@ -51,3 +51,55 @@ export async function listCustomers(query: CustomerQuery = {}): Promise<Paginate
 }
 
 export const createCustomer = (input: NewCustomer) => addCustomer(input);
+
+/** What a customer's points are worth and what they may be spent on — live backend only; the offline demo has no points. */
+export interface CustomerLoyalty {
+  customerId: string;
+  balance: number;
+  program: { enabled: boolean; spendPerPoint: number; redeemValue: number; maxRedeemPct: number; reviewBonus: number };
+}
+
+export async function fetchCustomerLoyalty(customerId: string): Promise<CustomerLoyalty | null> {
+  if (!IS_LIVE_API) return null;
+  const res = await apiRequest<{ customer: { id: string }; balance: number; program: CustomerLoyalty['program'] }>(
+    `/restaurant/customers/${encodeURIComponent(customerId)}/loyalty?limit=1`,
+    { headers: authHeaders() },
+  );
+  return { customerId: res.customer.id, balance: res.balance, program: res.program };
+}
+
+export type LoyaltyEntryType = 'EARN' | 'REDEEM' | 'REVIEW_BONUS' | 'ADJUST' | 'EXPIRE' | 'REVERSAL';
+
+export interface LoyaltyEntry {
+  id: string;
+  type: LoyaltyEntryType;
+  /** Signed: spending is negative. */
+  points: number;
+  note: string;
+  createdAt: string;
+  createdByName: string | null;
+}
+
+export type LoyaltyProgram = CustomerLoyalty['program'];
+
+/** A customer's balance, the rules it is spent under, and the latest ledger lines. Live backend only. */
+export async function fetchLoyaltyLedger(customerId: string, limit = 10): Promise<{ balance: number; program: LoyaltyProgram; entries: { rows: LoyaltyEntry[]; count: number } }> {
+  return apiRequest(`/restaurant/customers/${encodeURIComponent(customerId)}/loyalty?limit=${limit}`, { headers: authHeaders() });
+}
+
+/** Gives or takes points by hand. `note` is the only record of why. Refused if it would go below zero. */
+export async function adjustLoyalty(customerId: string, points: number, note: string): Promise<{ balance: number }> {
+  return apiRequest(`/restaurant/customers/${encodeURIComponent(customerId)}/loyalty/adjust`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ points, note }),
+  });
+}
+
+export async function fetchLoyaltyProgram(): Promise<LoyaltyProgram> {
+  return apiRequest<LoyaltyProgram>('/restaurant/loyalty/program', { headers: authHeaders() });
+}
+
+export async function saveLoyaltyProgram(program: LoyaltyProgram): Promise<LoyaltyProgram> {
+  return apiRequest<LoyaltyProgram>('/restaurant/loyalty/program', { method: 'PUT', headers: authHeaders(), body: JSON.stringify(program) });
+}

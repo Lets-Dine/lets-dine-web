@@ -834,6 +834,23 @@ export async function getOrder(orderId: string, sessionToken: string): Promise<O
   return toOrder(order);
 }
 
+/** What an order's bill earned in points, and what rating a dish would add. Never a balance or an identity. */
+export interface OrderLoyalty {
+  earned: number;
+  /** Points on offer for rating a dish; 0 when there is none or it was already given. */
+  reviewBonus: number;
+  reviewBonusGiven: boolean;
+  /** Points the bill should earn once it is paid; 0 when it already has, or would earn none. An estimate. */
+  expected: number;
+}
+
+/** Null when there is nothing to say (the program is off, or no customer is on the order). */
+export async function getOrderLoyalty(orderId: string, sessionToken: string): Promise<OrderLoyalty | null> {
+  return apiRequest<OrderLoyalty | null>(`/orders/${encodeURIComponent(orderId)}/loyalty`, {
+    headers: { [SESSION_TOKEN_HEADER]: sessionToken },
+  });
+}
+
 /** The diner cancelling one not-yet-started dish — the diner's own session token authorises this, never an account. */
 export async function cancelOrderItem(orderId: string, itemId: string, sessionToken: string): Promise<Order> {
   const order = await apiRequest<ApiOrder>(

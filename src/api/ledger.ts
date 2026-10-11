@@ -73,6 +73,8 @@ export interface LedgerEntry {
   label: string;
   /** The table or delivery, or the expense note and who entered it. */
   detail: string;
+  /** Posted by a delivery settlement, so it can't be removed from here. */
+  locked?: boolean;
 }
 
 export const fetchEntries = () => apiRequest<LedgerEntry[]>(`${BASE}/entries`, { headers: authHeaders() });

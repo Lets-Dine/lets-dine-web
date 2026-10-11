@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { isTableOpen } from '../../api/admin';
+import { fetchCustomerLoyalty } from '../../api/customers';
 import { STATUS_LABEL } from '../../domain/orderStatus';
 import type { BillLine, Dish, Order, OrderStatus, PaymentMethod } from '../../domain/types';
 import { formatMoney, percentOf, symbolFor } from '../../domain/money';
 import { can } from '../../domain/permissions';
 import { useStaff } from '../../state/AuthContext';
+import { useAsync } from '../../state/useAsync';
 import { Cash, Check, ChevronLeft, Qr } from '../icons';
 import { DISPLAY, cx } from '../ui';
 import { QrImage } from './QrCard';
@@ -72,7 +74,9 @@ interface DraftLine {
 interface PendingBillChanges {
   items: BillLine[];
   method: PaymentMethod;
+  /** The cashier's own discount only. Points are sent as points, never folded in here: the server prices them. */
   discount: number;
+  redeemPoints: number;
   endSession: boolean;
 }
 
@@ -82,6 +86,9 @@ interface CommittedBill {
   items: BillLine[];
   lines: ReceiptLine[];
   totals: ReceiptTotals;
+  /** The part of `totals.discount` the cashier typed; the rest is points. */
+  manualDiscount: number;
+  redeemPoints: number;
   customerName: string | null;
 }
 
@@ -133,6 +140,10 @@ export function PaymentSheet({
   // A flat minor-unit reduction the cashier can dial in before taking payment — Manager/Owner only.
   const [discount, setDiscount] = useState(0);
   const [discountText, setDiscountText] = useState('0.00');
+  // Points the cashier typed ('' for none). What is actually spent is this, held to what the bill can take.
+  const [pointsText, setPointsText] = useState('');
+  const pointsId = useId();
+
 
   // "Take payment" no longer settles directly — it freezes the bill into `committed` and hands off
   // to a payment-method step. Nothing is charged until cash is confirmed or the QR step resolves.
@@ -141,6 +152,12 @@ export function PaymentSheet({
   const [committed, setCommitted] = useState<CommittedBill | null>(null);
   const [qrPayload, setQrPayload] = useState<string | null>(null);
   const [qrProgress, setQrProgress] = useState(false);
+
+  // The customer the server will spend points for: the most recent order that has one (it reads the session's orders newest first).
+  const customerId = [...orders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).find((o) => o.customerId)?.customerId ?? null;
+  // Points typed for one customer are not another's to spend.
+  useEffect(() => setPointsText(''), [customerId]);
+  const loyalty = useAsync(() => (customerId ? fetchCustomerLoyalty(customerId) : Promise.resolve(null)), [customerId, table?.id, step === 'done']);
 
   // The sheet stays mounted (just hidden) between tables, so its own UI state
   // — the dish picker being expanded, any unsent edits, which step of taking
@@ -153,6 +170,7 @@ export function PaymentSheet({
     setEndSessionOnPay(false);
     setDiscount(0);
     setDiscountText('0.00');
+    setPointsText('');
     setStep('bill');
     setMethod(null);
     setCommitted(null);
@@ -168,9 +186,12 @@ export function PaymentSheet({
     const ok = await onSettle({
       items: committed.items,
       method: chosenMethod === 'cash' ? 'CASH' : 'CARD',
-      discount: committed.totals.discount,
+      discount: committed.manualDiscount,
+      redeemPoints: committed.redeemPoints,
       endSession: true,
     });
+    // A refusal may mean the balance moved: read it again so the next try starts from what is true.
+    if (!ok) loyalty.reload();
     setStep(ok ? 'done' : 'method');
   };
   const finalizeRef = useRef(finalize);
@@ -345,7 +366,18 @@ export function PaymentSheet({
   const subtotal = draftLines.reduce((sum, l) => sum + l.total, 0);
   // Never let a stale discount (typed against a bigger bill, before an item was pulled off) push the subtotal negative.
   const appliedDiscount = canDiscount ? Math.min(discount, subtotal) : 0;
-  const discountedSubtotal = subtotal - appliedDiscount;
+  // Points the customer on this bill can spend: what they hold, or what the restaurant's cap allows if less.
+  // The server decides again; this only shows the cashier what to expect. A failed lookup just hides the row.
+  // `useAsync` keeps the last answer while the next loads or fails, so only trust one that is for this customer.
+  const points = loyalty.data?.customerId === customerId ? loyalty.data : null;
+  const program = points?.program;
+  const maxPoints =
+    points && program?.enabled && program.redeemValue > 0
+      ? Math.max(Math.min(points.balance, Math.floor(Math.floor(((subtotal - appliedDiscount) * program.maxRedeemPct) / 100) / program.redeemValue)), 0)
+      : 0;
+  const redeemPoints = Math.min(Number.parseInt(pointsText, 10) || 0, maxPoints);
+  const pointsDiscount = redeemPoints * (program?.redeemValue ?? 0);
+  const discountedSubtotal = subtotal - appliedDiscount - pointsDiscount;
   const serviceCharge = percentOf(discountedSubtotal, serviceChargeRate);
   const tax = percentOf(discountedSubtotal + serviceCharge, taxRate);
   const total = discountedSubtotal + serviceCharge + tax;
@@ -497,6 +529,12 @@ export function PaymentSheet({
               <span className="tnum">−{formatMoney(appliedDiscount, currency)}</span>
             </div>
           )}
+          {pointsDiscount > 0 && (
+            <div className="flex items-baseline justify-between">
+              <span>{redeemPoints} points</span>
+              <span className="tnum">−{formatMoney(pointsDiscount, currency)}</span>
+            </div>
+          )}
           <div className="flex items-baseline justify-between">
             <span>Service</span>
             <span className="tnum">{formatMoney(serviceCharge, currency)}</span>
@@ -514,7 +552,7 @@ export function PaymentSheet({
         </div>
 
         {canDiscount && hasItems && (
-          <label className="mt-3 flex items-center justify-between gap-3 text-[11.5px] font-semibold text-[oklch(0.463_0.031_74)]">
+          <label className="mt-3 flex items-center justify-between gap-3 text-[12px] font-semibold text-[oklch(0.463_0.031_74)]">
             Discount
             <span className="relative">
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[12px] font-semibold text-[oklch(0.463_0.031_74)]">
@@ -538,6 +576,43 @@ export function PaymentSheet({
           </label>
         )}
 
+        {hasItems && maxPoints > 0 && (
+          <div className="mt-3 flex items-center justify-between gap-3 text-[12px] font-semibold text-[oklch(0.463_0.031_74)]">
+            <label htmlFor={pointsId}>
+              Points
+              <span className="ml-1 font-normal">
+                (up to {maxPoints} · {formatMoney(program?.redeemValue ?? 0, currency)} each)
+              </span>
+            </label>
+            <span className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={busy || redeemPoints === maxPoints}
+                aria-label={`Use the most points, ${maxPoints}`}
+                onClick={() => setPointsText(String(maxPoints))}
+                className="rounded-full px-2.5 py-1.5 text-[11.5px] font-bold text-[oklch(0.539_0.163_36)] disabled:opacity-40"
+              >
+                Max
+              </button>
+              <input
+                id={pointsId}
+                type="text"
+                inputMode="numeric"
+                // Always what is actually spent: the number is held to what the bill can take as it is typed,
+                // and again whenever the bill changes under it.
+                value={pointsText === '' ? '' : String(redeemPoints)}
+                placeholder="0"
+                disabled={busy}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 7);
+                  setPointsText(digits === '' ? '' : String(Math.min(Number.parseInt(digits, 10), maxPoints)));
+                }}
+                className="w-20 rounded-full bg-[oklch(0.879_0.033_85)] px-3 py-1.5 text-right text-[12.5px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none disabled:opacity-40"
+              />
+            </span>
+          </div>
+        )}
+
         <div className="mt-2 grid grid-cols-3 gap-2">
           <button
             type="button"
@@ -559,7 +634,9 @@ export function PaymentSheet({
               setCommitted({
                 items,
                 lines: draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total })),
-                totals: { currency, subtotal, serviceCharge, tax, discount: appliedDiscount, total },
+                totals: { currency, subtotal, serviceCharge, tax, discount: appliedDiscount + pointsDiscount, total },
+                manualDiscount: appliedDiscount,
+                redeemPoints,
                 customerName,
               });
               setPendingAdds([]);
@@ -578,7 +655,7 @@ export function PaymentSheet({
               printReceipt(
                 table,
                 draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total })),
-                { currency, subtotal, serviceCharge, tax, discount: appliedDiscount, total },
+                { currency, subtotal, serviceCharge, tax, discount: appliedDiscount + pointsDiscount, total },
                 { name: restaurantName, vatPanNumber },
                 undefined,
                 customerName,
@@ -673,7 +750,7 @@ export function PaymentSheet({
               <QrImage value={qrPayload} className="w-full h-full" />
             </div>
 
-            <div className="flex items-center gap-2 text-[11.5px] font-semibold text-[oklch(0.463_0.031_74)]">
+            <div className="flex items-center gap-2 text-[12px] font-semibold text-[oklch(0.463_0.031_74)]">
               <span className="size-2 shrink-0 rounded-full bg-[oklch(0.539_0.163_36)] animate-breathe" aria-hidden />
               Waiting for the scan…
             </div>
@@ -689,7 +766,7 @@ export function PaymentSheet({
               type="button"
               disabled={busy}
               onClick={() => void finalize('qr')}
-              className="rounded-full px-5 py-2 text-[11.5px] font-bold tracking-wide text-[oklch(0.539_0.163_36)] uppercase ring-1 ring-[oklch(0.539_0.163_36)]/40 active:translate-y-px disabled:opacity-40"
+              className="rounded-full px-5 py-2 text-[12px] font-bold tracking-wide text-[oklch(0.539_0.163_36)] uppercase ring-1 ring-[oklch(0.539_0.163_36)]/40 active:translate-y-px disabled:opacity-40"
             >
               {busy ? 'Confirming…' : 'Mark as paid now'}
             </button>

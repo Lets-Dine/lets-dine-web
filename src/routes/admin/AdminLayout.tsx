@@ -18,7 +18,7 @@ import { Loading } from '../../components/admin/kit';
 import { RestaurantCard } from '../../components/admin/RestaurantCard';
 import { LockedScreen, PlanChip, SubscriptionBanner } from '../../components/admin/SubscriptionBits';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Box, Building, Cash, ChevronRight, Contact, Eye, Folder, Grid, History, Layers, MapPin, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
+import { Bike, Box, Building, Cash, ChevronRight, Contact, Eye, Folder, Grid, History, Layers, MapPin, Megaphone, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
 import { playNewOrderSound } from '../../platform/sound';
 
 /**
@@ -66,28 +66,32 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/admin', label: 'Dashboard', icon: Grid, permission: 'orders:view', end: true, group: '' },
-  { to: '/admin/orders', label: 'Orders', icon: Receipt, permission: 'orders:view', group: 'Service' },
-  { to: '/admin/tables', label: 'Tables', icon: Table, permission: 'tables:view', group: 'Service' },
-  { to: '/admin/floors', label: 'Floors', icon: Layers, permission: 'tables:view', group: 'Service' },
-  { to: '/admin/customers', label: 'Customers', icon: Contact, permission: 'customers:view', group: 'Service' },
-  { to: '/admin/menu', label: 'Menu', icon: Plate, permission: 'menu:view', group: 'Menu' },
+  { to: '/admin/orders', label: 'Orders', icon: Receipt, permission: 'orders:view', group: '' },
+  { to: '/admin/menu', label: 'Dish', icon: Plate, permission: 'menu:view', group: 'Menu' },
   { to: '/admin/add-ons', label: 'Add-ons', icon: Sparkle, permission: 'menu:edit', group: 'Menu' },
-  { to: '/admin/categories', label: 'Categories', icon: Folder, permission: 'menu:edit', group: 'Menu' },
+  { to: '/admin/categories', label: 'Category', icon: Folder, permission: 'menu:edit', group: 'Menu' },
+  { to: '/admin/tables', label: 'Table', icon: Table, permission: 'tables:view', group: 'Table & spaces' },
+  { to: '/admin/floors', label: 'Floor', icon: Layers, permission: 'tables:view', group: 'Table & spaces' },
   { to: '/admin/inventory', label: 'Stock', icon: Box, permission: 'inventory:view', end: true, liveOnly: true, group: 'Inventory' },
   { to: '/admin/inventory/buy-list', label: 'Buy list', icon: Receipt, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/inventory/watchlist', label: 'Watchlist', icon: Eye, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
-  { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view', group: 'Money' },
-  { to: '/admin/ledger', label: 'Cash book', icon: Cash, permission: 'ledger:view', liveOnly: true, group: 'Money' },
+  { to: '/admin/delivery', label: 'Delivery', icon: Bike, permission: 'settings:view', group: '' },
+  { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view', group: 'Finance' },
+  { to: '/admin/ledger', label: 'Cash book', icon: Cash, permission: 'ledger:view', liveOnly: true, group: 'Finance' },
+  { to: '/admin/customers', label: 'Customers', icon: Contact, permission: 'customers:view', group: '' },
+  { to: '/admin/referrals', label: 'Referrals', icon: Megaphone, permission: 'billing:manage', liveOnly: true, group: '' },
   // { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view', group: 'Insights' },
   // { to: '/admin/analytics', label: 'Analytics', icon: TrendUp, permission: 'analytics:view', group: 'Insights' },
   { to: '/admin/branches', label: 'Branches', icon: MapPin, permission: 'settings:view', liveOnly: true, group: 'Business' },
   { to: '/admin/staff', label: 'Staff', icon: Users, permission: 'settings:view', group: 'Business' },
   { to: '/admin/audit', label: 'Audit log', icon: History, permission: 'audit:view', group: 'Business' },
   { to: '/admin/plan', label: 'Plan', icon: Ticket, permission: 'billing:view', liveOnly: true, group: 'Business' },
-  { to: '/admin/referrals', label: 'Referrals', icon: Building, permission: 'billing:manage', liveOnly: true, group: 'Business' },
   { to: '/admin/payment-modes', label: 'Payment modes', icon: Qr, permission: 'settings:view', liveOnly: true, group: 'Business' },
   { to: '/admin/settings', label: 'Settings', icon: Sliders, permission: 'settings:view', group: 'Business' },
 ];
+
+/** Every section is a top-level entry with an icon of its own; its pages sit beneath it. */
+const GROUP_ICON: Record<string, NavItem['icon']> = { Menu: Plate, 'Table & spaces': Table, Inventory: Box, Finance: Cash, Business: Building };
 
 /** How often the queue re-reads itself. A pass cannot wait a minute for a ticket. */
 const POLL_MS = 8000;
@@ -307,7 +311,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
                   className="max-w-55"
                 />
 
-                <div className="text-[11.5px] text-ink-4">
+                <div className="text-[12px] text-ink-4">
                   {staff.name} · {ROLE_LABEL[staff.role]}
                 </div>
                 <BranchSwitcher className="mt-1.5 max-w-55" />
@@ -376,6 +380,7 @@ function NavGroup({ label, links, pathname, waiting }: { label: string; links: N
   const [toggled, setToggled] = useState<boolean | null>(null);
   const hasActive = links.some((item) => pathname.startsWith(item.to));
   const open = toggled ?? hasActive;
+  const Icon = GROUP_ICON[label];
   return (
     <div>
       <button
@@ -384,6 +389,7 @@ function NavGroup({ label, links, pathname, waiting }: { label: string; links: N
         onClick={() => setToggled(!open)}
         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] font-semibold text-ink-2 transition-colors duration-150 hover:bg-surface/60"
       >
+        {Icon && <Icon size={17} />}
         {label}
         {!open && links.some((item) => item.to === '/admin/orders') && <Badge count={waiting} />}
         <ChevronRight size={13} className={cx('ml-auto text-ink-4 transition-transform duration-150', open && 'rotate-90')} />
@@ -433,7 +439,7 @@ function TabLink({ item, badge, dot = false }: { item: NavItem; badge: number; d
       <item.icon size={15} />
       {item.label}
       {badge > 0 && (
-        <span className="grid h-4.5 min-w-4.5 place-items-center rounded-full bg-bg/35 px-1 text-[10.5px] font-bold tnum">
+        <span className="grid h-4.5 min-w-4.5 place-items-center rounded-full bg-bg/35 px-1 text-[10px] font-bold tnum">
           {badge}
         </span>
       )}

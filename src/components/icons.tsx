@@ -366,3 +366,18 @@ export const Photo = ({ size = 16, className }: IconProps) => (
     <path d="m4 17 5-4.5 3.5 3L16 12l4 4.5" />
   </svg>
 );
+
+export const Bike = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="5.5" cy="16.5" r="3.5" />
+    <circle cx="18.5" cy="16.5" r="3.5" />
+    <path d="M5.5 16.5 9 8.5h6.5l3 8M9 8.5 12 16.5h6.5M8 6h3" />
+  </svg>
+);
+
+export const Handshake = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M3 11.5 8 7l4 2.5L16 7l5 4.5" />
+    <path d="m3 11.5 5 4.5 2 1.8a1.6 1.6 0 0 0 2.2-2.2M13.5 15l1.8 1.6a1.6 1.6 0 0 0 2.2-2.2L13 10.5M21 11.5l-3 2.8" />
+  </svg>
+);

@@ -43,7 +43,7 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
   { value: 'new', label: 'New', statuses: ['PENDING'] },
   { value: 'kitchen', label: 'In the kitchen', statuses: ['ACCEPTED', 'PREPARING'] },
   // Covers a delivery ticket already dispatched too, or it would fall out of every lane once it leaves READY.
-  { value: 'ready', label: 'Ready', statuses: ['READY', 'OUT_FOR_DELIVERY'] },
+  { value: 'ready', label: 'Ready', statuses: ['READY', 'OUT_FOR_DELIVERY', 'SETTLE'] },
 ];
 
 /**
@@ -355,7 +355,7 @@ export function Dashboard() {
           const order = payingOrder;
           return run(
             order.id,
-            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount),
+            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints),
             `${order.reference} paid up`,
           ).then((ok) => {
             if (ok) reloadOrders();

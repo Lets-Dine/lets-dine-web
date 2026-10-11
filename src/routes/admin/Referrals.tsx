@@ -81,7 +81,7 @@ function InviteLink({ code, invited, rewarded }: { code: string; invited: number
 function Count({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[11.5px] font-semibold uppercase tracking-[0.09em] text-ink-4">{label}</dt>
+      <dt className="text-[12px] font-semibold uppercase tracking-[0.09em] text-ink-4">{label}</dt>
       <dd className="mt-0.5 text-[22px] font-semibold tnum">{value}</dd>
     </div>
   );

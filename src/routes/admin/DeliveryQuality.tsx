@@ -110,7 +110,7 @@ function LotList({ rows }: { rows: LotQuality[] }) {
               Delivered {day(lot.receivedAt)}
               {lot.supplier ? ` · ${lot.supplier}` : ' · opening stock or no supplier named'}
             </span>
-            <span className={cx('rounded-md px-2 py-0.5 text-[11.5px] font-bold', lot.flagged ? 'bg-berry/14 text-berry-ink' : 'bg-docket-line/70 text-docket-inksoft')}>
+            <span className={cx('rounded-md px-2 py-0.5 text-[12px] font-bold', lot.flagged ? 'bg-berry/14 text-berry-ink' : 'bg-docket-line/70 text-docket-inksoft')}>
               {lot.flagged ? 'Worse than usual' : lot.reviewCount < 4 ? 'Too few reviews' : 'Normal'}
             </span>
           </div>

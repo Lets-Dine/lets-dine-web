@@ -73,6 +73,8 @@ const CATEGORY_OF: Record<AuditAction, Exclude<Category, 'all'>> = {
   order_item_cancelled: 'orders',
   table_settled: 'orders',
   payment_completed: 'orders',
+  loyalty_adjusted: 'settings',
+  loyalty_program_updated: 'settings',
   settings_updated: 'settings',
   staff_invited: 'settings',
   staff_role_changed: 'settings',
@@ -137,6 +139,8 @@ const ACTION_TONE: Record<AuditAction, string> = {
   order_item_cancelled: 'text-berry',
   table_settled: 'text-mint',
   payment_completed: 'text-mint',
+  loyalty_adjusted: 'text-gold',
+  loyalty_program_updated: 'text-ink-3',
   settings_updated: 'text-flame-1',
   staff_invited: 'text-mint',
   staff_role_changed: 'text-gold',
@@ -361,7 +365,7 @@ export function AuditLog() {
         <div className={cx('mb-4', DOCKET_CARD)}>
           {/* ── The roll's own header — the same document a reprint would show. ── */}
           <div className="px-6 pt-7 pb-5 text-center">
-            <p className="text-[10.5px] font-bold tracking-[0.24em] text-docket-inksoft uppercase">Restaurant dashboard</p>
+            <p className="text-[10px] font-bold tracking-[0.24em] text-docket-inksoft uppercase">Restaurant dashboard</p>
             <h2 className="font-display mt-1 text-[26px] font-black tracking-tight">Audit ledger</h2>
             <p className="mt-1 text-[12px] text-docket-inksoft">
               {filtering
@@ -429,14 +433,14 @@ function AuditStub({ entry }: { entry: AuditEntry }) {
       <span className={cx('mt-1.5 size-2.5 shrink-0 rounded-full', tone.replace('text-', 'bg-'))} aria-hidden />
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className={cx('text-[10.5px] font-bold uppercase tracking-[0.08em]', tone)}>{entry.action.replace(/_/g, ' ')}</span>
+          <span className={cx('text-[10px] font-bold uppercase tracking-[0.08em]', tone)}>{entry.action.replace(/_/g, ' ')}</span>
           <b className="text-[13.5px] font-bold">{entry.subject}</b>
         </span>
         <span className="mt-0.5 block text-[12.5px] leading-snug text-docket-inksoft">{entry.detail}</span>
       </span>
       <span className="shrink-0 text-right">
         <div className="text-[12.5px] font-bold">{entry.actorName}</div>
-        <div className="mt-0.5 text-[10.5px] text-docket-inksoft tnum" title={new Date(entry.at).toLocaleString()}>
+        <div className="mt-0.5 text-[10px] text-docket-inksoft tnum" title={new Date(entry.at).toLocaleString()}>
           {relativeTime(entry.at)}
         </div>
       </span>

@@ -1142,11 +1142,12 @@ export async function completePayment(
   discount: number,
   endSession: boolean,
   orderId?: string,
+  redeemPoints?: number,
 ): Promise<Payment> {
   const payment = await apiRequest<ApiPayment>('/restaurant/payments', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ sessionId, orderId, items, method, discount, endSession }),
+    body: JSON.stringify({ sessionId, orderId, items, method, discount, endSession, redeemPoints: redeemPoints || undefined }),
   });
   return toPayment(payment);
 }
@@ -1219,11 +1220,24 @@ export async function advanceDeliveryOrder(orderId: string, expected: 'READY'): 
   return toOrder(order);
 }
 
-/** Delivery's equivalent of settling a table — one order's own bill, charged the moment it's handed over. */
-export async function settleDeliveryOrder(orderId: string): Promise<Order> {
-  const order = await apiRequest<ApiOrder>(`/restaurant/orders/${encodeURIComponent(orderId)}/settle-delivery`, {
+/** Delivery hand-over: `OUT_FOR_DELIVERY -> SETTLE`. The courier has delivered; the money is settled next. */
+export async function deliverOrder(orderId: string): Promise<Order> {
+  const order = await apiRequest<ApiOrder>(`/restaurant/orders/${encodeURIComponent(orderId)}/deliver`, {
     method: 'POST',
     headers: authHeaders(),
+  });
+  return toOrder(order);
+}
+
+/**
+ * Settles a delivered order, in one step on the server: books the payment, takes the courier's cash, pays their fee
+ * now or leaves it owed, posts it all to the cash book and completes the order.
+ */
+export async function settleDeliveryOrder(orderId: string, input: { payFee: boolean; feeMethod: 'CASH' | 'BANK' }): Promise<Order> {
+  const order = await apiRequest<ApiOrder>(`/restaurant/delivery/orders/${encodeURIComponent(orderId)}/settle`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(input),
   });
   return toOrder(order);
 }

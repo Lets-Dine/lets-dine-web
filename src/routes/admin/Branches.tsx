@@ -127,7 +127,7 @@ function Chip({ children, tone = 'plain' }: { children: string; tone?: 'plain' |
   return (
     <span
       className={cx(
-        'shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-semibold ring-1 ring-inset',
+        'shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold ring-1 ring-inset',
         tone === 'warn' ? 'bg-berry/10 text-berry ring-berry/25' : 'bg-surface-2 text-ink-3 ring-hairline',
       )}
     >

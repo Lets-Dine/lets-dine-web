@@ -105,6 +105,11 @@ export function getOrder(orderId: string, sessionToken: string): Promise<Order> 
   return IS_LIVE_API ? live.getOrder(orderId, sessionToken) : mock.getOrder(orderId);
 }
 
+/** Points the order's bill earned, for the status page. The offline demo has no points. */
+export function getOrderLoyalty(orderId: string, sessionToken: string): Promise<live.OrderLoyalty | null> {
+  return IS_LIVE_API ? live.getOrderLoyalty(orderId, sessionToken) : Promise.resolve(null);
+}
+
 /** The diner cancelling a single not-yet-started dish. `sessionToken` is only used live. */
 export function cancelOrderItem(orderId: string, itemId: string, sessionToken: string): Promise<Order> {
   return IS_LIVE_API ? live.cancelOrderItem(orderId, itemId, sessionToken) : mock.cancelOrderItem(orderId, itemId);

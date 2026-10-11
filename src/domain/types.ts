@@ -7,6 +7,8 @@ export type OrderStatus =
   | 'PREPARING'
   | 'READY'
   | 'OUT_FOR_DELIVERY'
+  /** Delivery only: handed over, the money not yet settled with the courier. Settling takes the payment. */
+  | 'SETTLE'
   /** §16b, floor orders only: every live item is served but nobody has paid yet — see `Order.paidAt`. */
   | 'UNPAID'
   | 'COMPLETED'
@@ -473,7 +475,9 @@ export type AuditAction =
   | 'staff_branches_changed'
   | 'ledger_reopened'
   | 'stock_taken'
-  | 'stock_transferred';
+  | 'stock_transferred'
+  | 'loyalty_adjusted'
+  | 'loyalty_program_updated';
 
 export type CustomerSegment = 'new' | 'regular' | 'lapsed' | 'occasional';
 

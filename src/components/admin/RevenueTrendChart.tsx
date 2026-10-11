@@ -223,7 +223,7 @@ function Chart({ trend, currency }: { trend: RevenueTrend; currency: string }) {
       </div>
 
       <div className="mt-5 flex gap-2.5 sm:gap-3">
-        <div className="relative h-52 w-9 shrink-0 text-[11.5px] tnum text-ink-4 sm:w-10" aria-hidden>
+        <div className="relative h-52 w-9 shrink-0 text-[12px] tnum text-ink-4 sm:w-10" aria-hidden>
           {ticks.map((t, i) => (
             <span key={t} className="absolute right-0 -translate-y-1/2 leading-none" style={{ top: `${(i / GRID_LINES) * 100}%` }}>
               {compact(t)}

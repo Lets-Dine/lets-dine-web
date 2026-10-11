@@ -251,7 +251,7 @@ function RevenueChart({ series, currency }: { series: { day: number; label: stri
           />
         ))}
       </div>
-      <div className="mt-2 flex justify-between text-[11.5px] text-ink-4">
+      <div className="mt-2 flex justify-between text-[12px] text-ink-4">
         <span>{series[0]?.label}</span>
         <span className="tnum">peak {formatMoney(peak, currency)}</span>
         <span>{today?.label} (today)</span>
@@ -283,7 +283,7 @@ function HourChart({ hours }: { hours: number[] }) {
           );
         })}
       </div>
-      <div className="mt-2 flex justify-between text-[11.5px] text-ink-4">
+      <div className="mt-2 flex justify-between text-[12px] text-ink-4">
         <span>8am</span>
         <span className="font-semibold text-ink-3">busiest {busiest}:00</span>
         <span>11pm</span>

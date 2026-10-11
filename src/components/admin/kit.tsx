@@ -189,7 +189,7 @@ export function Perforation({ label, thick = false }: { label?: string; thick?: 
   return (
     <div className="relative my-1 flex items-center px-6">
       <div className="h-0 flex-1 border-t border-dashed border-docket-line" />
-      <span className="shrink-0 px-3 text-[10.5px] font-bold tracking-[0.14em] text-docket-inksoft uppercase">{label}</span>
+      <span className="shrink-0 px-3 text-[10px] font-bold tracking-[0.14em] text-docket-inksoft uppercase">{label}</span>
       <div className="h-0 flex-1 border-t border-dashed border-docket-line" />
     </div>
   );
@@ -204,7 +204,7 @@ export function LedgerStat({ label, value, sub }: { label: string; value: string
     <div className="px-3 py-4 text-center">
       <div className="text-[10px] font-bold tracking-[0.1em] text-docket-inksoft uppercase">{label}</div>
       <div className="font-display mt-1 text-[18px] font-black tnum">{value}</div>
-      {sub && <div className="mt-0.5 text-[10.5px] text-docket-inksoft">{sub}</div>}
+      {sub && <div className="mt-0.5 text-[10px] text-docket-inksoft">{sub}</div>}
     </div>
   );
 }
@@ -288,6 +288,7 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
   PREPARING: 'bg-pass/16 text-pass',
   READY: 'bg-mint/16 text-mint-ink',
   OUT_FOR_DELIVERY: 'bg-mint/16 text-mint-ink',
+  SETTLE: 'bg-flame-2/18 text-flame-1',
   UNPAID: 'bg-flame-2/18 text-flame-1',
   COMPLETED: 'bg-ink/8 text-ink-3',
   CANCELLED: 'bg-berry/14 text-berry-ink',
@@ -297,7 +298,7 @@ export function StatusPill({ status, label }: { status: OrderStatus; label: stri
   return (
     <span
       className={cx(
-        'inline-flex h-6 items-center rounded-full px-2.5 text-[11.5px] font-bold uppercase tracking-[0.06em]',
+        'inline-flex h-6 items-center rounded-full px-2.5 text-[12px] font-bold uppercase tracking-[0.06em]',
         STATUS_STYLE[status],
       )}
     >

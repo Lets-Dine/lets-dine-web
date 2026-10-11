@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getSessionPayment } from '../api/diner';
+import { getOrderLoyalty, getSessionPayment } from '../api/diner';
+import type { OrderLoyalty } from '../api/live';
 import { formatMoney } from '../domain/money';
 import { DINER_STATUS_LABEL, needsReview } from '../domain/orderStatus';
 import type { OrderStatus, Payment } from '../domain/types';
@@ -26,6 +27,7 @@ const STATUS_TONE: Record<OrderStatus, string> = {
   PREPARING: 'bg-flame-2/14 text-flame-1',
   READY: 'bg-gold/16 text-gold',
   OUT_FOR_DELIVERY: 'bg-gold/16 text-gold',
+  SETTLE: 'bg-mint/14 text-mint',
   UNPAID: 'bg-mint/14 text-mint',
   COMPLETED: 'bg-mint/14 text-mint',
   CANCELLED: 'bg-berry/13 text-[#ff90a4]',
@@ -42,6 +44,22 @@ export function OrderHistory() {
   useEffect(() => {
     void getSessionPayment(session).then(setPayment);
   }, [session]);
+
+  // What the settled bill earned. A table's bill is found by visit, so any of its orders will do; a failed
+  // read just leaves the line out. Keyed by order so an old answer is never shown for another.
+  const newestOrderId = orders[0]?.id;
+  const [earned, setEarned] = useState<{ orderId: string; data: OrderLoyalty | null } | null>(null);
+  useEffect(() => {
+    if (!newestOrderId) return;
+    let stale = false;
+    getOrderLoyalty(newestOrderId, session.anonymousSessionToken)
+      .then((data) => !stale && setEarned({ orderId: newestOrderId, data }))
+      .catch(() => undefined);
+    return () => {
+      stale = true;
+    };
+  }, [payment?.id, newestOrderId, session.anonymousSessionToken]);
+  const points = earned?.orderId === newestOrderId ? earned.data : null;
 
   return (
     <main className={SHELL}>
@@ -67,7 +85,18 @@ export function OrderHistory() {
                 Includes a {formatMoney(payment.discount, payment.currency)} discount.
               </p>
             )}
+            {points && points.earned > 0 && (
+              <p role="status" className="text-[12.5px] font-semibold text-mint">
+                You earned {points.earned} {points.earned === 1 ? 'point' : 'points'} on this bill.
+              </p>
+            )}
           </div>
+        )}
+
+        {!payment && points && points.expected > 0 && (
+          <p role="status" className="rounded-2xl bg-surface px-4 py-3 text-[13px] ring-1 ring-hairline ring-inset">
+            You'll earn about <b className="tnum">{points.expected}</b> {points.expected === 1 ? 'point' : 'points'} once your bill is paid.
+          </p>
         )}
 
         {!ready ? (

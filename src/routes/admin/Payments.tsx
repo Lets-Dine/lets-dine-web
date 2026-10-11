@@ -204,7 +204,7 @@ export function Payments() {
         <div className={cx('mb-4', DOCKET_CARD)}>
           {/* ── The roll's own header — the same document a reprint would show. ── */}
           <div className="px-6 pt-7 pb-5 text-center">
-            <p className="text-[10.5px] font-bold tracking-[0.24em] text-docket-inksoft uppercase">{menu.restaurant.name}</p>
+            <p className="text-[10px] font-bold tracking-[0.24em] text-docket-inksoft uppercase">{menu.restaurant.name}</p>
             <h2 className="font-display mt-1 text-[26px] font-black tracking-tight">Till ledger</h2>
             <p className="mt-1 text-[12px] text-docket-inksoft">
               {filtering
@@ -317,9 +317,9 @@ function PaymentStub({ payment, tableName, onOpen }: { payment: Payment; tableNa
       <span className="shrink-0 text-right">
         <div className="font-display text-[16px] font-black tnum">{formatMoney(payment.total, payment.currency)}</div>
         {payment.discount > 0 ? (
-          <div className="mt-0.5 text-[10.5px] text-docket-inksoft">−{formatMoney(payment.discount, payment.currency)} off</div>
+          <div className="mt-0.5 text-[10px] text-docket-inksoft">−{formatMoney(payment.discount, payment.currency)} off</div>
         ) : (
-          <div className="mt-0.5 text-[10.5px] text-docket-inksoft">{relativeTime(payment.createdAt)}</div>
+          <div className="mt-0.5 text-[10px] text-docket-inksoft">{relativeTime(payment.createdAt)}</div>
         )}
       </span>
       <ChevronRight size={16} className="shrink-0 text-docket-inksoft/60 transition-transform group-hover:translate-x-0.5" />
@@ -353,7 +353,7 @@ function PaymentDetail({
       >
         <div className="flex items-start justify-between px-6 pt-6">
           <div>
-            <p className="text-[10.5px] font-bold tracking-[0.2em] text-docket-inksoft uppercase">Receipt</p>
+            <p className="text-[10px] font-bold tracking-[0.2em] text-docket-inksoft uppercase">Receipt</p>
             <h2 className="font-display mt-0.5 text-[26px] font-black tracking-tight">{tableName}</h2>
             <p className="mt-0.5 text-[12px] text-docket-inksoft">{new Date(payment.createdAt).toLocaleString()}</p>
           </div>

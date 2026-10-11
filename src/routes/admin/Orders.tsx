@@ -39,8 +39,9 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
   { value: 'kitchen', label: 'In the kitchen', statuses: ['ACCEPTED', 'PREPARING'] },
   // Covers a delivery ticket already dispatched too, or it would fall out of every lane once it leaves READY.
   { value: 'ready', label: 'Ready to serve', statuses: ['READY', 'OUT_FOR_DELIVERY'] },
-  // Dine-in only — every dish is out, the table just hasn't paid yet (`TableDetail`/`FloorDetail`).
-  { value: 'unpaid', label: 'Awaiting payment', statuses: ['UNPAID'] },
+  // Every dish is out and the money isn't in yet: a dine-in table that hasn't paid (`TableDetail`/`FloorDetail`), or a
+  // delivery that has arrived and is waiting to be settled with its courier.
+  { value: 'unpaid', label: 'Awaiting payment', statuses: ['UNPAID', 'SETTLE'] },
   { value: 'done', label: 'Finished', statuses: ['COMPLETED', 'CANCELLED'] },
 ];
 
@@ -110,7 +111,7 @@ export function Orders() {
               .filter((o) => flags.has(o.id))
               .slice(0, 4)
               .map((o) => (
-                <span key={o.id} className="rounded-md bg-berry/15 px-1.5 py-0.5 text-[11.5px] font-bold tnum text-berry-ink">
+                <span key={o.id} className="rounded-md bg-berry/15 px-1.5 py-0.5 text-[12px] font-bold tnum text-berry-ink">
                   {o.reference}
                 </span>
               ))}
@@ -179,7 +180,7 @@ export function Orders() {
           const order = payingOrder;
           return run(
             order.id,
-            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount),
+            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints),
             `${order.reference} paid up`,
           ).then((ok) => {
             if (ok) reloadOrders();

@@ -238,7 +238,7 @@ function Stamp({ tone, children }: { tone: 'pick' | 'off'; children: React.React
   return (
     <span
       className={cx(
-        'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9.5px] font-bold tracking-wide uppercase',
+        'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase',
         tone === 'pick' ? 'border-docket-ink/35 text-docket-ink/85' : 'border-docket-berry/45 text-docket-berry',
       )}
     >

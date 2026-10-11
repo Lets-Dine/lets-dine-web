@@ -132,7 +132,7 @@ function Outcome({ result, currency, onAgain }: { result: StockTakeResult[]; cur
                   Expected {formatQty(r.expected, r.unit)} · counted {formatQty(r.counted, r.unit)}
                 </span>
               </span>
-              <span className={cx('rounded-md px-2 py-0.5 text-[11.5px] font-bold', r.difference < 0 ? 'bg-berry/14 text-berry-ink' : 'bg-mint/14 text-mint-ink')}>
+              <span className={cx('rounded-md px-2 py-0.5 text-[12px] font-bold', r.difference < 0 ? 'bg-berry/14 text-berry-ink' : 'bg-mint/14 text-mint-ink')}>
                 {r.difference < 0 ? 'Missing' : 'Extra'}
               </span>
               <span className="w-28 text-right text-[16px] font-bold tnum">

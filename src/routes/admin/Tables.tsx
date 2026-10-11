@@ -271,7 +271,7 @@ export function Tables() {
           const sessionId = billTable.currentSessionId;
           return run(
             billTable.id,
-            () => completePayment(staff, sessionId, changes.items, changes.method, changes.discount, changes.endSession),
+            () => completePayment(staff, sessionId, changes.items, changes.method, changes.discount, changes.endSession, changes.redeemPoints),
             changes.endSession ? `${billTable.name} paid up and cleared` : `${billTable.name} paid up`,
           ).then((ok) => {
             if (ok) {

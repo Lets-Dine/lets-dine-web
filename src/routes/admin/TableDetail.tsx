@@ -478,7 +478,7 @@ export function TableDetail() {
           const currentSessionId = table.currentSessionId;
           return run(
             table.id,
-            () => completePayment(staff, currentSessionId, changes.items, changes.method, changes.discount, changes.endSession),
+            () => completePayment(staff, currentSessionId, changes.items, changes.method, changes.discount, changes.endSession, changes.redeemPoints),
             changes.endSession ? `${table.name} paid up and cleared` : `${table.name} paid up`,
           ).then((ok) => {
             if (ok) {

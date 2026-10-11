@@ -179,7 +179,7 @@ function PlanHead({ plan, interval, isCurrent, showMoney }: { plan: Plan; interv
 function Group({ label, span }: { label: string; span: number }) {
   return (
     <tr>
-      <th scope="colgroup" colSpan={span} className="sticky left-0 border-t border-hairline px-4 pb-1.5 pt-5 text-left text-[11.5px] font-semibold uppercase tracking-[0.09em] text-ink-4 sm:px-5">
+      <th scope="colgroup" colSpan={span} className="sticky left-0 border-t border-hairline px-4 pb-1.5 pt-5 text-left text-[12px] font-semibold uppercase tracking-[0.09em] text-ink-4 sm:px-5">
         {label}
       </th>
     </tr>

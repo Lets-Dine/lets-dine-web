@@ -468,10 +468,39 @@ export async function advanceDeliveryOrder(actor: StaffMember, orderId: string, 
 }
 
 /**
- * Delivery's equivalent of settling a table — there's no tab to batch, just
- * this one order's own bill, charged the moment it's handed over. Same
- * "status is the payment state" rule as dine-in, just per-order instead of
- * per-table (§ `settleTable`).
+ * Delivery hand-over: the courier has delivered, so the ticket waits at `SETTLE` — the money is settled next
+ * (`settleDeliveryOrder`). Nothing is charged yet: a delivery is not a sale until the money is in.
+ */
+export async function deliverOrder(actor: StaffMember, orderId: string): Promise<Order> {
+  authorize(actor, 'orders:advance');
+  await latency();
+  const store = seedQueue(readStore());
+  const order = store.orders.find((o) => o.id === orderId);
+  if (!order) throw new ApiError(404, 'That order is no longer on the queue.');
+  if (order.orderType !== 'DELIVERY') throw new ApiError(409, 'Only a delivery order can be marked delivered.');
+  if (order.status !== 'OUT_FOR_DELIVERY')
+    throw new ApiError(409, `${order.reference} must be out for delivery before it can be marked delivered.`);
+
+  const now = new Date().toISOString();
+  // The driver takes every plated line at once — no item goes SERVED on its own
+  // for a delivery order (see `nextItemStatus`), so this is where they catch up.
+  const items = order.items.map((i) => (i.status === 'READY' ? { ...i, status: 'SERVED' as ItemStatus, statusUpdatedAt: now } : i));
+  const updated: Order = { ...order, items, status: 'SETTLE', updatedAt: now };
+  writeStore(
+    record(
+      { ...store, orders: store.orders.map((o) => (o.id === orderId ? updated : o)) },
+      actor,
+      'order_status_changed',
+      `Order ${order.reference}`,
+      `${STATUS_LABEL[order.status]} → ${STATUS_LABEL[updated.status]}`,
+    ),
+  );
+  return updated;
+}
+
+/**
+ * Settles a delivered order: its own bill is charged now, as a payment, and the ticket completes. (The courier's
+ * cash and fee are the delivery book's side of it — `settleDelivery` in `api/delivery.ts` composes both.)
  */
 export async function settleDeliveryOrder(actor: StaffMember, orderId: string, method: PaymentMethod = 'CASH'): Promise<Order> {
   authorize(actor, 'orders:advance');
@@ -480,14 +509,10 @@ export async function settleDeliveryOrder(actor: StaffMember, orderId: string, m
   const order = store.orders.find((o) => o.id === orderId);
   if (!order) throw new ApiError(404, 'That order is no longer on the queue.');
   if (order.orderType !== 'DELIVERY') throw new ApiError(409, 'Only a delivery order can be settled this way.');
-  if (order.status !== 'OUT_FOR_DELIVERY')
-    throw new ApiError(409, `${order.reference} must be out for delivery before it can be marked delivered.`);
+  if (order.status !== 'SETTLE') throw new ApiError(409, `${order.reference} isn't waiting to be settled. Mark it delivered first.`);
 
   const now = new Date().toISOString();
-  // The driver takes every plated line at once — no item goes SERVED on its own
-  // for a delivery order (see `nextItemStatus`), so this is where they catch up.
-  const items = order.items.map((i) => (i.status === 'READY' ? { ...i, status: 'SERVED' as ItemStatus, statusUpdatedAt: now } : i));
-  const updated: Order = { ...order, items, status: 'COMPLETED', paidAt: now, updatedAt: now, completedAt: now };
+  const updated: Order = { ...order, status: 'COMPLETED', paidAt: now, updatedAt: now, completedAt: now };
   const restaurant = restaurantOf(store);
   const payment: Payment = {
     id: uid('pay'),
@@ -514,7 +539,7 @@ export async function settleDeliveryOrder(actor: StaffMember, orderId: string, m
       actor,
       'payment_completed',
       `Order ${order.reference}`,
-      `Delivered — charged ${formatMoney(payment.total, restaurant.currency)} via ${method.toLowerCase()}`,
+      `Settled — charged ${formatMoney(payment.total, restaurant.currency)} via ${method.toLowerCase()}`,
     ),
   );
   return updated;
