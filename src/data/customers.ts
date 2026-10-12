@@ -8,6 +8,25 @@ import type { CustomerListItem, Minor } from '../domain/types';
  * the screen only ever talks to these functions.
  */
 
+/** One line of a customer's running tab. Append-only: a payment never edits a charge, it sits beside it. */
+export interface TabEntry {
+  id: string;
+  daysAgo: number;
+  kind: 'CHARGE' | 'PAYMENT';
+  amount: Minor;
+  note: string;
+}
+
+/** An order of theirs the kitchen has not finished with yet. */
+export interface PendingOrder {
+  id: string;
+  table: string;
+  status: 'PENDING' | 'ACCEPTED' | 'PREPARING' | 'READY';
+  minsAgo: number;
+  total: Minor;
+  items: string[];
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -23,9 +42,15 @@ export interface Customer {
   spend: Minor;
   favourites: string[];
   joinedDaysAgo: number;
+  /** Bills put on their account, and what they have paid back. */
+  tab: TabEntry[];
+  pending: PendingOrder | null;
 }
 
 export const DIETARY_TAGS = ['Vegetarian', 'No spice', 'Extra spicy', 'No onion/garlic', 'Nut allergy', 'Birthday guest'];
+
+/** What they owe: charges minus payments. Never negative from the UI — settling is capped at the balance. */
+export const tabBalance = (c: Customer): Minor => c.tab.reduce((sum, e) => sum + (e.kind === 'CHARGE' ? e.amount : -e.amount), 0);
 
 export const lastVisit = (c: Customer): number | null => (c.visitDaysAgo.length ? Math.min(...c.visitDaysAgo) : null);
 
@@ -82,6 +107,8 @@ export const SAMPLE_DETAIL: Customer = {
   spend: 0,
   favourites: ['Veg Fry Momo', 'Paneer Butter Masala', 'Kalo Dal Tadka'],
   joinedDaysAgo: 0,
+  tab: [],
+  pending: null,
 };
 
 /** "3 weeks ago" from a timestamp. */
@@ -93,7 +120,7 @@ export const since = (iso: string | null) => {
 const rs = (n: number): Minor => n * 100;
 
 // SAMPLE DATA — invented for the demo, not real people.
-const SEED: Customer[] = [
+const BASE: Omit<Customer, 'tab' | 'pending'>[] = [
   { id: 'c1', name: 'Anita Gurung', phone: '9841 234 567', email: 'anita.g@example.com', birthday: '1992-11-14', tags: ['Vegetarian'], notes: 'Always asks for the corner table by the window. Brings her mother on Saturdays.', offersOk: true, visitDaysAgo: [2, 9, 16, 23, 30, 37, 44, 52, 60, 66, 79, 93], spend: rs(41280), favourites: ['Veg Fry Momo', 'Paneer Butter Masala', 'Kalo Dal Tadka'], joinedDaysAgo: 210 },
   { id: 'c2', name: 'Bikash Shrestha', phone: '9803 118 902', email: '', birthday: '', tags: ['Extra spicy'], notes: 'Orders by phone for the office, usually 6–8 people.', offersOk: true, visitDaysAgo: [1, 5, 8, 12, 19, 26, 33, 41, 55], spend: rs(63950), favourites: ['Chilli Momo', 'Chicken Sekuwa', 'Peri Peri Wings'], joinedDaysAgo: 160 },
   { id: 'c3', name: 'Sushila Tamang', phone: '9860 551 440', email: 'sushila.t@example.com', birthday: '1988-03-02', tags: [], notes: '', offersOk: false, visitDaysAgo: [4, 18, 40], spend: rs(9420), favourites: ['Chicken Thukpa'], joinedDaysAgo: 120 },
@@ -107,6 +134,20 @@ const SEED: Customer[] = [
   { id: 'c11', name: 'Kabita Basnet', phone: '9861 445 190', email: 'kabita.b@example.com', birthday: '1995-05-17', tags: ['No spice'], notes: 'Prefers takeaway packed separately — sauces on the side.', offersOk: true, visitDaysAgo: [20, 100, 140, 165], spend: rs(8890), favourites: ['Crispy Calamari'], joinedDaysAgo: 330 },
   { id: 'c12', name: 'Hari Bhandari', phone: '9845 120 336', email: 'hari.b@example.com', birthday: '1970-02-08', tags: [], notes: 'Regular lunch hour, alone, quick service.', offersOk: true, visitDaysAgo: [1, 3, 6, 8, 10, 13, 15, 20, 22, 27, 31, 34], spend: rs(27300), favourites: ['Chicken Fried Rice', 'Chicken Chowmein'], joinedDaysAgo: 190 },
 ];
+
+const tab = (id: string, daysAgo: number, kind: TabEntry['kind'], amount: number, note: string): TabEntry => ({ id, daysAgo, kind, amount: rs(amount), note });
+// SAMPLE tabs and in-flight orders, keyed by customer id.
+const EXTRA: Record<string, Partial<Pick<Customer, 'tab' | 'pending'>>> = {
+  c1: { tab: [tab('t1', 41, 'CHARGE', 2400, 'Saturday lunch, 4 people'), tab('t2', 27, 'PAYMENT', 1000, 'Paid by cash'), tab('t3', 16, 'CHARGE', 1860, 'Birthday dinner'), tab('t4', 2, 'CHARGE', 980, 'Dinner for two')] },
+  c2: {
+    tab: [tab('t1', 33, 'CHARGE', 6400, 'Office lunch, 8 people'), tab('t2', 19, 'CHARGE', 5200, 'Office lunch, 6 people'), tab('t3', 12, 'PAYMENT', 8000, 'Paid by cash'), tab('t4', 5, 'CHARGE', 4650, 'Office lunch, 7 people')],
+    pending: { id: 'o1', table: 'Table 6', status: 'PREPARING', minsAgo: 14, total: rs(3180), items: ['Chilli Momo ×3', 'Chicken Sekuwa ×2', 'Peri Peri Wings'] },
+  },
+  c4: { tab: [tab('t1', 20, 'CHARGE', 1200, 'Thakali set ×3'), tab('t2', 6, 'PAYMENT', 1200, 'Paid by card')] },
+  c7: { pending: { id: 'o2', table: 'Table 2', status: 'READY', minsAgo: 31, total: rs(2240), items: ['Mutton Sekuwa', 'Chicken Fried Rice'] } },
+  c12: { tab: [tab('t1', 8, 'CHARGE', 640, 'Lunch'), tab('t2', 1, 'CHARGE', 520, 'Lunch')], pending: { id: 'o3', table: 'Table 1', status: 'ACCEPTED', minsAgo: 3, total: rs(380), items: ['Chicken Chowmein'] } },
+};
+const SEED: Customer[] = BASE.map((c) => ({ tab: [], pending: null, ...EXTRA[c.id], ...c }));
 
 let store: Customer[] = SEED;
 
@@ -125,15 +166,46 @@ export function addCustomer(input: NewCustomer): Customer {
     spend: 0,
     favourites: [],
     joinedDaysAgo: 0,
+    tab: [],
+    pending: null,
   };
   store = [created, ...store];
   return created;
 }
 
-export function updateCustomerNotes(id: string, notes: string): void {
-  store = store.map((c) => (c.id === id ? { ...c, notes } : c));
+export const updateCustomerNotes = (id: string, notes: string) => updateCustomer(id, { notes });
+
+/** Edits a profile — a stored sample customer, or the sample profile shown for a live one. */
+export function updateCustomer(id: string, patch: Partial<NewCustomer>): void {
+  const next = { ...profileOf(id), ...patch };
+  if (getCustomer(id)) store = store.map((c) => (c.id === id ? next : c));
+  else demo.set(id, next);
 }
 
 export function removeCustomer(id: string): void {
   store = store.filter((c) => c.id !== id);
+}
+
+/**
+ * Live customers have no stored profile or tab yet, so the page shows a sample one — remembered per
+ * id so a settled payment sticks while the page is open. Invented; replace with the tab endpoint.
+ */
+const demo = new Map<string, Customer>();
+export function profileOf(id: string): Customer {
+  const known = getCustomer(id) ?? demo.get(id);
+  if (known) return known;
+  const made: Customer = { ...SAMPLE_DETAIL, id, tab: [tab('d1', 24, 'CHARGE', 3200, 'Dinner, 5 people'), tab('d2', 9, 'PAYMENT', 1500, 'Paid by cash'), tab('d3', 3, 'CHARGE', 1240, 'Lunch for two')], pending: { id: 'dp', table: 'Table 4', status: 'PREPARING', minsAgo: 9, total: rs(1420), items: ['Veg Fry Momo ×2', 'Paneer Butter Masala'] } };
+  demo.set(id, made);
+  return made;
+}
+
+/** Records a payment against their tab. Refuses nothing-to-pay, zero and over-payment so the balance can never go below zero. */
+export function settleTab(id: string, amount: Minor, method: 'Cash' | 'Card', note: string): boolean {
+  const c = profileOf(id);
+  if ( !Number.isInteger(amount) || amount <= 0 || amount > tabBalance(c)) return false;
+  const entry: TabEntry = { id: `t${Date.now()}`, daysAgo: 0, kind: 'PAYMENT', amount, note: note.trim() ? `Paid by ${method.toLowerCase()} — ${note.trim()}` : `Paid by ${method.toLowerCase()}` };
+  const next = { ...c, tab: [...c.tab, entry] };
+  if (getCustomer(id)) store = store.map((x) => (x.id === id ? next : x));
+  else demo.set(id, next);
+  return true;
 }

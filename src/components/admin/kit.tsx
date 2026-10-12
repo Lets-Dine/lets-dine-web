@@ -338,16 +338,18 @@ export function TextInput({
   type = 'text',
   autoFocus,
   list,
+  disabled,
 }: {
   value: string;
   onChange: (next: string) => void;
   className?: string;
   placeholder?: string;
   maxLength?: number;
-  type?: 'text' | 'email' | 'password';
+  type?: 'text' | 'email' | 'password' | 'tel';
   autoFocus?: boolean;
   /** Id of a `<datalist>` offering suggestions. */
   list?: string;
+  disabled?: boolean;
 }) {
   return (
     <input
@@ -358,6 +360,7 @@ export function TextInput({
       maxLength={maxLength}
       autoFocus={autoFocus}
       list={list}
+      disabled={disabled}
       onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
     />
   );
@@ -369,15 +372,18 @@ export function TextArea({
   rows = 3,
   maxLength,
   placeholder,
+  'aria-label': ariaLabel,
 }: {
   value: string;
   onChange: (next: string) => void;
   rows?: number;
   maxLength?: number;
   placeholder?: string;
+  'aria-label'?: string;
 }) {
   return (
     <textarea
+      aria-label={ariaLabel}
       className={cx(INPUT_BOX, 'resize-y leading-relaxed')}
       value={value}
       rows={rows}
@@ -437,6 +443,7 @@ export function MoneyInput({
           setText(next);
           const parsed = Number.parseFloat(next);
           if (Number.isFinite(parsed)) onChange(Math.round(parsed * 100));
+          else if (next === '') onChange(0);
         }}
         onBlur={() => setText(value ? (value / 100).toFixed(2) : '')}
       />

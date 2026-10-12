@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createDish,
@@ -20,7 +20,7 @@ import { planAllowsAutoStock } from '../../domain/subscription';
 import { useSubscription } from '../../state/SubscriptionContext';
 import { RecipePanel } from '../../components/admin/RecipePanel';
 import { formatMoney } from '../../domain/money';
-import type { DietaryType, DishVariant } from '../../domain/types';
+import type { DietaryType, Dish, DishVariant, MenuCategory } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { DietMarks, DishImage } from '../../components/Bits';
 import { ImageUpload } from '../../components/admin/ImageUpload';
@@ -30,22 +30,141 @@ import {
   ADMIN_GHOST,
   ADMIN_PRIMARY,
   ADMIN_TINY,
-  CollapsiblePanel,
+  CollapsiblePanel as KitCollapsiblePanel,
   Confirm,
   Field,
   Metric,
   MoneyInput,
-  PageTitle,
-  Panel,
+  Panel as KitPanel,
   Select,
   TextArea,
   TextInput,
   Toggle,
   useCommand,
 } from '../../components/admin/kit';
-import { Check, Plus, X } from '../../components/icons';
-import { cx } from '../../components/ui';
+import { Check, ChevronLeft, Plus, X } from '../../components/icons';
+import { FloatingBar, Num, TiltCard, useAway, useCountUp } from '../../components/admin/profile';
+import { DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
+
+/** The form's panels, in the profile pages' softer, rounder material. */
+const SOFT = 'rounded-3xl bg-surface text-ink animate-rise';
+const Panel = (p: ComponentProps<typeof KitPanel>) => <KitPanel {...p} className={cx(SOFT, p.className)} />;
+const CollapsiblePanel = (p: ComponentProps<typeof KitCollapsiblePanel>) => <KitCollapsiblePanel {...p} className={cx(SOFT, p.className)} />;
+
+/** The dish as a diner will meet it: a card that previews what is typed, and the headline numbers beside it. */
+function DishHero({
+  draft,
+  existing,
+  isNew,
+  category,
+  currency,
+  fromPrice,
+  canSave,
+  busy,
+  onSave,
+}: {
+  draft: DishDraft;
+  existing: Dish | null;
+  isNew: boolean;
+  category: MenuCategory | null;
+  currency: string;
+  /** The cheapest variant, when the dish is priced per variant. */
+  fromPrice: number | null;
+  canSave: boolean;
+  busy: boolean;
+  onSave: () => void;
+}) {
+  const heroRef = useRef<HTMLElement>(null);
+  const away = useAway(heroRef);
+  const stats = existing?.stats;
+  const rated = !!stats && stats.ratingCount > 0;
+  const rating = useCountUp(Math.round((stats?.avgRating ?? 0) * 100), 1300);
+  const reviews = useCountUp(stats?.ratingCount ?? 0);
+  const orders = useCountUp(stats?.orders30d ?? 0);
+  const price = useCountUp(fromPrice ?? draft.price, 500);
+  const hue = [...(category?.name ?? draft.name)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 40);
+  const name = draft.name.trim() || (isNew ? 'New dish' : existing!.name);
+  const state = existing?.isArchived ? 'Archived' : isNew ? 'Draft' : draft.isAvailable ? 'On the menu' : 'Sold out';
+  const hasPhoto = !!draft.imageUrl;
+  const trend = stats && stats.ordersPrev30d > 0 ? Math.round(((stats.orders30d - stats.ordersPrev30d) / stats.ordersPrev30d) * 100) : null;
+
+  return (
+    <>
+      <FloatingBar show={away}>
+        <span className="truncate text-[14px] font-semibold">{name}</span>
+        <span className="shrink-0 text-[12.5px] text-ink-3">{state}</span>
+        {canSave ? (
+          <button type="button" disabled={busy} onClick={onSave} className="inline-flex h-8 items-center rounded-full bg-flame px-3.5 text-[13px] font-semibold text-white disabled:opacity-50">
+            {busy ? 'Saving…' : isNew ? 'Add to menu' : 'Save'}
+          </button>
+        ) : (
+          <Link to="/admin/menu" className="inline-flex h-8 items-center rounded-full bg-surface-2 px-3.5 text-[13px] font-semibold ring-1 ring-hairline ring-inset">
+            Menu
+          </Link>
+        )}
+      </FloatingBar>
+
+      <Link to="/admin/menu" className="mb-4 inline-flex items-center gap-1 text-[13px] font-semibold text-ink-3 hover:text-ink">
+        <ChevronLeft size={15} /> Menu
+      </Link>
+
+      <section ref={heroRef} className="grid items-center gap-8 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-14">
+        <TiltCard hue={hue}>
+          {hasPhoto && (
+            <>
+              <DishImage dish={{ imageUrl: draft.imageUrl, name }} className="absolute inset-0 size-full rounded-none" monogram="text-6xl" eager />
+              <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/25" />
+            </>
+          )}
+          {!hasPhoto && (
+            <span aria-hidden className="absolute -bottom-10 -right-2 select-none font-display text-[200px] font-black leading-none opacity-[0.14]">
+              {name[0]}
+            </span>
+          )}
+          <div className={cx('relative flex h-full flex-col justify-between', hasPhoto && 'text-white')}>
+            <div className="flex items-start justify-between gap-3 text-[12px] font-bold uppercase tracking-[0.12em]">
+              <span className="truncate opacity-80">
+                {category ? `${category.emoji} ${category.name}` : 'No category'}
+              </span>
+              <span className="shrink-0 opacity-90">{state}</span>
+            </div>
+            <div>
+              <p className={cx(DISPLAY, 'text-[clamp(24px,7vw,30px)] leading-[1.05]')}>{name}</p>
+              <p className="mt-2 flex items-baseline justify-between gap-3 tnum">
+                <span className="text-[22px] font-bold">
+                  {fromPrice !== null && <span className="mr-1 text-[12px] font-semibold uppercase tracking-[0.1em] opacity-80">from</span>}
+                  {formatMoney(price, currency)}
+                </span>
+                {rated && <span className="text-[14px] font-semibold opacity-90">{(rating / 100).toFixed(1)} ★</span>}
+              </p>
+            </div>
+          </div>
+        </TiltCard>
+
+        <div className="min-w-0">
+          <h1 className={cx(DISPLAY, 'animate-rise wrap-break-word text-[clamp(38px,6.4vw,70px)] leading-[0.98] tracking-[-0.03em]')}>{name}</h1>
+          <p className="mt-5 max-w-[34ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:80ms] sm:max-w-[40ch]">
+            {isNew ? (
+              <>Diners see this card on the menu as soon as it is saved and available.</>
+            ) : rated ? (
+              <>
+                <Num>{(rating / 100).toFixed(2)} ★</Num> from <Num>{reviews}</Num> {reviews === 1 ? 'diner' : 'diners'}
+                {stats.recommendRate !== null ? <>, and <Num>{Math.round(stats.recommendRate * 100)}%</Num> would order it again</> : null}.{' '}
+                <Num>{orders}</Num> orders in the last 30 days{trend !== null ? <> — {trend >= 0 ? 'up' : 'down'} <Num>{Math.abs(trend)}%</Num></> : null}.
+              </>
+            ) : (
+              <>
+                No ratings yet. <Num>{orders}</Num> orders in the last 30 days; the diner menu invites the first rating rather than inventing a score.
+              </>
+            )}
+          </p>
+          <p className="mt-4 text-[13.5px] text-ink-3">{isNew ? 'The card on the left previews what you type.' : 'Editing a live menu item. Ratings come from diners and are never editable.'}</p>
+        </div>
+      </section>
+    </>
+  );
+}
 
 /**
  * One dish, everything about it. Creating and editing are the same form —
@@ -177,17 +296,19 @@ export function DishEditor() {
 
   return (
     <>
-      <PageTitle
-        title={isNew ? 'New dish' : existing!.name}
-        subtitle={isNew ? 'It appears on the diner menu as soon as it is saved and available.' : 'Editing a live menu item'}
-        action={
-          <Link to="/admin/menu" className={ADMIN_GHOST}>
-            Back to menu
-          </Link>
-        }
+      <DishHero
+        draft={draft}
+        existing={existing ?? null}
+        isNew={isNew}
+        category={menu.categories.find((c) => c.id === draft.categoryId) ?? null}
+        currency={menu.restaurant.currency}
+        fromPrice={variantCount > 0 ? Math.min(...(isNew ? stagedVariants.map((v) => v.price) : liveVariants.map((v) => v.price))) : null}
+        canSave={canEdit && dirty && draft.name.trim().length >= 2}
+        busy={busy}
+        onSave={save}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
+      <div className="mt-8 grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
         <div className="grid gap-2">
           <Panel title="Details">
             <div className="grid gap-4">

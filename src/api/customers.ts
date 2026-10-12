@@ -50,22 +50,38 @@ export async function listCustomers(query: CustomerQuery = {}): Promise<Paginate
   return { rows: rows.slice(offset, offset + limit), count: rows.length };
 }
 
+/**
+ * One customer's list row. The live backend has no get-by-id yet, so page through the list until
+ * they turn up (ponytail: swap for GET /restaurant/customers/:id when it exists).
+ */
+export async function fetchCustomer(id: string): Promise<CustomerListItem | null> {
+  for (let offset = 0, count = 1; offset < count && offset < 500; offset += 100) {
+    const page = await listCustomers({ offset, limit: 100 });
+    count = page.count;
+    const hit = page.rows.find((r) => r.id === id);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 export const createCustomer = (input: NewCustomer) => addCustomer(input);
 
 /** What a customer's points are worth and what they may be spent on — live backend only; the offline demo has no points. */
 export interface CustomerLoyalty {
   customerId: string;
+  /** Who the balance belongs to — lets a bill name its customer when its orders only carry an id. */
+  name: string;
   balance: number;
   program: { enabled: boolean; spendPerPoint: number; redeemValue: number; maxRedeemPct: number; reviewBonus: number };
 }
 
 export async function fetchCustomerLoyalty(customerId: string): Promise<CustomerLoyalty | null> {
   if (!IS_LIVE_API) return null;
-  const res = await apiRequest<{ customer: { id: string }; balance: number; program: CustomerLoyalty['program'] }>(
+  const res = await apiRequest<{ customer: { id: string; name: string }; balance: number; program: CustomerLoyalty['program'] }>(
     `/restaurant/customers/${encodeURIComponent(customerId)}/loyalty?limit=1`,
     { headers: authHeaders() },
   );
-  return { customerId: res.customer.id, balance: res.balance, program: res.program };
+  return { customerId: res.customer.id, name: res.customer.name, balance: res.balance, program: res.program };
 }
 
 export type LoyaltyEntryType = 'EARN' | 'REDEEM' | 'REVIEW_BONUS' | 'ADJUST' | 'EXPIRE' | 'REVERSAL';

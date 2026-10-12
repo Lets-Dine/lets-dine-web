@@ -5,7 +5,7 @@ import { ApiError } from '../../api/store';
 import { branchKeyOf, fetchCourierDetail, fetchCourierStatement, savePartner, saveRider, setCourierActive } from '../../api/delivery';
 import type { PartnerDraft, RiderDraft } from '../../api/delivery';
 import { formatMoney } from '../../domain/money';
-import { partnerTerms, riderStatus, riderTerms, feesToPay } from '../../domain/delivery';
+import { partnerTerms, riderTerms, feesToPay } from '../../domain/delivery';
 import type { Account, DeliveryAssignment, DeliveryPartner, Rider, RiderListing, StatementLine, StatementPage } from '../../domain/delivery';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useToast } from '../../state/ToastContext';
@@ -22,8 +22,10 @@ import {
   partnerDraftOf,
   riderDraftOf,
 } from '../../components/admin/delivery';
-import { Bike, Cash, ChevronLeft, ChevronRight, Handshake, Receipt, X } from '../../components/icons';
-import { cx } from '../../components/ui';
+import { Bike, Cash, ChevronLeft, ChevronRight, Contact, Handshake, Receipt, Sliders, X } from '../../components/icons';
+import { hueOf } from '../../components/admin/CustomerSheet';
+import { Block, FloatingBar, Num, TiltCard, useAway, useCountUp } from '../../components/admin/profile';
+import { DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
 /**
@@ -79,6 +81,13 @@ function CourierPage({ kind, id }: { kind: 'partner' | 'rider'; id: string }) {
     </Link>
   );
 
+  const hue = hueOf(subject?.name ?? '');
+  const heroRef = useRef<HTMLElement>(null);
+  const away = useAway(heroRef);
+  const netShown = useCountUp(balance && account ? Math.abs(balance.net) : 0, 1300);
+  const heldShown = useCountUp(balance && account ? Math.max(balance.cashHeld, 0) : 0);
+  const feesShown = useCountUp(balance && account ? Math.max(balance.feesOwed, 0) : 0);
+
   if (!data || !subject)
     return (
       <>
@@ -102,95 +111,201 @@ function CourierPage({ kind, id }: { kind: 'partner' | 'rider'; id: string }) {
 
   const money = (m: number) => formatMoney(m, currency);
   const open = data.openRuns;
-
   const owed = balance && account ? feesToPay(balance) : null;
+  const role = partner ? 'Delivery partner' : 'Rider';
+  const phone = (partner ?? rider!).phone;
   const tabs = [
     { key: 'statement', label: account ? 'Statement' : 'Deliveries' },
     { key: 'road', label: `On the road${open.length ? ` (${open.length})` : ''}` },
     ...(partner && data.riders.length > 0 ? [{ key: 'riders', label: `Riders (${data.riders.length})` }] : []),
   ];
   const active = tabs.some((t) => t.key === tab) ? tab : 'statement';
-  const cards = [
-    ...(balance && account
-      ? [
-          { icon: <Handshake size={16} />, label: 'Cash held', value: money(Math.max(balance.cashHeld, 0)), tint: 'bg-gold/15 text-gold-ink' },
-          { icon: <Receipt size={16} />, label: 'Fees owed', value: money(Math.max(balance.feesOwed, 0)), tint: 'bg-mint/15 text-mint-ink' },
-          { icon: <Cash size={16} />, label: balance.net < 0 ? 'You owe them' : balance.net > 0 ? 'They owe you' : 'Net', value: money(Math.abs(balance.net)), tint: 'bg-berry/10 text-berry-ink' },
-        ]
-      : []),
-    { icon: <Bike size={16} />, label: 'On the road', value: String(open.length), tint: 'bg-surface-2 text-ink-3' },
-  ];
+  const netLabel = !balance || !account ? '' : balance.net < 0 ? 'You owe them' : balance.net > 0 ? 'They owe you' : 'All square';
+  const status = !subject.isActive ? (rider ? 'Off duty' : 'Paused') : open.length > 0 ? `${open.length} on the road` : rider ? 'Available' : 'Active';
+  const facts: [string, ReactNode][] = partner
+    ? [['Charges', partnerTerms(partner, money)], ['Phone', partner.phone], ['Contact', partner.contactPerson], ['Cash', partner.collectsCash ? 'Collects' : 'Does not collect'], ['Added', new Date(partner.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })]]
+    : [
+        ['Pay', rider!.partnerId ? 'Via partner' : riderTerms(rider!, money)],
+        ['Phone', rider!.phone],
+        ['Vehicle', rider!.vehicle],
+        ['Rides for', rider!.partnerId ? (parent ? <Link to={`/admin/delivery/partners/${parent.id}`} className="underline underline-offset-2">{parent.name}</Link> : 'A partner') : 'The branch'],
+        ['Added', new Date(rider!.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })],
+      ];
+  const note = partner ? partner.note : rider!.note;
+  const dutyLabel = subject.isActive ? (partner ? 'Pause' : 'Off duty') : partner ? 'Resume' : 'On duty';
 
   return (
-    <>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Link to="/admin/delivery" aria-label="Back to delivery" className={cx(ADMIN_GHOST, '!px-2.5')}>
-          <ChevronLeft size={16} />
-        </Link>
-        <h1 className="min-w-0 flex-1 truncate font-display text-[24px] font-semibold tracking-tight sm:text-[28px]">
-          {partner ? 'Partner' : 'Rider'}: {subject.name}
-        </h1>
-        {canManage && (
-          <div className="flex flex-wrap gap-2 max-sm:w-full [&>button]:max-sm:flex-1">
-            {owed !== null && balance && (
-              <button type="button" className={ADMIN_PRIMARY} onClick={() => setSettling(true)}>
+    <div className="mx-auto max-w-6xl">
+      <FloatingBar show={away}>
+        <span className="truncate text-[14px] font-semibold">{subject.name}</span>
+        <span className="shrink-0 text-[12.5px] text-ink-3">{status}</span>
+        {canManage && owed !== null ? (
+          <button type="button" tabIndex={away ? 0 : -1} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-flame px-3.5 text-[13px] font-semibold text-white" onClick={() => setSettling(true)}>
+            <Receipt size={14} /> Pay {money(owed)}
+          </button>
+        ) : (
+          <a href={`tel:${phone.replace(/\s/g, '')}`} tabIndex={away ? 0 : -1} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-flame px-3.5 text-[13px] font-semibold text-white">
+            <Contact size={14} /> Call
+          </a>
+        )}
+      </FloatingBar>
+
+      {back}
+
+      {/* Identity: a card you can pick up, and who they are in plain, high-contrast type beside it. */}
+      <section ref={heroRef} className="grid items-center gap-8 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-14">
+        <TiltCard hue={hue}>
+          <span aria-hidden className="absolute -bottom-10 -right-2 select-none font-display text-[200px] font-black leading-none opacity-[0.14]">
+            {subject.name[0]}
+          </span>
+          <div className="relative flex h-full flex-col justify-between">
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-[12px] font-bold uppercase tracking-[0.16em] opacity-70">{role}</span>
+              <span className="text-[12px] font-bold uppercase tracking-[0.06em] opacity-80">{status}</span>
+            </div>
+            {balance && account ? (
+              <div>
+                <p className={cx(DISPLAY, 'text-[clamp(40px,12vw,52px)] leading-none tracking-[-0.03em] tnum')}>{money(netShown)}</p>
+                <p className="mt-1 text-[12px] font-bold uppercase tracking-[0.16em] opacity-70">{netLabel}</p>
+              </div>
+            ) : (
+              <p className="text-[15px] font-semibold opacity-80">{rider?.partnerId ? `Rides for ${parent?.name ?? 'a partner'}` : 'Delivers for the branch'}</p>
+            )}
+            <div>
+              <p className={cx(DISPLAY, 'truncate text-[22px] leading-none')}>{subject.name}</p>
+              <p className="mt-2 flex items-center justify-between gap-3 text-[13px] font-semibold tnum opacity-80">
+                <span className="truncate">{phone}</span>
+                <span className="shrink-0">{partner ? partnerTerms(partner, money) : rider!.partnerId ? 'Via partner' : riderTerms(rider!, money)}</span>
+              </p>
+            </div>
+          </div>
+        </TiltCard>
+
+        <div className="min-w-0">
+          <h1 className={cx(DISPLAY, 'animate-rise wrap-break-word text-[clamp(38px,6.4vw,70px)] leading-[0.98] tracking-[-0.03em]')}>{subject.name}</h1>
+          <p className="mt-5 max-w-[32ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:80ms] sm:max-w-[38ch]">
+            {balance && account ? (
+              <>
+                Holds <Num>{money(heldShown)}</Num> of your cash and is owed <Num>{money(feesShown)}</Num> in fees
+                {open.length > 0 ? <>, with <Num>{open.length}</Num> on the road now</> : null}.
+              </>
+            ) : (
+              <>{rider?.partnerId ? `Rides for ${parent?.name ?? 'a partner'}; their cash and fees settle on the partner's account.` : 'No account of their own yet.'}{open.length > 0 ? <> <Num>{open.length}</Num> on the road now.</> : null}</>
+            )}
+          </p>
+          {note && <p className="mt-3 max-w-[48ch] text-[14.5px] text-ink-3">{note}</p>}
+          <div className="mt-6 flex animate-rise flex-wrap gap-2.5 [animation-delay:160ms]">
+            {canManage && owed !== null && balance && (
+              <button type="button" className={cx(ADMIN_PRIMARY, 'h-11 px-5 text-[14.5px]')} onClick={() => setSettling(true)}>
                 <Receipt size={16} /> Pay {money(owed)}
               </button>
             )}
-            <button type="button" className={ADMIN_GHOST} disabled={duty.busy} onClick={toggleDuty}>
-              {subject.isActive ? (partner ? 'Pause' : 'Off duty') : partner ? 'Resume' : 'On duty'}
-            </button>
-            <button type="button" className={ADMIN_GHOST} onClick={() => setEditing(true)}>
-              Edit
+            <a href={`tel:${phone.replace(/\s/g, '')}`} className={cx(ADMIN_GHOST, 'h-11 px-5 text-[14.5px]')}>
+              <Contact size={16} /> Call
+            </a>
+            {canManage && (
+              <>
+                <button type="button" className={cx(ADMIN_GHOST, 'h-11 px-5 text-[14.5px]')} disabled={duty.busy} onClick={toggleDuty}>
+                  {dutyLabel}
+                </button>
+                <button type="button" className={cx(ADMIN_GHOST, 'h-11 px-5 text-[14.5px]')} onClick={() => setEditing(true)}>
+                  <Sliders size={16} /> Edit
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {open.length > 0 && (
+        <section aria-label="On the road" className="mt-10 animate-rise rounded-[28px] bg-flame-2/12 p-5 ring-1 ring-flame-2/40 ring-inset [animation-delay:200ms] sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="flex items-center gap-2 text-[13px] font-semibold text-flame-1">
+              <span className="size-2 rounded-full bg-flame-2 motion-safe:animate-pulse" /> {open.length} on the road right now
+            </p>
+            <button type="button" className={cx(ADMIN_GHOST, 'h-9')} onClick={() => setTab('road')}>
+              See them
             </button>
           </div>
-        )}
-      </div>
+          <ul className="mt-3 grid gap-1.5 text-[15px] text-ink-2 sm:grid-cols-2">
+            {open.slice(0, 4).map((run) => (
+              <li key={run.id} className="flex items-baseline justify-between gap-3">
+                <span className="truncate">
+                  <span className="font-semibold text-ink tnum">{run.orderRef}</span> · {run.customerName}
+                </span>
+                <span className="shrink-0 text-[12.5px] text-ink-3 tnum">sent {clockTime(run.assignedAt)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-      <IdentityCard partner={partner} rider={rider} parent={parent} money={money} open={open.length} />
       {editing && (
         <EditModal branchId={branchId} currency={currency} partner={partner} rider={rider} partners={data.partners} onClose={() => setEditing(false)} onSaved={reload} />
       )}
 
-      <section className="mt-4 rounded-2xl border border-hairline p-3 sm:p-4">
-        <h2 className="mb-3 px-1 text-[15px] font-semibold tracking-tight">Summary</h2>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {cards.map((c) => (
-            <div key={c.label} className="rounded-xl border border-hairline p-3.5">
-              <div className="flex items-center gap-2.5 text-[13.5px] font-semibold">
-                <span aria-hidden className={cx('grid size-8 place-items-center rounded-lg', c.tint)}>{c.icon}</span>
-                {c.label}
-              </div>
-              <p className="mt-3 font-display text-[20px] font-semibold tnum">{c.value}</p>
-            </div>
-          ))}
+      <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+        <div className="grid content-start gap-6 lg:col-start-2 lg:row-start-1">
+          {balance && account && (
+            <Block title="Balance" hint={netLabel} delay={260}>
+              <dl className="grid gap-3">
+                <BalanceRow icon={<Handshake size={16} />} label="Cash held" value={money(Math.max(balance.cashHeld, 0))} tint="bg-gold/15 text-gold-ink" />
+                <BalanceRow icon={<Receipt size={16} />} label="Fees owed" value={money(Math.max(balance.feesOwed, 0))} tint="bg-mint/15 text-mint-ink" />
+                <BalanceRow icon={<Cash size={16} />} label={netLabel} value={money(Math.abs(balance.net))} tint="bg-berry/10 text-berry-ink" strong />
+              </dl>
+            </Block>
+          )}
+          <Block title="Details" delay={320}>
+            <dl className="grid gap-2.5 text-[14px]">
+              {facts.map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-4">
+                  <dt className="text-ink-3">{k}</dt>
+                  <dd className="min-w-0 truncate text-right font-medium">{v || '—'}</dd>
+                </div>
+              ))}
+            </dl>
+          </Block>
         </div>
-      </section>
 
-      <div role="tablist" className="mt-4 mb-3 inline-flex max-w-full gap-1 overflow-x-auto rounded-xl bg-surface-2 p-1">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={active === t.key}
-            onClick={() => setTab(t.key)}
-            className={cx('shrink-0 rounded-lg px-3.5 py-1.5 text-[13.5px] font-semibold transition-colors', active === t.key ? 'bg-berry text-white' : 'text-ink-3 hover:text-ink')}
-          >
-            {t.label}
-          </button>
-        ))}
+        <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+          <div role="tablist" className="mb-3 inline-flex max-w-full gap-1 overflow-x-auto rounded-full bg-surface-2 p-1 ring-1 ring-hairline ring-inset">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={active === t.key}
+                onClick={() => setTab(t.key)}
+                className={cx('shrink-0 rounded-full px-4 py-1.5 text-[13.5px] font-semibold transition-colors', active === t.key ? 'bg-flame text-white' : 'text-ink-3 hover:text-ink')}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {active === 'statement' && <Statement account={account} statement={statement} viaPartner={!account} money={money} />}
+          {active === 'road' &&
+            (open.length > 0 ? <OnTheRoad runs={open} money={money} /> : <Panel><Empty title="Nothing on the road" message="Orders you send out with them show up here until they are delivered." /></Panel>)}
+          {active === 'riders' && partner && <PartnerRiders riders={data.riders} />}
+        </div>
       </div>
-
-      {active === 'statement' && <Statement account={account} statement={statement} viaPartner={!account} money={money} />}
-      {active === 'road' &&
-        (open.length > 0 ? <OnTheRoad runs={open} money={money} /> : <Panel><Empty title="Nothing on the road" message="Orders you send out with them show up here until they are delivered." /></Panel>)}
-      {active === 'riders' && partner && <PartnerRiders riders={data.riders} />}
 
       {settling && account && balance && (
         <SettleSheet branchId={branchId} account={account} name={subject.name} balance={balance} currency={currency} onClose={() => setSettling(false)} onDone={reload} />
       )}
-    </>
+    </div>
+  );
+}
+
+function BalanceRow({ icon, label, value, tint, strong }: { icon: ReactNode; label: string; value: string; tint: string; strong?: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span aria-hidden className={cx('grid size-9 shrink-0 place-items-center rounded-xl', tint)}>
+        {icon}
+      </span>
+      <dt className="flex-1 text-[14px] text-ink-3">{label}</dt>
+      <dd className={cx('tnum', strong ? 'font-display text-[22px] font-semibold' : 'text-[16px] font-semibold')}>{value}</dd>
+    </div>
   );
 }
 
@@ -227,19 +342,6 @@ function useStatement(branchId: string, kind: Account['kind'], id: string) {
 }
 
 type StatementState = ReturnType<typeof useStatement>;
-
-function Chips({ subject, open }: { subject: DeliveryPartner | Rider; open: number }) {
-  const rider = 'kind' in subject ? subject : null;
-  const status = rider ? riderStatus(rider, open) : null;
-  return (
-    <span className="inline-flex flex-wrap items-center gap-1.5">
-      {!subject.isActive && <Chip tone="warn">{rider ? 'Off duty' : 'Paused'}</Chip>}
-      {subject.isActive && open > 0 && <Chip tone="mint">{open} on the road</Chip>}
-      {rider && status === 'available' && <Chip>Available</Chip>}
-      {!rider && (subject as DeliveryPartner).collectsCash && <Chip>Collects cash</Chip>}
-    </span>
-  );
-}
 
 /* ── On the road ───────────────────────────────────────────────────── */
 
@@ -397,46 +499,6 @@ function StatementRow({ line, money }: { line: StatementLine; money: (m: number)
         <span />
       )}
     </li>
-  );
-}
-
-/* ── Identity ──────────────────────────────────────────────────────── */
-
-/** Who they are: name, status and the facts that rarely change. Read-only; editing happens in `EditModal`. */
-function IdentityCard({ partner, rider, parent, money, open }: { partner: DeliveryPartner | null; rider: Rider | null; parent: DeliveryPartner | null; money: (m: number) => string; open: number }) {
-  const subject = (partner ?? rider)!;
-  const facts: [string, ReactNode][] = partner
-    ? [['Charges', partnerTerms(partner, money)], ['Phone', partner.phone], ['Contact', partner.contactPerson], ['Cash', partner.collectsCash ? 'Collects' : 'Does not collect'], ['Added', new Date(partner.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })]]
-    : [
-        ['Pay', rider!.partnerId ? 'Via partner' : riderTerms(rider!, money)],
-        ['Phone', rider!.phone],
-        ['Vehicle', rider!.vehicle],
-        ['Rides for', rider!.partnerId ? (parent ? <Link to={`/admin/delivery/partners/${parent.id}`} className="underline underline-offset-2">{parent.name}</Link> : 'A partner') : 'The branch'],
-        ['Added', new Date(rider!.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })],
-      ];
-  const note = partner ? partner.note : rider!.note;
-
-  return (
-    <section className="rounded-2xl border border-hairline p-4 sm:p-5">
-      <div className="flex items-center gap-4">
-        <Monogram name={subject.name} size="lg" shape={partner ? 'tile' : 'round'} />
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h2 className="text-[20px] font-semibold tracking-tight">{subject.name}</h2>
-            <Chips subject={subject} open={open} />
-          </div>
-          {note && <p className="mt-0.5 text-[13.5px] text-ink-3">{note}</p>}
-        </div>
-      </div>
-      <dl className="mt-5 grid grid-cols-2 gap-y-4 border-t border-hairline pt-5 sm:grid-cols-3 lg:grid-cols-5 lg:gap-y-0 lg:[&>div+div]:border-l lg:[&>div+div]:border-hairline lg:[&>div+div]:pl-5">
-        {facts.map(([k, v]) => (
-          <div key={k} className="min-w-0">
-            <dt className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-4">{k}</dt>
-            <dd className="mt-1 truncate text-[15px] font-medium">{v || '—'}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
   );
 }
 

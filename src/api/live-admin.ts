@@ -1143,11 +1143,13 @@ export async function completePayment(
   endSession: boolean,
   orderId?: string,
   redeemPoints?: number,
+  /** Omitted keeps whoever the orders were placed under; an id picks another customer; null takes the bill off its customer. */
+  customerId?: string | null,
 ): Promise<Payment> {
   const payment = await apiRequest<ApiPayment>('/restaurant/payments', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ sessionId, orderId, items, method, discount, endSession, redeemPoints: redeemPoints || undefined }),
+    body: JSON.stringify({ sessionId, orderId, items, method, discount, endSession, redeemPoints: redeemPoints || undefined, customerId }),
   });
   return toPayment(payment);
 }

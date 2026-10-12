@@ -236,9 +236,10 @@ export function completePayment(
   discount: number,
   endSession: boolean,
   redeemPoints = 0,
+  customerId?: string | null,
 ): Promise<Payment> {
   return IS_LIVE_API
-    ? live.completePayment(sessionId, items, method, discount, endSession, undefined, redeemPoints)
+    ? live.completePayment(sessionId, items, method, discount, endSession, undefined, redeemPoints, customerId)
     : mock.completePayment(actor, sessionId, items, method, discount, endSession);
 }
 
@@ -255,9 +256,10 @@ export function completeOrderPayment(
   method: PaymentMethod,
   discount: number,
   redeemPoints = 0,
+  customerId?: string | null,
 ): Promise<Payment> {
   return IS_LIVE_API
-    ? live.completePayment(order.sessionId, items, method, discount, false, order.id, redeemPoints)
+    ? live.completePayment(order.sessionId, items, method, discount, false, order.id, redeemPoints, customerId)
     : mock.completeOrderPayment(actor, order.id, items, method, discount);
 }
 

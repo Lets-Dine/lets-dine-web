@@ -24,6 +24,7 @@ import { Branches } from './routes/admin/Branches';
 import { Categories } from './routes/admin/Categories';
 import { CourierDetail } from './routes/admin/CourierDetail';
 import { Customers } from './routes/admin/Customers';
+import { CustomerDetail } from './routes/admin/CustomerDetail';
 import { Delivery } from './routes/admin/Delivery';
 import { Dashboard } from './routes/admin/Dashboard';
 import { DishEditor } from './routes/admin/DishEditor';
@@ -33,6 +34,8 @@ import { StockTake } from './routes/admin/StockTake';
 import { BuyList } from './routes/admin/BuyList';
 import { Watchlist } from './routes/admin/Watchlist';
 import { Inventory } from './routes/admin/Inventory';
+import { Suppliers } from './routes/admin/Suppliers';
+import { SupplierDetail } from './routes/admin/SupplierDetail';
 import { Ledger } from './routes/admin/Ledger';
 import { PaymentModes } from './routes/admin/PaymentModes';
 import { Payments } from './routes/admin/Payments';
@@ -172,6 +175,7 @@ export default function App() {
                 <Route path="delivery/partners/:id" element={<CourierDetail kind="partner" />} />
                 <Route path="delivery/riders/:id" element={<CourierDetail kind="rider" />} />
                 <Route path="customers" element={<Customers />} />
+                <Route path="customers/:id" element={<CustomerDetail />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="payment-modes" element={<PaymentModes />} />
                 <Route path="ledger" element={<Ledger />} />
@@ -179,6 +183,8 @@ export default function App() {
                 <Route path="inventory/count" element={<StockTake />} />
                 <Route path="inventory/buy-list" element={<BuyList />} />
                 <Route path="inventory/watchlist" element={<Watchlist />} />
+                <Route path="suppliers" element={<Suppliers />} />
+                <Route path="suppliers/:name" element={<SupplierDetail />} />
                 <Route path="inventory/margins" element={<Navigate to="/admin/inventory/watchlist" replace />} />
                 <Route path="inventory/quality" element={<Navigate to="/admin/inventory/watchlist" replace />} />
                 <Route path="reviews" element={<Reviews />} />

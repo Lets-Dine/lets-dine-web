@@ -180,7 +180,7 @@ export function Orders() {
           const order = payingOrder;
           return run(
             order.id,
-            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints),
+            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints, changes.customerId),
             `${order.reference} paid up`,
           ).then((ok) => {
             if (ok) reloadOrders();

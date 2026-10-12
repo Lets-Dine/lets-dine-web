@@ -18,7 +18,7 @@ import { Loading } from '../../components/admin/kit';
 import { RestaurantCard } from '../../components/admin/RestaurantCard';
 import { LockedScreen, PlanChip, SubscriptionBanner } from '../../components/admin/SubscriptionBits';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Bike, Box, Building, Cash, ChevronRight, Contact, Eye, Folder, Grid, History, Layers, MapPin, Megaphone, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
+import { Bike, Box, Building, Cash, ChevronRight, Contact, Eye, Folder, Grid, Handshake, History, Layers, MapPin, Megaphone, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
 import { playNewOrderSound } from '../../platform/sound';
 
 /**
@@ -74,6 +74,7 @@ const NAV: NavItem[] = [
   { to: '/admin/floors', label: 'Floor', icon: Layers, permission: 'tables:view', group: 'Table & spaces' },
   { to: '/admin/inventory', label: 'Stock', icon: Box, permission: 'inventory:view', end: true, liveOnly: true, group: 'Inventory' },
   { to: '/admin/inventory/buy-list', label: 'Buy list', icon: Receipt, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
+  { to: '/admin/suppliers', label: 'Suppliers', icon: Handshake, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/inventory/watchlist', label: 'Watchlist', icon: Eye, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/delivery', label: 'Delivery', icon: Bike, permission: 'settings:view', group: '' },
   { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view', group: 'Finance' },

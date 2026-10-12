@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CUSTOMER_WRITES, createCustomer, listCustomers } from '../../api/customers';
 import type { CustomerSort } from '../../api/customers';
-import { SAMPLE_DETAIL, getCustomer, removeCustomer, since, updateCustomerNotes } from '../../data/customers';
+import { since } from '../../data/customers';
 import type { NewCustomer } from '../../data/customers';
 import type { CustomerListItem, CustomerSegment } from '../../domain/types';
 import { formatMoney } from '../../domain/money';
@@ -40,7 +41,7 @@ export function Customers() {
   const { menu } = useDashboard();
   const push = useToast();
   const canAdd = allows('customers:edit');
-  const canEdit = canAdd && CUSTOMER_WRITES;
+  const navigate = useNavigate();
   const currency = menu.restaurant.currency;
 
   const [query, setQuery] = useState('');
@@ -52,7 +53,7 @@ export function Customers() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<{ mode: 'add' } | { mode: 'view'; id: string } | null>(null);
+  const [adding, setAdding] = useState(false);
   const [fresh, setFresh] = useState<string | null>(null);
   /** Bumped whenever the first page must be re-read. */
   const [nonce, setNonce] = useState(0);
@@ -98,8 +99,6 @@ export function Customers() {
       .finally(() => setLoadingMore(false));
   };
 
-  const open = sheet?.mode === 'view' ? rows.find((r) => r.id === sheet.id) : undefined;
-
   const add = (input: NewCustomer) => {
     // Design preview: the live backend has no create endpoint yet, so nothing is saved.
     if (!CUSTOMER_WRITES) {
@@ -125,7 +124,7 @@ export function Customers() {
         subtitle="The people who keep coming back — and the ones who've gone quiet."
         action={
           canAdd && (
-            <button type="button" className={ADMIN_PRIMARY} onClick={() => setSheet({ mode: 'add' })}>
+            <button type="button" className={ADMIN_PRIMARY} onClick={() => setAdding(true)}>
               <Plus size={16} /> Add customer
             </button>
           )
@@ -184,7 +183,7 @@ export function Customers() {
               emoji="📒"
               title="No customers yet"
               message="Customers appear here once they give a phone number when ordering."
-              action={canAdd && <button type="button" className={ADMIN_PRIMARY} onClick={() => setSheet({ mode: 'add' })}>Add a customer</button>}
+              action={canAdd && <button type="button" className={ADMIN_PRIMARY} onClick={() => setAdding(true)}>Add a customer</button>}
             />
           )
         ) : (
@@ -201,7 +200,7 @@ export function Customers() {
                 <li key={c.id} className={cx('border-b border-hairline last:border-0', fresh === c.id && 'animate-rise bg-flame-2/8')}>
                   <button
                     type="button"
-                    onClick={() => setSheet({ mode: 'view', id: c.id })}
+                    onClick={() => navigate(`/admin/customers/${c.id}`)}
                     className="grid w-full grid-cols-[1fr_auto] items-center gap-x-3.5 gap-y-2 px-4 py-3.5 text-left transition-colors duration-150 hover:bg-surface-2/50 focus-visible:bg-surface-2/50 focus-visible:outline-none sm:px-5 lg:grid-cols-[minmax(0,2.2fr)_1.2fr_.7fr_1fr_1fr] lg:gap-4"
                   >
                     <span className="flex min-w-0 items-center gap-3.5">
@@ -245,28 +244,7 @@ export function Customers() {
       </section>
       {CUSTOMER_WRITES && <p className="mt-3 text-[12px] text-ink-4">Sample customers for now — nothing here is saved to a server yet.</p>}
 
-      {sheet && (
-        <CustomerSheet
-          key={sheet.mode === 'view' ? sheet.id : 'add'}
-          mode={sheet.mode}
-          item={open}
-          detail={open ? (getCustomer(open.id) ?? SAMPLE_DETAIL) : undefined}
-          sample={open ? !getCustomer(open.id) : false}
-          currency={currency}
-          canEdit={canEdit}
-          onClose={() => setSheet(null)}
-          onAdd={add}
-          onNotes={(id, notes) => {
-            updateCustomerNotes(id, notes);
-            push('Note saved');
-          }}
-          onRemove={(id) => {
-            removeCustomer(id);
-            setNonce((n) => n + 1);
-            push('Customer removed');
-          }}
-        />
-      )}
+      {adding && <CustomerSheet onClose={() => setAdding(false)} onAdd={add} />}
     </>
   );
 }

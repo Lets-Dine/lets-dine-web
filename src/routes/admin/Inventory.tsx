@@ -9,8 +9,10 @@ import {
   fetchIngredientUsage,
   fetchIngredients,
   fetchPurchases,
+  fetchReturnableLots,
   formatQty,
   receiveDelivery,
+  returnStock,
   stockState,
   transferStock,
   updateIngredient,
@@ -19,9 +21,10 @@ import type { Ingredient, IngredientSummary, StockState } from '../../api/invent
 import { ADMIN_GHOST, ADMIN_PRIMARY, Confirm, Field, INPUT_BOX, MoneyInput, PageTitle, Panel, Segmented, Select, TextInput, useCommand } from '../../components/admin/kit';
 import { QtyField } from '../../components/admin/QtyField';
 import { useDiscardBack } from '../../components/admin/useDiscardBack';
-import { Bell, Box, ChevronLeft, ChevronRight, Minus, Plus, Search, Send, Sliders, X } from '../../components/icons';
+import { Bell, Box, ChevronLeft, ChevronRight, History, Minus, Plus, Search, Send, Sliders, X } from '../../components/icons';
 import { DISPLAY, cx } from '../../components/ui';
 import { formatMoney } from '../../domain/money';
+import { fetchSuppliers, priceLabel } from '../../api/suppliers';
 import { useAsync } from '../../state/useAsync';
 import { useAuth } from '../../state/AuthContext';
 import type { Minor, PaymentMethod } from '../../domain/types';
@@ -57,7 +60,7 @@ const STATE_COPY: Record<StockState, { label: string; pill: string; bar: string;
   },
 };
 
-type Tool = 'receive' | 'consume' | 'recount' | 'transfer' | 'edit';
+type Tool = 'receive' | 'consume' | 'recount' | 'transfer' | 'return' | 'edit';
 
 /** The four things you can do to an ingredient, each said in the words a cook would use. */
 const TOOLS: Record<Tool, { short: string; title: string; blurb: string; Icon: typeof Box; detail: string }> = {
@@ -88,6 +91,13 @@ const TOOLS: Record<Tool, { short: string; title: string; blurb: string; Icon: t
     blurb: 'Move some to another kitchen',
     Icon: Send,
     detail: 'Move some to another branch. Its supplier and delivery dates go with it.',
+  },
+  return: {
+    short: 'Return',
+    title: 'Send back to supplier',
+    blurb: 'Return some of a delivery',
+    Icon: History,
+    detail: 'Send some of a delivery back. Pick the delivery, say how much, and what the supplier gives back for it.',
   },
   edit: {
     short: 'Edit',
@@ -120,6 +130,8 @@ function describeMovement(m: NonNullable<IngredientSummary['lastMovement']>, nam
       return `${amount} of ${name} was taken off by hand.`;
     case 'TRANSFER_IN':
       return `${amount} of ${name} arrived from another branch.`;
+    case 'RETURN':
+      return `${amount} of ${name} was sent back to the supplier.`;
     case 'TRANSFER_OUT':
       return `${amount} of ${name} was sent to another branch.`;
     default:
@@ -388,7 +400,7 @@ type Open = { id: string; tool: Tool | null } | null;
 const RANK: Record<StockState, number> = { out: 0, low: 1, ok: 2 };
 
 /**
- * Stock is one plain list of ingredients, the ones that need you at the top. Tapping a row opens a
+ * Stock is a grid of ingredient tiles, the ones that need you first. Tapping a tile opens a
  * modal where everything you can do to it (delivery, recount, send, rename) is carried out.
  */
 export function Inventory() {
@@ -396,6 +408,8 @@ export function Inventory() {
   const { menu } = useDashboard();
   const { pending, busy, run } = useCommand();
   const list = useAsync(fetchIngredients, []);
+  // Suggestions for the delivery form's supplier box; it stays a free-text field if this can't load.
+  const suppliers = useAsync(() => fetchSuppliers().catch(() => []), []);
   const canManage = allows('inventory:manage');
   const currency = menu.restaurant.currency;
   // Other branches this person can send stock to; none means no "Send to branch" action.
@@ -406,11 +420,14 @@ export function Inventory() {
   const [adding, setAdding] = useState(false);
 
   /** Runs a change, then closes the modal and refreshes the list. */
-  const act = (ing: Ingredient, action: () => Promise<unknown>, message: string) =>
-    void run(ing.id, action, message).then((ok) => {
-      if (!ok) return;
-      setOpen(null);
-      list.reload();
+  const act = (ing: Ingredient, action: () => Promise<unknown>, message: string): Promise<boolean> =>
+    run(ing.id, action, message).then((ok) => {
+      if (ok) {
+        setOpen(null);
+        list.reload();
+        suppliers.reload();
+      }
+      return ok;
     });
 
   const rows = useMemo(() => {
@@ -422,9 +439,9 @@ export function Inventory() {
     return (
       <>
         <PageTitle title="Stock" />
-        <div role="status" aria-label="Loading stock" className="grid gap-2">
+        <div role="status" aria-label="Loading stock" className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,15.5rem),1fr))] gap-3">
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="shimmer-bg animate-shimmer h-14 rounded-xl" style={{ opacity: 1 - i * 0.12 }} />
+            <div key={i} className="shimmer-bg animate-shimmer h-[9.5rem] rounded-2xl" style={{ opacity: 1 - i * 0.12 }} />
           ))}
         </div>
       </>
@@ -489,9 +506,9 @@ export function Inventory() {
               <p className="py-4 text-center text-[13.5px] text-ink-3">No ingredient matches “{query.trim()}”.</p>
             </Panel>
           ) : (
-            <ul className="overflow-hidden rounded-2xl bg-surface ring-1 ring-hairline ring-inset">
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,15.5rem),1fr))] gap-3">
               {visible.map(({ ing, state }) => (
-                <li key={ing.id} className={cx('border-t border-hairline transition-opacity first:border-0', pending === ing.id && 'opacity-50')}>
+                <li key={ing.id} className={cx('transition-opacity', pending === ing.id && 'opacity-50')}>
                   <StockRow ing={ing} state={state} interactive={canManage} onOpen={() => setOpen({ id: ing.id, tool: null })} />
                 </li>
               ))}
@@ -507,6 +524,7 @@ export function Inventory() {
           ing={openIng}
           initialTool={open?.tool ?? null}
           currency={currency}
+          supplierNames={(suppliers.data ?? []).map((x) => x.name)}
           branches={otherBranches}
           busy={busy}
           onClose={() => setOpen(null)}
@@ -515,6 +533,7 @@ export function Inventory() {
           onConsume={(d) => act(openIng, () => consumeStock(openIng.id, d), `${openIng.name} used`)}
           onRecount={(qty) => act(openIng, () => adjustStock(openIng.id, qty, ''), `${openIng.name} corrected`)}
           onTransfer={(toBranchId, qty, where) => act(openIng, () => transferStock(openIng.id, toBranchId, qty), `${openIng.name} sent to ${where}`)}
+          onReturn={(d, supplier) => act(openIng, () => returnStock(openIng.id, d), `${openIng.name} sent back to ${supplier}`)}
           onEdit={(patch) => act(openIng, () => updateIngredient(openIng.id, patch), `${openIng.name} saved`)}
         />
       )}
@@ -537,28 +556,46 @@ export function Inventory() {
   );
 }
 
-/** One ingredient as a row: name, what is left, and how it stands. The whole row opens its modal. */
+/**
+ * One ingredient as a compact tile: name, what is left, and a level gauge against its warning line
+ * (the gauge's midpoint is the warning, so a full bar means at least twice that). Opens its modal.
+ */
 function StockRow({ ing, state, interactive, onOpen }: { ing: Ingredient; state: StockState; interactive: boolean; onOpen: () => void }) {
   const copy = STATE_COPY[state];
+  const level = ing.parLevel > 0 ? Math.min(1, ing.quantity / (ing.parLevel * 2)) : null;
+  const warn = ing.parLevel > 0 ? `Warns below ${formatQty(ing.parLevel, ing.unit)}` : 'No warning set';
   const body = (
     <>
-      <span className={cx('size-2.5 shrink-0 rounded-full', copy.bar)} aria-hidden />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold">{ing.name}</span>
-        <span className="block truncate text-[12.5px] text-ink-3">{ing.parLevel > 0 ? `Warns below ${formatQty(ing.parLevel, ing.unit)}` : 'No warning set'}</span>
+      <span className="flex items-start justify-between gap-2">
+        <span className="line-clamp-2 min-w-0 text-[15px] leading-snug font-semibold break-words" title={ing.name}>
+          {ing.name}
+        </span>
+        <span className={cx('inline-flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11.5px] font-bold', state === 'ok' ? 'text-ink-3' : copy.pill)}>
+          <span className={cx('size-1.5 rounded-full', copy.bar)} aria-hidden />
+          {copy.label}
+        </span>
       </span>
-      <span className={cx('hidden rounded-md px-2 py-0.5 text-[11.5px] font-bold sm:inline', copy.pill)}>{copy.label}</span>
-      <Qty value={ing.quantity} unit={ing.unit} unitClassName="text-ink-3" className={cx('w-20 text-right text-[18px]', state === 'out' && 'text-berry-ink')} />
-      {interactive && <ChevronRight size={16} className="shrink-0 text-ink-4" />}
+      <Qty value={ing.quantity} unit={ing.unit} unitClassName="text-ink-3" className={cx('mt-3 block text-[28px] leading-none', state === 'out' && 'text-berry-ink')} />
+      {level !== null && (
+        <span className="mt-3.5 block h-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+          <span className={cx('block h-full rounded-full', copy.bar)} style={{ width: `${Math.max(level * 100, ing.quantity > 0 ? 4 : 0)}%` }} />
+        </span>
+      )}
+      <span className={cx('block truncate text-[12.5px] text-ink-3', level !== null ? 'mt-2' : 'mt-3.5')}>{warn}</span>
     </>
   );
-  const row = 'flex min-h-[60px] w-full items-center gap-3.5 px-4 py-2.5 text-left';
+  const tile = 'block h-full w-full min-w-0 overflow-hidden rounded-2xl bg-surface p-4 text-left ring-1 ring-hairline ring-inset';
   return interactive ? (
-    <button type="button" onClick={onOpen} aria-label={`${ing.name}, ${formatQty(ing.quantity, ing.unit)}, ${copy.label}. Open actions`} className={cx(row, 'transition-move hover:bg-surface-2/60 focus-visible:bg-surface-2/60 focus-visible:outline-none')}>
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${ing.name}, ${formatQty(ing.quantity, ing.unit)}, ${copy.label}. ${warn}. Open actions`}
+      className={cx(tile, 'transition-move hover:bg-surface-2/60 focus-visible:bg-surface-2/60 active:scale-[0.985]')}
+    >
       {body}
     </button>
   ) : (
-    <div className={row}>{body}</div>
+    <div className={tile}>{body}</div>
   );
 }
 
@@ -729,6 +766,7 @@ function IngredientSheet({
   ing,
   initialTool,
   currency,
+  supplierNames,
   branches,
   dishes,
   busy,
@@ -737,19 +775,22 @@ function IngredientSheet({
   onConsume,
   onRecount,
   onTransfer,
+  onReturn,
   onEdit,
 }: {
   ing: Ingredient;
   initialTool: Tool | null;
   currency: string;
+  supplierNames: string[];
   branches: { id: string; name: string }[];
   dishes: { id: string; name: string }[];
   busy: boolean;
   onClose: () => void;
-  onReceive: (d: { quantity: number; supplier: string; cost: Minor; method: PaymentMethod; receivedAt?: string }) => void;
+  onReceive: (d: { quantity: number; supplier: string; cost: Minor; method: PaymentMethod; receivedAt?: string; onCredit?: boolean }) => void;
   onConsume: (d: { quantity: number; dishId?: string; note?: string; usedAt?: string }) => void;
   onRecount: (quantity: number) => void;
   onTransfer: (toBranchId: string, quantity: number, branchName: string) => void;
+  onReturn: (d: { lotId: string; quantity: number; refund: Minor; method: PaymentMethod; note: string }, supplier: string) => Promise<boolean>;
   onEdit: (patch: { name?: string; parLevel?: number; isArchived?: boolean }) => void;
 }) {
   const [view, setView] = useState<'home' | Tool>(initialTool ?? 'home');
@@ -760,6 +801,17 @@ function IngredientSheet({
   const [supplier, setSupplier] = useState('');
   const [cost, setCost] = useState<Minor>(0);
   const [method, setMethod] = useState<PaymentMethod>('CASH');
+  const [onCredit, setOnCredit] = useState(false);
+  const returnable = useAsync(() => fetchReturnableLots(ing.id).catch(() => []), [ing.id]);
+  const [lotId, setLotId] = useState('');
+  const [refund, setRefund] = useState<Minor>(0);
+  const [refundTyped, setRefundTyped] = useState(false);
+  const [refundKey, setRefundKey] = useState(0);
+  const [refundMethod, setRefundMethod] = useState<PaymentMethod>('CASH');
+  const [returnNote, setReturnNote] = useState('');
+  const [priceTyped, setPriceTyped] = useState(false);
+  // Its own key, so filling the price in never remounts the quantity box while it is being typed in.
+  const [priceKey, setPriceKey] = useState(0);
   const today = localDay();
   const [arrivedOn, setArrivedOn] = useState(today);
   const [usedOn, setUsedOn] = useState(today);
@@ -770,13 +822,39 @@ function IngredientSheet({
   const copy = STATE_COPY[state];
   // Counted in kg or L on the jar, so the forms start in kg or L too.
   const big = ing.unit !== 'pcs' && Math.max(ing.quantity, ing.parLevel) >= 1000;
-  const tools = (Object.keys(TOOLS) as Tool[]).filter((t) => (t !== 'transfer' || (branches.length > 0 && ing.quantity > 0)) && (t !== 'consume' || ing.quantity > 0));
+  const tools = (Object.keys(TOOLS) as Tool[]).filter((t) => (t !== 'transfer' || (branches.length > 0 && ing.quantity > 0)) && (t !== 'consume' || ing.quantity > 0) && (t !== 'return' || ing.quantity > 0));
 
   // Each form's quantity field starts empty, so the remembered number has to as well.
   const go = (next: 'home' | Tool) => {
     setQty('');
+    setPriceTyped(false);
+    setRefundTyped(false);
     setView(next);
   };
+
+  // Returning: what the supplier gives back follows the share of the delivery's price, until it is typed by hand.
+  const lots = returnable.data ?? [];
+  const lot = lots.find((l) => l.lotId === lotId) ?? lots[0];
+  // At most what is on the shelf (stock already used belongs to no delivery), and their share of the price less earlier refunds from it.
+  const room = lot ? Math.min(lot.remaining, ing.quantity) : 0;
+  const share = lot?.cost && qty ? Math.min(Math.round((lot.cost * qty) / lot.quantity), Math.max(0, lot.cost - lot.refunded)) : 0;
+  useEffect(() => {
+    if (view === 'return' && !refundTyped && share !== refund) {
+      setRefund(share);
+      setRefundKey((k) => k + 1);
+    }
+  }, [view, refundTyped, share, refund]);
+
+  // The delivery's price follows the last price paid and the quantity, until it is typed by hand.
+  const last = summary.data?.lastPurchase;
+  const unitCost = last?.cost && last.quantity > 0 ? last.cost / last.quantity : 0;
+  const suggested = unitCost && qty ? Math.round(unitCost * qty) : 0;
+  useEffect(() => {
+    if (view === 'receive' && !priceTyped && suggested !== cost) {
+      setCost(suggested);
+      setPriceKey((k) => k + 1);
+    }
+  }, [view, priceTyped, suggested, cost]);
 
   return (
     <SheetShell label={`${ing.name} details`} onClose={onClose} wide>
@@ -864,6 +942,7 @@ function IngredientSheet({
                           supplier: supplier.trim(),
                           cost,
                           method,
+                          onCredit: onCredit && cost > 0 && supplier.trim() !== '',
                           // Today means now; an earlier day is filed at midday, so it lands inside that day.
                           receivedAt: arrivedOn && arrivedOn < today ? new Date(`${arrivedOn}T12:00:00`).toISOString() : undefined,
                         });
@@ -877,14 +956,41 @@ function IngredientSheet({
                         <input type="date" value={arrivedOn} max={today} onChange={(e) => setArrivedOn(e.target.value || today)} className={cx(INPUT_BOX, 'tnum')} />
                       </Field>
                       <Field label="From">
-                        <TextInput value={supplier} onChange={setSupplier} maxLength={80} placeholder="Supplier (optional)" />
+                        <TextInput value={supplier} onChange={setSupplier} maxLength={80} placeholder="Supplier (optional)" list="supplier-names" />
+                        <datalist id="supplier-names">
+                          {supplierNames.map((n) => (
+                            <option key={n} value={n} />
+                          ))}
+                        </datalist>
                       </Field>
-                      <Field label="What you paid">
-                        <MoneyInput value={cost} onChange={setCost} currency={currency} />
+                      <Field
+                        label="What you paid"
+                        hint={unitCost ? `Last price ${priceLabel(unitCost, ing.unit, currency)}${last?.supplier ? ` from ${last.supplier}` : ''}${!priceTyped && suggested > 0 ? ', filled in for you' : ''}.` : undefined}
+                      >
+                        <MoneyInput
+                          key={priceKey}
+                          value={cost}
+                          onChange={(v) => {
+                            setPriceTyped(true);
+                            setCost(v);
+                          }}
+                          currency={currency}
+                        />
                       </Field>
                     </div>
                     {/* Only a payment has a method, so the choice appears once a price is entered. */}
-                    {cost > 0 && (
+                    {supplier.trim() !== '' && (
+                      <Segmented
+                        label="Payment"
+                        value={onCredit ? 'credit' : 'now'}
+                        onChange={(v) => setOnCredit(v === 'credit')}
+                        options={[
+                          { value: 'now', label: 'Paid now' },
+                          { value: 'credit', label: 'On credit' },
+                        ]}
+                      />
+                    )}
+                    {cost > 0 && !(onCredit && supplier.trim() !== '') && (
                       <Segmented
                         label="Paid with"
                         value={method}
@@ -898,7 +1004,11 @@ function IngredientSheet({
                     {qty ? (
                       <Outcome>
                         {ing.name} goes from {formatQty(ing.quantity, ing.unit)} to {formatQty(ing.quantity + qty, ing.unit)}.{' '}
-                        {cost > 0 ? `${formatMoney(cost, currency)} (${pricePer(cost, qty, ing.unit, currency)}) is filed in the cash book as a stock expense.` : 'No price entered, so nothing is filed in the cash book.'}
+                        {cost > 0
+                          ? onCredit && supplier.trim() !== ''
+                            ? `${formatMoney(cost, currency)} (${pricePer(cost, qty, ing.unit, currency)}) is added to what you owe ${supplier.trim()}. The cash book records it when you pay.`
+                            : `${formatMoney(cost, currency)} (${pricePer(cost, qty, ing.unit, currency)}) is filed in the cash book as a stock expense.`
+                          : 'No price entered, so nothing is filed in the cash book.'}
                       </Outcome>
                     ) : null}
                     <div className={SHEET_FOOT}>
@@ -1013,6 +1123,89 @@ function IngredientSheet({
                         {qty ? `Send ${formatQty(qty, ing.unit)}` : 'Send stock'}
                       </button>
                     </div>
+                  </form>
+                )}
+
+                {view === 'return' && (
+                  <form
+                    className="grid gap-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (lot && qty && qty <= room && refund <= share) void onReturn({ lotId: lot.lotId, quantity: qty, refund, method: refundMethod, note: returnNote.trim() }, lot.supplier).then((ok) => !ok && returnable.reload());
+                    }}
+                  >
+                    {returnable.loading && !returnable.data ? (
+                      <p className="text-[13px] text-ink-3">Loading deliveries…</p>
+                    ) : !lot ? (
+                      <Outcome>There is no delivery with a named supplier left to send back. Only stock received from a supplier can be returned.</Outcome>
+                    ) : (
+                      <>
+                        <Field label="Which delivery">
+                          <Select
+                            value={lot.lotId}
+                            onChange={(id) => {
+                              setLotId(id);
+                              setQty('');
+                              setRefundTyped(false);
+                            }}
+                            options={lots.map((l) => ({ value: l.lotId, label: `${l.supplier} · ${dayOnly.format(new Date(l.receivedAt))} · ${formatQty(l.remaining, ing.unit)} left` }))}
+                          />
+                        </Field>
+                        <Field label="How much goes back" hint={`Up to ${formatQty(room, ing.unit)}${room < lot.remaining ? ' (what is on the shelf)' : ` of the ${formatQty(lot.quantity, ing.unit)} delivered`}.`}>
+                          <QtyField key={lot.lotId} unit={ing.unit} onChange={setQty} big={big} />
+                        </Field>
+                        <Field
+                          label="What they give back"
+                          hint={
+                            lot.cost
+                              ? lot.onCredit
+                                ? `It comes off what you still owe ${lot.supplier} first; anything beyond that is money back, recorded as income.`
+                                : 'Money back, recorded in the cash book as income. Leave it at 0 if you are waiting for a replacement.'
+                              : 'No price was entered for this delivery, so there is nothing to refund.'
+                          }
+                        >
+                          <MoneyInput
+                            key={refundKey}
+                            value={refund}
+                            onChange={(v) => {
+                              setRefundTyped(true);
+                              setRefund(v);
+                            }}
+                            currency={currency}
+                          />
+                        </Field>
+                        {refund > 0 && (
+                          <Segmented
+                            label={lot.onCredit ? 'Any money back received as' : 'Received as'}
+                            value={refundMethod}
+                            onChange={setRefundMethod}
+                            options={[
+                              { value: 'CASH', label: 'Cash' },
+                              { value: 'CARD', label: 'Bank' },
+                            ]}
+                          />
+                        )}
+                        <Field label="Why (optional)">
+                          <TextInput value={returnNote} onChange={setReturnNote} maxLength={200} placeholder="Spoiled, wrong item…" />
+                        </Field>
+                        {qty ? (
+                          <Outcome tone={qty > room || refund > share ? 'warn' : 'info'}>
+                            {qty > room
+                              ? `Only ${formatQty(room, ing.unit)} can go back from that delivery.`
+                              : refund > share
+                                ? `They can't give back more than ${formatMoney(share, currency)} for this much.`
+                                : `${ing.name} goes from ${formatQty(ing.quantity, ing.unit)} to ${formatQty(ing.quantity - qty, ing.unit)}. ${
+                                    refund > 0 ? (lot.onCredit ? `${formatMoney(refund, currency)} comes off what you owe ${lot.supplier}, and any of it you have already paid for comes back as money, filed as income.` : `${formatMoney(refund, currency)} is filed in the cash book as income.`) : 'No money is expected back.'
+                                  }`}
+                          </Outcome>
+                        ) : null}
+                        <div className={SHEET_FOOT}>
+                          <button type="submit" disabled={busy || !qty || qty > room || refund > share} className={FOOT_PRIMARY}>
+                            {qty ? `Return ${formatQty(qty, ing.unit)}` : 'Return stock'}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </form>
                 )}
 

@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
-import { DIETARY_TAGS, since } from '../../data/customers';
-import type { Customer, NewCustomer } from '../../data/customers';
+import { DIETARY_TAGS } from '../../data/customers';
+import type { NewCustomer } from '../../data/customers';
 import type { CustomerListItem } from '../../domain/types';
-import { formatMoney } from '../../domain/money';
-import { IS_LIVE_API } from '../../api/http';
 import { X } from '../icons';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../ui';
-import { ADMIN_GHOST, ADMIN_PRIMARY, Confirm, Field, TextArea, TextInput, Toggle } from './kit';
-import { LoyaltyPanel } from './Loyalty';
+import { ADMIN_GHOST, ADMIN_PRIMARY, Field, TextArea, TextInput, Toggle } from './kit';
 
 /** Hash a name to a hue so the same person always gets the same warm-to-cool tint. */
-const hueOf = (name: string) => [...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 7);
+export const hueOf = (name: string) => [...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 7);
 
 export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   const initials = name
@@ -60,36 +56,11 @@ export function Tally({ weeks, className }: { weeks: boolean[]; className?: stri
 }
 
 /**
- * One side sheet for both jobs — reading a customer and adding one — built on
- * the native <dialog>, which brings focus trapping, Esc and the backdrop for
- * free. Bottom sheet on phones, right-hand drawer from `sm` up.
+ * The add-a-customer side sheet, built on the native <dialog>, which brings focus trapping, Esc and
+ * the backdrop for free. Bottom sheet on phones, right-hand drawer from `sm` up. Reading a customer
+ * lives on its own page (`routes/admin/CustomerDetail`).
  */
-export function CustomerSheet({
-  mode,
-  item,
-  detail,
-  sample,
-  currency,
-  canEdit,
-  onClose,
-  onAdd,
-  onNotes,
-  onRemove,
-}: {
-  mode: 'add' | 'view';
-  /** The list row — all the live backend provides so far. */
-  item?: CustomerListItem;
-  /** The fuller profile (favourites, notes, contact…) — sample data only until the detail endpoint exists. */
-  detail?: Customer;
-  /** The profile fields are placeholders, not this customer's — say so. */
-  sample?: boolean;
-  currency: string;
-  canEdit: boolean;
-  onClose: () => void;
-  onAdd: (input: NewCustomer) => void;
-  onNotes: (id: string, notes: string) => void;
-  onRemove: (id: string) => void;
-}) {
+export function CustomerSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (input: NewCustomer) => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -101,7 +72,7 @@ export function CustomerSheet({
       ref={ref}
       onClose={onClose}
       onClick={(e) => e.target === ref.current && ref.current?.close()}
-      aria-label={mode === 'add' ? 'Add a customer' : item?.name}
+      aria-label="Add a customer"
       className={cx(
         'fixed m-0 flex max-h-none flex-col overflow-hidden bg-surface p-0 text-ink shadow-deep outline-none backdrop:bg-black/55 backdrop:backdrop-blur-[2px]',
         'inset-x-0 bottom-0 top-auto max-h-[92dvh] w-full max-w-none rounded-t-3xl',
@@ -111,36 +82,14 @@ export function CustomerSheet({
     >
       <div className="flex items-start justify-between gap-3 px-5 pt-5">
         <div className="min-w-0">
-          {mode === 'add' ? (
-            <>
-              <h2 className={cx(DISPLAY, 'text-[24px]')}>New customer</h2>
-              <p className="mt-1 text-[13px] text-ink-3">A name and a phone number is enough. Add the rest when you learn it.</p>
-            </>
-          ) : (
-            item && (
-              <div className="flex items-center gap-3.5">
-                <Avatar name={item.name} size={52} />
-                <div className="min-w-0">
-                  <h2 className={cx(DISPLAY, 'truncate text-[24px]')}>{item.name}</h2>
-                  <div className="mt-1 flex items-center gap-2 text-[13px] text-ink-3">
-                    <SegmentPill segment={item.segment} />
-                    <span className="tnum">{item.phone}</span>
-                  </div>
-                </div>
-              </div>
-            )
-          )}
+          <h2 className={cx(DISPLAY, 'text-[24px]')}>New customer</h2>
+          <p className="mt-1 text-[13px] text-ink-3">A name and a phone number is enough. Add the rest when you learn it.</p>
         </div>
         <button type="button" aria-label="Close" onClick={() => ref.current?.close()} className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-ink-3 ring-1 ring-hairline ring-inset transition-move hover:text-ink active:scale-90">
           <X size={16} />
         </button>
       </div>
-
-      {mode === 'add' ? (
-        <AddForm onCancel={() => ref.current?.close()} onSubmit={(input) => { onAdd(input); ref.current?.close(); }} />
-      ) : (
-        item && <Profile item={item} detail={detail} sample={sample} currency={currency} canEdit={canEdit} onNotes={onNotes} onRemove={(id) => { onRemove(id); ref.current?.close(); }} />
-      )}
+      <AddForm onCancel={() => ref.current?.close()} onSubmit={(input) => { onAdd(input); ref.current?.close(); }} />
     </dialog>
   );
 }
@@ -205,123 +154,5 @@ function AddForm({ onSubmit, onCancel }: { onSubmit: (input: NewCustomer) => voi
         </button>
       </div>
     </form>
-  );
-}
-
-function Profile({ item, detail, sample, currency, canEdit, onNotes, onRemove }: { item: CustomerListItem; detail?: Customer; sample?: boolean; currency: string; canEdit: boolean; onNotes: (id: string, notes: string) => void; onRemove: (id: string) => void }) {
-  const [notes, setNotes] = useState(detail?.notes ?? '');
-  const dirty = detail !== undefined && notes !== detail.notes;
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="grid flex-1 content-start gap-6 overflow-y-auto px-5 py-5">
-        <dl className="grid grid-cols-3 divide-x divide-hairline rounded-2xl bg-surface-2/50 ring-1 ring-hairline ring-inset">
-          <Figure label="Visits" value={String(item.visits)} />
-          <Figure label="Spent" value={formatMoney(item.spend, currency)} />
-          <Figure label="Last seen" value={since(item.lastVisitAt)} small />
-        </dl>
-
-        {IS_LIVE_API && (
-          <Section title="Points">
-            <LoyaltyPanel customerId={item.id} />
-          </Section>
-        )}
-
-        <Section title="Rhythm" hint="Last ten weeks">
-          <Tally weeks={item.visitWeeks} className="gap-2 [&>span]:size-3" />
-        </Section>
-
-        {sample && <p className="rounded-xl bg-surface-2/60 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-ink-3 ring-1 ring-hairline ring-inset">Orders most, tags, contact and notes below are sample content — they'll show this customer's own once the profile is connected.</p>}
-
-        {detail && detail.favourites.length > 0 && (
-          <Section title="Orders most">
-            <ol className="grid gap-1.5">
-              {detail?.favourites.map((dish, i) => (
-                <li key={dish} className="flex items-baseline gap-2.5 text-[14.5px]">
-                  <span className="w-4 text-[12px] font-semibold text-ink-4 tnum">{i + 1}</span>
-                  <span className="font-medium">{dish}</span>
-                </li>
-              ))}
-            </ol>
-          </Section>
-        )}
-
-        {detail && detail.tags.length > 0 && (
-          <Section title="Good to know">
-            <div className="flex flex-wrap gap-2">
-              {detail?.tags.map((tag) => (
-                <span key={tag} className="inline-flex h-7 items-center rounded-full bg-flame-2/15 px-3 text-[12.5px] font-semibold text-flame-1 ring-1 ring-flame-2/35 ring-inset">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {detail && (
-          <>
-        <Section title="Contact">
-          <dl className="grid gap-1.5 text-[14px]">
-            <Line k="Phone" v={item.phone} />
-            <Line k="Email" v={detail.email || '—'} />
-            <Line k="Birthday" v={detail.birthday ? new Date(detail.birthday + 'T00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) : '—'} />
-            <Line k="Offers" v={detail.offersOk ? 'Okay to send' : 'Do not send'} />
-          </dl>
-        </Section>
-
-        <Section title="Notes">
-          {canEdit ? (
-            <>
-              <TextArea value={notes} onChange={setNotes} rows={4} maxLength={500} placeholder="Nothing noted yet." />
-              {dirty && (
-                <button type="button" className={cx(ADMIN_PRIMARY, 'mt-2 h-9')} onClick={() => onNotes(detail.id, notes)}>
-                  Save note
-                </button>
-              )}
-            </>
-          ) : (
-            <p className="text-[14px] leading-relaxed text-ink-2">{detail.notes || 'Nothing noted yet.'}</p>
-          )}
-        </Section>
-          </>
-        )}
-      </div>
-      {canEdit && detail && (
-        <div className="flex items-center justify-between border-t border-hairline bg-surface-2/40 px-5 py-3 pb-[calc(12px+var(--safe-b))]">
-          <span className="text-[12px] text-ink-4">Added {since(item.joinedAt)}</span>
-          <Confirm label="Remove customer" question="Remove for good?" confirmLabel="Remove" onConfirm={() => onRemove(item.id)} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Figure({ label, value, small }: { label: string; value: string; small?: boolean }) {
-  return (
-    <div className="px-3 py-3.5 text-center">
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.09em] text-ink-4">{label}</dt>
-      <dd className={cx(DISPLAY, 'mt-1 tnum', small ? 'text-[15px] leading-[1.5]' : 'text-[19px]')}>{value}</dd>
-    </div>
-  );
-}
-
-function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
-  return (
-    <section>
-      <h3 className="mb-2.5 flex items-baseline gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-4">
-        {title}
-        {hint && <span className="font-normal normal-case tracking-normal">{hint}</span>}
-      </h3>
-      {children}
-    </section>
-  );
-}
-
-function Line({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <dt className="text-ink-3">{k}</dt>
-      <dd className="truncate text-right font-medium tnum">{v}</dd>
-    </div>
   );
 }

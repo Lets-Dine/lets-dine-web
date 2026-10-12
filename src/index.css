@@ -113,8 +113,13 @@
   --animate-settle: settle 1.4s var(--ease-out-quart) both;
   --animate-sink: sink 200ms var(--ease-out-quart) both;
   --animate-swap: swap 240ms var(--ease-out-quart) both;
+  --animate-card-in: card-in 1000ms var(--ease-out-quart) backwards;
   --animate-flash: flash 1300ms var(--ease-out-quart) both;
 
+  @keyframes card-in {
+    from { opacity: 0; transform: translate3d(0, 24px, 0) rotateX(24deg) rotateY(-28deg) scale(0.94); }
+    to { opacity: 1; transform: rotateX(0) rotateY(0); }
+  }
   @keyframes rise {
     from { opacity: 0; transform: translate3d(0, 14px, 0); }
     to { opacity: 1; transform: none; }
@@ -458,6 +463,7 @@ html[data-page='landing'].lenis-stopped {
   html { scroll-behavior: auto !important; }
 
   .animate-rise,
+  .animate-card-in,
   .animate-swap,
   .animate-rise-slow,
   .animate-pop,

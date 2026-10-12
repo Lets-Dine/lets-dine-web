@@ -38,7 +38,7 @@ export const updateIngredient = (id: string, patch: Partial<Pick<Ingredient, 'na
   apiRequest<Ingredient>(`${BASE}/ingredients/${id}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(patch) });
 
 /** `receivedAt` (ISO) is for a delivery entered after the day it arrived; left out, it is now. */
-export const receiveDelivery = (id: string, draft: { quantity: number; supplier: string; cost: Minor; method: PaymentMethod; receivedAt?: string }) =>
+export const receiveDelivery = (id: string, draft: { quantity: number; supplier: string; cost: Minor; method: PaymentMethod; receivedAt?: string; onCredit?: boolean }) =>
   apiRequest<Ingredient>(`${BASE}/ingredients/${id}/delivery`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(draft) });
 
 /** Takes an amount off stock by hand: for a dish, or (no `dishId`) for waste or a staff meal. `usedAt` (ISO) files it on an earlier day. */
@@ -113,7 +113,7 @@ export interface IngredientSummary {
   days: number;
   stockIn: number;
   stockOut: number;
-  lastMovement: { reason: 'DELIVERY' | 'ORDER' | 'MANUAL_USE' | 'ADJUSTMENT' | 'TRANSFER_OUT' | 'TRANSFER_IN'; delta: number; note: string; at: string } | null;
+  lastMovement: { reason: 'DELIVERY' | 'ORDER' | 'MANUAL_USE' | 'ADJUSTMENT' | 'TRANSFER_OUT' | 'TRANSFER_IN' | 'RETURN'; delta: number; note: string; at: string } | null;
   lastPurchase: { supplier: string | null; cost: Minor | null; quantity: number; at: string } | null;
 }
 
@@ -184,9 +184,6 @@ export function saveMarginTarget(percent: number): void {
   }
 }
 
-/** Fully priced dishes under the target — the only ones whose margin is real enough to flag. */
-export const thinDishes = (rows: DishMargin[], targetPercent: number) => rows.filter((r) => r.missing.length === 0 && r.margin * 100 < targetPercent);
-
 export interface CountSheetRow {
   ingredientId: string;
   name: string;
@@ -212,3 +209,28 @@ export const submitStockTake = (counts: { ingredientId: string; quantity: number
 /** Moves stock to another branch of the same restaurant; the oldest deliveries travel with it. */
 export const transferStock = (id: string, toBranchId: string, quantity: number) =>
   apiRequest<Ingredient>(`${BASE}/ingredients/${id}/transfer`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ toBranchId, quantity }) });
+
+/** A delivery with stock still here that can be sent back to its supplier. */
+export interface ReturnableLot {
+  lotId: string;
+  supplier: string;
+  receivedAt: string;
+  /** What the delivery held, and what is left of it (the most that can go back). */
+  quantity: number;
+  remaining: number;
+  /** Minor units paid for the whole delivery; null when no price was entered. */
+  cost: Minor | null;
+  onCredit: boolean;
+  /** Minor units already given back for earlier returns from this delivery. */
+  refunded: Minor;
+}
+
+export const fetchReturnableLots = (id: string) => apiRequest<ReturnableLot[]>(`${BASE}/ingredients/${id}/returnable`, { headers: authHeaders() });
+
+/**
+ * Sends part of one delivery back. `refund` (minor units) is what the supplier gives back, at most the
+ * share of what was paid; left out, it is that share. On a credit delivery it comes off what is owed,
+ * otherwise it is money back and `method` says how it arrived.
+ */
+export const returnStock = (id: string, draft: { lotId: string; quantity: number; refund?: Minor; method: PaymentMethod; note?: string }) =>
+  apiRequest<Ingredient>(`${BASE}/ingredients/${id}/return`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(draft) });
