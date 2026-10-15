@@ -6,6 +6,7 @@ import { useStaff } from '../../state/AuthContext';
 import { useNow } from '../../state/useNow';
 import { Empty, PageTitle, Panel, Segmented, useCommand } from '../../components/admin/kit';
 import { PassCard } from '../../components/admin/PassCard';
+import { useOrderSheet } from '../../components/admin/OrderSheet';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { useDashboard } from './AdminLayout';
 
@@ -60,6 +61,7 @@ export function Orders() {
 
   /** One pass over the queue per tick — every lane, count and card reads its flag from here. */
   const flags = useMemo(() => focusMap(orders, now), [orders, now]);
+  const orderSheet = useOrderSheet({ orders, flags, now, onApply: applyOrder, onResync: reloadOrders, onTakePayment: (o) => setPayingId(o.id) });
 
   const newestPerTable = useMemo(() => newestOrderPerTable(orders), [orders]);
 
@@ -160,10 +162,13 @@ export function Orders() {
               onApply={applyOrder}
               onResync={reloadOrders}
               onTakePayment={(o) => setPayingId(o.id)}
+              onOpenDetail={orderSheet.open}
             />
           ))}
         </div>
       )}
+
+      {orderSheet.sheet}
 
       <PaymentSheet
         table={payingOrder ? floorBillSubject(payingOrder) : null}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { branchKeyOf, fetchDeliveryOverview, savePartner, saveRider } from '../../api/delivery';
 import type { PartnerDraft, RiderDraft } from '../../api/delivery';
@@ -36,11 +36,19 @@ type RiderFilter = 'all' | 'road' | 'cash';
 export function Delivery() {
   const staff = useStaff();
   const { allows } = useAuth();
-  const { menu } = useDashboard();
+  const { menu, orders } = useDashboard();
   const currency = menu.restaurant.currency;
   const branchId = branchKeyOf(staff);
   const canManage = allows('ledger:manage');
   const book = useAsync(() => fetchDeliveryOverview(branchId), [branchId]);
+  // Open-order counts come from the book, so re-read it when the layout's live queue moves.
+  const reloadBook = book.reload;
+  const seenOrders = useRef(orders);
+  useEffect(() => {
+    if (seenOrders.current === orders) return;
+    seenOrders.current = orders;
+    reloadBook();
+  }, [orders, reloadBook]);
 
   const [filter, setFilter] = useState<RiderFilter>('all');
   const [query, setQuery] = useState('');
@@ -90,6 +98,7 @@ export function Delivery() {
 
   return (
     <>
+      <div className="animate-rise">
       <PageTitle
         title="Delivery"
         purpose="Who carries the food, and who owes whom."
@@ -107,14 +116,17 @@ export function Delivery() {
           ) : undefined
         }
       />
+      </div>
 
       {first ? (
         <FirstRun onRider={canManage ? () => setAdding('rider') : undefined} onPartner={canManage ? () => setAdding('partner') : undefined} />
       ) : (
         <>
-          <Sentence summary={v.summary} currency={currency} />
+          <div className="animate-rise [animation-delay:80ms]">
+            <Sentence summary={v.summary} currency={currency} />
+          </div>
 
-          <section aria-labelledby="partners-h" className="mt-6">
+          <section aria-labelledby="partners-h" className="mt-6 animate-rise [animation-delay:160ms]">
             <div className="mb-3 flex items-baseline justify-between gap-3">
               <h2 id="partners-h" className="text-[15px] font-semibold tracking-tight">
                 Partners
@@ -140,7 +152,7 @@ export function Delivery() {
             </div>
           </section>
 
-          <section aria-labelledby="riders-h" className="mt-8">
+          <section aria-labelledby="riders-h" className="mt-8 animate-rise [animation-delay:280ms]">
             <Panel
               bare
               title="Riders"
@@ -198,8 +210,8 @@ export function Delivery() {
                         <span />
                       </div>
                       <ul>
-                        {riders.map((rider) => (
-                          <RiderRow key={rider.id} rider={rider} max={v.max} currency={currency} />
+                        {riders.map((rider, n) => (
+                          <RiderRow key={rider.id} rider={rider} max={v.max} currency={currency} delay={340 + Math.min(n, 10) * 45} />
                         ))}
                       </ul>
                     </>
@@ -260,7 +272,7 @@ function PartnerCard({ partner, max, currency, index }: { partner: PartnerListin
   return (
     <Link
       to={`/admin/delivery/partners/${partner.id}`}
-      style={{ animationDelay: `${index * 45}ms` }}
+      style={{ animationDelay: `${220 + Math.min(index, 10) * 45}ms` }}
       className={cx(
         'group animate-rise flex flex-col p-4 transition-move', PANEL,
         'hover:-translate-y-0.5 hover:shadow-lift focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-2',
@@ -291,7 +303,7 @@ function PartnerCard({ partner, max, currency, index }: { partner: PartnerListin
       </div>
 
       <div className="mt-3.5">
-        <LedgerLine net={balance.net} max={max} />
+        <LedgerLine net={balance.net} max={max} delay={220 + Math.min(index, 10) * 45 + 250} />
       </div>
 
       <div className="mt-4 flex items-center gap-2 border-t border-hairline pt-3 text-[12px] text-ink-3">
@@ -311,11 +323,11 @@ function PartnerCard({ partner, max, currency, index }: { partner: PartnerListin
 const STATUS_COPY = { 'on-road': 'On the road', available: 'Available', off: 'Off duty' } as const;
 const STATUS_DOT = { 'on-road': 'bg-mint', available: 'bg-ink-4', off: 'bg-ink-4/40' } as const;
 
-function RiderRow({ rider, max, currency }: { rider: RiderListing; max: number; currency: string }) {
+function RiderRow({ rider, max, currency, delay }: { rider: RiderListing; max: number; currency: string; delay: number }) {
   const { balance, open, partnerName, runs30 } = rider;
   const status = riderStatus(rider, open);
   return (
-    <li className="border-b border-hairline last:border-0">
+    <li style={{ animationDelay: `${delay}ms` }} className="animate-rise border-b border-hairline last:border-0">
       <Link
         to={`/admin/delivery/riders/${rider.id}`}
         className={cx(
@@ -351,7 +363,7 @@ function RiderRow({ rider, max, currency }: { rider: RiderListing; max: number; 
             <span className="grid gap-2 md:justify-items-end">
               <BalanceFigure balance={balance} currency={currency} align="right" />
               <span className="hidden w-full max-w-[200px] md:block">
-                <LedgerLine net={balance.net} max={max} compact />
+                <LedgerLine net={balance.net} max={max} compact delay={delay + 200} />
               </span>
             </span>
           ) : (
@@ -361,7 +373,7 @@ function RiderRow({ rider, max, currency }: { rider: RiderListing; max: number; 
 
         {balance && (
           <span className="col-span-3 md:hidden">
-            <LedgerLine net={balance.net} max={max} compact />
+            <LedgerLine net={balance.net} max={max} compact delay={delay + 200} />
           </span>
         )}
 

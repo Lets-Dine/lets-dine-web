@@ -77,11 +77,13 @@ export interface LedgerEntry {
   locked?: boolean;
 }
 
-export const fetchEntries = () => apiRequest<LedgerEntry[]>(`${BASE}/entries`, { headers: authHeaders() });
+/** No range reads the open period (with its opening line); `from` is exclusive, `to` inclusive — the same edges a close uses. */
+export const fetchEntries = (range?: { from?: string; to?: string }) =>
+  apiRequest<LedgerEntry[]>(`${BASE}/entries${range ? `?${new URLSearchParams(Object.entries(range).filter((e): e is [string, string] => Boolean(e[1])))}` : ''}`, { headers: authHeaders() });
 
 export const fetchLedger = () => apiRequest<LedgerSummary>(BASE, { headers: authHeaders() });
 
-export const fetchCloses = (limit = 30) => apiRequest<Paginated<CashClose>>(`${BASE}/closes?limit=${limit}`, { headers: authHeaders() }).then((p) => p.rows);
+export const fetchCloses = (limit = 31) => apiRequest<Paginated<CashClose>>(`${BASE}/closes?limit=${limit}`, { headers: authHeaders() }).then((p) => p.rows);
 
 export const fetchExpenses = () => apiRequest<Paginated<Expense>>(`${BASE}/expenses`, { headers: authHeaders() }).then((p) => p.rows);
 

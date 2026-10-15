@@ -72,6 +72,8 @@ export interface LotQuality {
   ingredientName: string;
   supplier: string | null;
   receivedAt: string;
+  /** Stock from this delivery is still here, so it can go back to its supplier. */
+  canReturn: boolean;
   reviewCount: number;
   poorCount: number;
   /** 0–1. */
@@ -119,10 +121,12 @@ export interface IngredientSummary {
 
 export const fetchIngredientSummary = (id: string) => apiRequest<IngredientSummary>(`${BASE}/ingredients/${id}/summary`, { headers: authHeaders() });
 
-/** One delivery: when it arrived, from whom, how much, and what was paid. */
+/** One delivery, or one return to the supplier: when, with whom, how much, and what was paid or given back. */
 export interface Purchase {
   id: string;
   at: string;
+  /** A return carries a negative `quantity`, and its `cost` is the refund. */
+  kind: 'delivery' | 'return';
   supplier: string | null;
   quantity: number;
   cost: Minor | null;

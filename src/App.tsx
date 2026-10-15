@@ -37,6 +37,7 @@ import { Inventory } from './routes/admin/Inventory';
 import { Suppliers } from './routes/admin/Suppliers';
 import { SupplierDetail } from './routes/admin/SupplierDetail';
 import { Ledger } from './routes/admin/Ledger';
+import { LedgerHistory } from './routes/admin/LedgerHistory';
 import { PaymentModes } from './routes/admin/PaymentModes';
 import { Payments } from './routes/admin/Payments';
 import { Plan } from './routes/admin/Plan';
@@ -179,6 +180,7 @@ export default function App() {
                 <Route path="payments" element={<Payments />} />
                 <Route path="payment-modes" element={<PaymentModes />} />
                 <Route path="ledger" element={<Ledger />} />
+                <Route path="ledger/transactions" element={<LedgerHistory />} />
                 <Route path="inventory" element={<Inventory />} />
                 <Route path="inventory/count" element={<StockTake />} />
                 <Route path="inventory/buy-list" element={<BuyList />} />

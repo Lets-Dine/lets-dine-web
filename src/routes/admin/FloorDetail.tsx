@@ -8,6 +8,7 @@ import { useAsync } from '../../state/useAsync';
 import { useToast } from '../../state/ToastContext';
 import { useNow } from '../../state/useNow';
 import { FloorQrDialog, floorUrl, printSingleFloorQr } from '../../components/admin/FloorQrCard';
+import { useOrderSheet } from '../../components/admin/OrderSheet';
 import { PassCard } from '../../components/admin/PassCard';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import {
@@ -53,6 +54,7 @@ export function FloorDetail() {
 
   const [showQr, setShowQr] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const orderSheet = useOrderSheet({ orders, now, onApply: applyOrder, onResync: reloadOrders, onTakePayment: (o) => setPayingId(o.id) });
 
   // `Order.floorName` is the only thread back to a floor — it's joined in read-side from the
   // session rather than stored on the order itself (see the domain type), so a name match is
@@ -133,6 +135,7 @@ export function FloorDetail() {
                 onApply={applyOrder}
                 onResync={reloadOrders}
                 onTakePayment={(o) => setPayingId(o.id)}
+                onOpenDetail={orderSheet.open}
               />
             ))
           )}
@@ -204,6 +207,8 @@ export function FloorDetail() {
           push('Floor link copied');
         }}
       />
+
+      {orderSheet.sheet}
 
       <PaymentSheet
         table={payingOrder ? floorBillSubject(payingOrder) : null}

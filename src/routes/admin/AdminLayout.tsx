@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import type { ComponentType } from 'react';
-import { BRANCHES_ENABLED, adminMenu, isSuspension, listQueue, subscribeToQueue } from '../../api/staff';
+import { BRANCHES_ENABLED, adminMenu, isSuspension, listQueue, subscribeToQueue, subscribeToTables } from '../../api/staff';
 import { IS_LIVE_API } from '../../api/http';
 import { ROLE_LABEL } from '../../domain/permissions';
 import type { Permission } from '../../domain/permissions';
@@ -42,6 +42,8 @@ interface DashboardValue {
    * a round trip to see its own press land.
    */
   applyOrder: (order: Order) => void;
+  /** Bumps whenever the floor changes (live only) — screens showing tables refetch on it. */
+  tablesTick: number;
 }
 
 const DashboardContext = createContext<DashboardValue | null>(null);
@@ -78,7 +80,8 @@ const NAV: NavItem[] = [
   { to: '/admin/inventory/watchlist', label: 'Watchlist', icon: Eye, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/delivery', label: 'Delivery', icon: Bike, permission: 'settings:view', group: '' },
   { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view', group: 'Finance' },
-  { to: '/admin/ledger', label: 'Cash book', icon: Cash, permission: 'ledger:view', liveOnly: true, group: 'Finance' },
+  { to: '/admin/ledger', label: 'Cash book', icon: Cash, permission: 'ledger:view', end: true, liveOnly: true, group: 'Finance' },
+  { to: '/admin/ledger/transactions', label: 'Transactions', icon: History, permission: 'ledger:view', liveOnly: true, group: 'Finance' },
   { to: '/admin/customers', label: 'Customers', icon: Contact, permission: 'customers:view', group: '' },
   { to: '/admin/referrals', label: 'Referrals', icon: Megaphone, permission: 'billing:manage', liveOnly: true, group: '' },
   // { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view', group: 'Insights' },
@@ -208,21 +211,31 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     void refreshBranches();
   }, [refreshBranches]);
 
-  // §38 — live, the pass gets pushed every new ticket and status change over a
-  // socket instead of re-fetching the whole queue every few seconds. The mock
-  // has no server to push from, so it keeps polling; `subscribeToQueue` is a
-  // no-op there and this falls through. Neither runs at all on a page that
-  // doesn't show the queue — no reason to keep a socket open or poll in the
-  // background for data nothing on screen reads.
+  // §38 — live, the layout holds the queue and floor rooms for the whole
+  // dashboard session, whichever page is open, so the waiting badge and every
+  // screen stay current. The mock has no server to push from, so it polls, and
+  // only on pages that show the queue.
   useEffect(() => {
-    if (!needsOrders || subscription.locked) return;
+    if (subscription.locked) return;
+    if (IS_LIVE_API) return subscribeToQueue(applyCreated, applyUpdated, reloadOrders);
+    if (!needsOrders) return;
     reloadOrders();
-    if (IS_LIVE_API) {
-      return subscribeToQueue(applyCreated, applyUpdated, reloadOrders);
-    }
     const timer = setInterval(reloadOrders, POLL_MS);
     return () => clearInterval(timer);
   }, [needsOrders, subscription.locked, reloadOrders, applyCreated, applyUpdated]);
+
+  // Live: navigating onto an orders page must show current data, so refetch there too.
+  useEffect(() => {
+    if (IS_LIVE_API && needsOrders && !subscription.locked) reloadOrders();
+  }, [needsOrders, subscription.locked, reloadOrders]);
+
+  // Floor changes: the layout owns the room, pages re-read when the tick moves.
+  const [tablesTick, setTablesTick] = useState(0);
+  useEffect(() => {
+    if (!IS_LIVE_API || subscription.locked) return;
+    const bump = () => setTablesTick((n) => n + 1);
+    return subscribeToTables(bump, bump);
+  }, [subscription.locked]);
 
   const activeLabel = NAV.find((item) => (item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)))?.label;
   usePageTitle(`${activeLabel ?? 'Dashboard'} · ${menu?.restaurant.name ?? "FeastoX"} admin`);
@@ -232,9 +245,9 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const dashboard = useMemo<DashboardValue | null>(
     () =>
       menu && (!needsOrders || orders)
-        ? { menu, orders: orders ?? [], reloadOrders, reloadMenu, applyOrder: applyUpdated }
+        ? { menu, orders: orders ?? [], reloadOrders, reloadMenu, applyOrder: applyUpdated, tablesTick }
         : null,
-    [menu, orders, needsOrders, reloadOrders, reloadMenu, applyUpdated],
+    [menu, orders, needsOrders, reloadOrders, reloadMenu, applyUpdated, tablesTick],
   );
 
   const locked = subscription.locked;
@@ -274,7 +287,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
               group ? (
                 <NavGroup key={group} label={group} links={links} pathname={location.pathname} waiting={waiting} />
               ) : (
-                links.map((item) => <SideLink key={item.to} item={item} badge={0} />)
+                links.map((item) => <SideLink key={item.to} item={item} badge={item.to === '/admin/orders' ? waiting : 0} />)
               ),
             )}
           </nav>

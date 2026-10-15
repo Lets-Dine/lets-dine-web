@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { IS_LIVE_API } from '../../api/http';
@@ -78,22 +78,16 @@ const TONE_BAR = { 'owes-us': 'bg-gold', 'we-owe': 'bg-pass', square: 'bg-ink-4'
  * branch's cash and left when the branch owes them, scaled to the biggest balance on the page so
  * lines compare across couriers.
  */
-export function LedgerLine({ net, max, compact = false }: { net: Minor; max: Minor; compact?: boolean }) {
+export function LedgerLine({ net, max, compact = false, delay = 0 }: { net: Minor; max: Minor; compact?: boolean; delay?: number }) {
   const { tone, label } = balanceWords(net);
   const share = max > 0 ? Math.min(1, Math.abs(net) / max) : 0;
-  // Starts at zero and grows once painted — the one authored moment on this page.
-  const [grown, setGrown] = useState(false);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setGrown(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  const width = `${(grown ? share : 0) * 50}%`;
+  // Grows out from the centre line once its row has risen in (`delay`), so the growth is seen, not spent while the row is still hidden.
   return (
     <span role="img" aria-label={`${label}${net === 0 ? '' : `, ${Math.abs(net)}`}`} className={cx('relative block w-full rounded-full bg-ink/8', compact ? 'h-1' : 'h-1.5')}>
       {net !== 0 && (
         <span
-          className={cx('absolute inset-y-0 rounded-full motion-safe:transition-[width] motion-safe:duration-700 motion-safe:ease-out-quart', TONE_BAR[tone])}
-          style={net > 0 ? { left: '50%', width } : { right: '50%', width }}
+          className={cx('absolute inset-y-0 animate-grow-x rounded-full', net > 0 ? 'origin-left' : 'origin-right', TONE_BAR[tone])}
+          style={{ ...(net > 0 ? { left: '50%' } : { right: '50%' }), width: `${share * 50}%`, animationDelay: `${delay}ms` }}
         />
       )}
       <span className={cx('absolute left-1/2 w-px -translate-x-1/2 bg-ink/45', compact ? '-inset-y-0.5' : '-inset-y-1')} />

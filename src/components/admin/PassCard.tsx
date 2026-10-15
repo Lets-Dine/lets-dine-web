@@ -1,26 +1,15 @@
 import { useState } from 'react';
-import { useAsync } from '../../state/useAsync';
-import { branchKeyOf, completeDelivery, fetchAssignmentForOrder, settleDelivery } from '../../api/delivery';
-import { acceptOrder, advanceDeliveryOrder, advanceOrderItem, deliverOrder, rejectOrder } from '../../api/staff';
 import { formatMoney } from '../../domain/money';
-import {
-  ADVANCE_LABEL,
-  DELIVERY_ADVANCE_LABEL,
-  ITEM_ADVANCE_LABEL,
-  STATUS_LABEL,
-  billableItems,
-  canCancelOrder,
-  itemStatusSummary,
-} from '../../domain/orderStatus';
+import { STATUS_LABEL, billableItems, itemStatusSummary } from '../../domain/orderStatus';
 import type { Focus } from '../../domain/orderStatus';
-import type { ItemStatus, Menu, Order, OrderItem, OrderStatus } from '../../domain/types';
-import { useAuth, useStaff } from '../../state/AuthContext';
+import type { Menu, Order, OrderStatus } from '../../domain/types';
 import { relativeTime } from '../time';
 import { cx } from '../ui';
-import { ChevronRight, Receipt } from '../icons';
-import { CourierTag, DispatchSheet, HandoverSheet, SettleOrderSheet } from './delivery';
-import { ADMIN_TINY, Confirm, StatusPill, useCommand } from './kit';
-import { BULK_DONE, FocusRibbon, ItemRow, Progress, nextBulkStage } from './OrderLines';
+import { Bike, ChevronRight } from '../icons';
+import { CourierTag } from './delivery';
+import { ADMIN_TINY, StatusPill } from './kit';
+import { FocusRibbon, ItemRow, Progress } from './OrderLines';
+import { useOrderMoves } from './OrderMoves';
 
 /**
  * The status color language, borrowed for each ticket card's border. Tailwind only generates CSS
@@ -37,18 +26,6 @@ const ACCENT_BORDER: Record<OrderStatus, string> = {
   UNPAID: 'border-flame-2',
   COMPLETED: 'border-ink-4',
   CANCELLED: 'border-berry',
-};
-
-const ACCENT_BUTTON: Record<OrderStatus, string> = {
-  PENDING: 'bg-flame-3',
-  ACCEPTED: 'bg-gold',
-  PREPARING: 'bg-pass',
-  READY: 'bg-mint',
-  OUT_FOR_DELIVERY: 'bg-mint',
-  SETTLE: 'bg-flame-2',
-  UNPAID: 'bg-flame-2',
-  COMPLETED: 'bg-ink-4',
-  CANCELLED: 'bg-berry',
 };
 
 /**
@@ -68,6 +45,7 @@ export function PassCard({
   onApply,
   onResync,
   onTakePayment,
+  onOpenDetail,
 }: {
   order: Order;
   index: number;
@@ -81,53 +59,19 @@ export function PassCard({
   /** A floor order (§16b) sits at `UNPAID` once every dish is served — omitted by callers (the
    *  kitchen dashboard, the full pass) that have nowhere for a payment to go. */
   onTakePayment?: (order: Order) => void;
+  /** When given, the reference opens the order's sheet. */
+  onOpenDetail?: (order: Order) => void;
 }) {
-  const staff = useStaff();
-  const { allows } = useAuth();
-  const { pending, run } = useCommand();
   /** `null` means "nobody has decided" — an overdue ticket then opens on its own. */
   const [opened, setOpened] = useState<boolean | null>(null);
   // Add is commented out for now — see the footer button below.
   // const [adding, setAdding] = useState(false);
   const open = opened ?? focus !== null;
-  /** Which delivery sheet is up: choosing a courier before the ticket goes out, or recording the cash when it lands. */
-  const [sheet, setSheet] = useState<'dispatch' | 'handover' | 'settle' | null>(null);
+  const { move, cancel, sheets, courierRun, live } = useOrderMoves(order, { onApply, onResync, onTakePayment }, { moveClass: cx(ADMIN_TINY, 'flex-1') });
 
   const noted = order.items.find((i) => i.notes);
-  const live = allows('orders:advance') && order.status !== 'COMPLETED' && order.status !== 'CANCELLED';
-  const canAdvance = order.status === 'PENDING' && allows('orders:advance');
-  const canCancelHere = canCancelOrder(order) && allows('orders:cancel');
   const progress = itemStatusSummary(order);
-  const bulk = nextBulkStage(order);
   const isDelivery = order.orderType === 'DELIVERY';
-  // The two manual delivery steps only ever apply once the kitchen side is done — a delivery
-  // ticket with items still cooking uses the same accept/advance-item controls as dine-in.
-  const canDispatch = isDelivery && order.status === 'READY' && allows('orders:advance');
-  const canMarkDelivered = isDelivery && order.status === 'OUT_FOR_DELIVERY' && allows('orders:advance');
-  const canSettleDelivery = isDelivery && order.status === 'SETTLE' && allows('orders:advance');
-  const assignment = useAsync(
-    () => (isDelivery && order.status !== 'PENDING' ? fetchAssignmentForOrder(order.id) : Promise.resolve(null)),
-    [order.id, order.status, isDelivery],
-  );
-  const courierRun = assignment.data;
-
-  const apply = (key: string, action: () => Promise<Order>, success?: string) =>
-    void run(key, async () => onApply(await action()), success).then((ok) => {
-      if (!ok) onResync();
-    });
-
-  const advanceAll = (stage: ItemStatus, items: OrderItem[]) =>
-    void run(
-      `bulk:${order.id}`,
-      async () => {
-        let latest = order;
-        for (const item of items) latest = await advanceOrderItem(staff, order.id, item.id, stage);
-        onApply(latest);
-      },
-      `${items.length} dishes ${BULK_DONE[stage]}`,
-    ).then((ok) => {
-      if (!ok) onResync();
-    });
 
   return (
     <article
@@ -144,10 +88,22 @@ export function PassCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
-              <span className="text-[14px] font-bold tnum">{order.reference}</span>
+              {onOpenDetail ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenDetail(order)}
+                  aria-label={`Open order ${order.reference}`}
+                  className="group/ref -ml-1 inline-flex shrink-0 items-center gap-0.5 self-center rounded-lg bg-flame-2/12 py-0.5 pl-2 pr-1 text-[14px] font-bold text-flame-1 ring-1 ring-flame-2/30 ring-inset transition-move hover:bg-flame-2/20 hover:ring-flame-2/50 active:scale-95"
+                >
+                  <span className="tnum">{order.reference}</span>
+                  <ChevronRight size={14} className="transition-move group-hover/ref:translate-x-0.5" />
+                </button>
+              ) : (
+                <span className="text-[14px] font-bold tnum">{order.reference}</span>
+              )}
               {isDelivery && (
-                <span className="shrink-0 rounded-full bg-mint/14 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-mint-ink">
-                  Delivery
+                <span className="shrink-0 self-center text-mint-ink" role="img" aria-label="Delivery">
+                  <Bike size={15} />
                 </span>
               )}
               {!isDelivery && order.floorVisitorName && (
@@ -155,25 +111,31 @@ export function PassCard({
                   {order.floorName || 'Floor'}
                 </span>
               )}
-              <span className="truncate text-[13px] font-semibold text-ink-2">
-                {isDelivery ? order.deliveryCustomerName || 'Guest' : (order.tableName ?? order.floorVisitorName ?? 'Floor order')}
-              </span>
+              {!isDelivery && (
+                <span className="truncate text-[13px] font-semibold text-ink-2">{order.tableName ?? order.floorVisitorName ?? 'Floor order'}</span>
+              )}
             </div>
-            {isDelivery ? (
-              <div className="mt-0.5 truncate text-[12px] text-ink-3">
-                {[order.deliveryPhone, order.deliveryAddress].filter(Boolean).join(' · ') || 'No address on file'}
-              </div>
-            ) : null}
-            {isDelivery && courierRun && (
-              <div className="mt-1 flex flex-wrap items-center gap-x-1.5">
-                <CourierTag run={courierRun} />
-                {courierRun.status === 'ASSIGNED' && courierRun.cashToCollect > 0 && (
-                  <span className="whitespace-nowrap text-[12px] text-ink-4 tnum">· {formatMoney(courierRun.cashToCollect, order.currency)} cash</span>
-                )}
+            {isDelivery && (
+              <div className="mt-0.5 truncate text-[13px] text-ink-3">
+                <span className="font-semibold text-ink-2">{order.deliveryCustomerName || 'Guest'}</span>
+                {(order.deliveryAddress || order.deliveryPhone) && <> · {order.deliveryAddress || order.deliveryPhone}</>}
               </div>
             )}
-            <div className={cx('mt-0.5 text-[12px] tnum', focus ? 'font-semibold text-berry-ink' : 'text-ink-4')}>
-              {relativeTime(order.createdAt)}
+            {!isDelivery && order.customerName && (
+              <div className="mt-0.5 truncate text-[13px] font-semibold text-ink-2">{order.customerName}</div>
+            )}
+            {/* One quiet line: who has it, the cash they carry, and how long ago it was placed. */}
+            <div className="mt-1 flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[12px] tnum">
+              {isDelivery && courierRun && (
+                <>
+                  <CourierTag run={courierRun} />
+                  {courierRun.status === 'ASSIGNED' && courierRun.cashToCollect > 0 && (
+                    <span className="text-ink-4">{formatMoney(courierRun.cashToCollect, order.currency)} cash</span>
+                  )}
+                  <span className="text-ink-4" aria-hidden>·</span>
+                </>
+              )}
+              <span className={focus ? 'font-semibold text-berry-ink' : 'text-ink-4'}>{relativeTime(order.createdAt)}</span>
             </div>
           </div>
           <StatusPill status={order.status} label={STATUS_LABEL[order.status]} />
@@ -225,74 +187,7 @@ export function PassCard({
       */}
 
       <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-hairline px-4 py-3">
-        {canAdvance ? (
-          <button
-            type="button"
-            disabled={pending !== null}
-            className={cx(ADMIN_TINY, 'flex-1 justify-center text-white', ACCENT_BUTTON[order.status])}
-            onClick={() => apply(order.id, () => acceptOrder(staff, order.id, 'PENDING'), `${order.reference} accepted`)}
-          >
-            {pending === order.id ? 'Working…' : ADVANCE_LABEL.PENDING}
-          </button>
-        ) : bulk && live ? (
-          <button
-            type="button"
-            disabled={pending !== null}
-            className={cx(ADMIN_TINY, 'flex-1 justify-center text-white', ACCENT_BUTTON[order.status])}
-            onClick={() => advanceAll(bulk.stage, bulk.items)}
-          >
-            {pending === `bulk:${order.id}` ? 'Working…' : `${ITEM_ADVANCE_LABEL[bulk.stage]} all ${bulk.items.length}`}
-          </button>
-        ) : canDispatch ? (
-          <button
-            type="button"
-            disabled={pending !== null}
-            className={cx(ADMIN_TINY, 'flex-1 justify-center text-white', ACCENT_BUTTON[order.status])}
-            onClick={() => setSheet('dispatch')}
-          >
-            {pending === order.id ? 'Working…' : DELIVERY_ADVANCE_LABEL.READY}
-          </button>
-        ) : canMarkDelivered ? (
-          <button
-            type="button"
-            disabled={pending !== null}
-            className={cx(ADMIN_TINY, 'flex-1 justify-center text-white', ACCENT_BUTTON[order.status])}
-            onClick={() =>
-              courierRun && courierRun.status === 'ASSIGNED' && courierRun.cashToCollect > 0
-                ? setSheet('handover')
-                : apply(
-                    order.id,
-                    async () => {
-                      await completeDelivery(order.id, 0);
-                      return deliverOrder(staff, order.id);
-                    },
-                    `${order.reference} delivered`,
-                  )
-            }
-          >
-            {pending === order.id ? 'Working…' : DELIVERY_ADVANCE_LABEL.OUT_FOR_DELIVERY}
-          </button>
-        ) : canSettleDelivery ? (
-          <button
-            type="button"
-            disabled={pending !== null}
-            className={cx(ADMIN_TINY, 'flex-1 justify-center text-white', ACCENT_BUTTON[order.status])}
-            onClick={() => setSheet('settle')}
-          >
-            {DELIVERY_ADVANCE_LABEL.SETTLE} · {formatMoney(order.total, order.currency)}
-          </button>
-        ) : order.status === 'UNPAID' && onTakePayment && live ? (
-          <button
-            type="button"
-            disabled={pending !== null}
-            className={cx(ADMIN_TINY, 'flex-1 justify-center gap-1.5 text-white', ACCENT_BUTTON[order.status])}
-            onClick={() => onTakePayment(order)}
-          >
-            <Receipt size={13} /> Take payment · {formatMoney(order.total, order.currency)}
-          </button>
-        ) : (
-          <span className="flex-1 text-[12px] text-ink-4">{open ? 'Move each dish above' : 'Nothing to press'}</span>
-        )}
+        {move ?? <span className="flex-1 text-[12px] text-ink-4">{open ? 'Move each dish above' : 'Nothing to press'}</span>}
 
         {/* Add, commented out for now — see `adding` state above.
         {live && canAdd && (
@@ -322,68 +217,10 @@ export function PassCard({
           </button>
         )}
 
-        {canCancelHere && (
-          <Confirm
-            label="Cancel"
-            question="Cancel this order?"
-            confirmLabel="Cancel it"
-            disabled={pending !== null}
-            onConfirm={() =>
-              apply(order.id, () => rejectOrder(staff, order.id, 'Cancelled from the dashboard'), `${order.reference} cancelled`)
-            }
-          />
-        )}
+        {cancel}
       </div>
 
-      {sheet === 'dispatch' && (
-        <DispatchSheet
-          branchId={branchKeyOf(staff)}
-          order={order}
-          onClose={() => setSheet(null)}
-          onDispatch={async () => {
-            try {
-              onApply(await advanceDeliveryOrder(staff, order.id, 'READY'));
-              assignment.reload();
-            } catch (error) {
-              onResync();
-              throw error;
-            }
-          }}
-        />
-      )}
-      {sheet === 'handover' && courierRun && (
-        <HandoverSheet
-          order={order}
-          run={courierRun}
-          onClose={() => setSheet(null)}
-          onDelivered={async () => {
-            try {
-              onApply(await deliverOrder(staff, order.id));
-              assignment.reload();
-            } catch (error) {
-              onResync();
-              throw error;
-            }
-          }}
-        />
-      )}
-      {sheet === 'settle' && (
-        <SettleOrderSheet
-          order={order}
-          run={courierRun}
-          canPayFee={allows('ledger:manage')}
-          onClose={() => setSheet(null)}
-          onSettle={async (input) => {
-            try {
-              onApply(await settleDelivery(staff, branchKeyOf(staff), order, input));
-              assignment.reload();
-            } catch (error) {
-              onResync();
-              throw error;
-            }
-          }}
-        />
-      )}
+      {sheets}
     </article>
   );
 }

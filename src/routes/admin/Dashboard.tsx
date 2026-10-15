@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { allOrders } from '../../api/admin';
 import {
@@ -22,6 +23,7 @@ import { useAsync } from '../../state/useAsync';
 import { useNow } from '../../state/useNow';
 import { Empty, Loading, PageTitle, Panel, Row, Segmented, StatTile, useCommand } from '../../components/admin/kit';
 import { LowStockPanel } from '../../components/admin/LowStockPanel';
+import { useOrderSheet } from '../../components/admin/OrderSheet';
 import { PassCard } from '../../components/admin/PassCard';
 import { RevenueTrendChart } from '../../components/admin/RevenueTrendChart';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
@@ -96,6 +98,7 @@ export function Dashboard() {
 
   /** The same clocks the full pass runs on — one sweep per tick, read by every lane and card. */
   const flags = useMemo(() => focusMap(working, now), [working, now]);
+  const orderSheet = useOrderSheet({ orders: queue, flags, now, onApply: applyOrder, onResync: reloadOrders, onTakePayment: (o) => setPayingId(o.id) });
   const newestPerTable = useMemo(() => newestOrderPerTable(queue), [queue]);
 
   const inLane = useMemo(
@@ -124,6 +127,7 @@ export function Dashboard() {
 
   return (
     <>
+      <div className="animate-rise">
       <PageTitle
         title={greeting(staff.name)}
         subtitle={
@@ -150,9 +154,10 @@ export function Dashboard() {
           </Link>
         }
       />
+      </div>
 
       {/* ── The pass: full-width, decorated, the first thing a shift sees ── */}
-      <section className="relative mb-5 overflow-hidden rounded-3xl bg-surface ring-1 ring-hairline ring-inset">
+      <section className="relative mb-5 animate-rise overflow-hidden rounded-3xl bg-surface ring-1 ring-hairline ring-inset [animation-delay:60ms]">
         <div className="pointer-events-none absolute -top-24 -right-16 size-72 rounded-full bg-flame-3/18 blur-3xl" aria-hidden />
         <div className="pointer-events-none absolute -bottom-24 -left-16 size-64 rounded-full bg-flame-2/10 blur-3xl" aria-hidden />
 
@@ -211,6 +216,7 @@ export function Dashboard() {
                   onApply={applyOrder}
                   onResync={reloadOrders}
                   onTakePayment={(o) => setPayingId(o.id)}
+                  onOpenDetail={orderSheet.open}
                 />
               ))}
               {hiddenCount > 0 && (
@@ -228,6 +234,7 @@ export function Dashboard() {
       </section>
 
       <div className="mb-5 grid grid-cols-3 gap-3">
+<Rise ms={100}>
         <StatTile
           label="Orders today"
           value={orderComparison.data ? String(orderComparison.data.current) : '—'}
@@ -235,6 +242,8 @@ export function Dashboard() {
           sub={analyticsLocked ? 'Not in your plan' : 'vs yesterday'}
           variant="primary"
         />
+        </Rise>
+<Rise ms={160}>
         <StatTile
           label="Revenue today"
           value={revenue.data ? formatMoney(revenue.data.current, menu.restaurant.currency) : '—'}
@@ -242,18 +251,21 @@ export function Dashboard() {
           sub={analyticsLocked ? 'Not in your plan' : 'vs yesterday'}
           variant="primary"
         />
+        </Rise>
+<Rise ms={220}>
         <StatTile
           label="Average order"
           value={today ? formatMoney(today.current.averageOrder, menu.restaurant.currency) : '—'}
           sub={today ? `${today.current.covers} dishes served` : undefined}
           variant="primary"
         />
+        </Rise>
       </div>
 
       <LowStockPanel />
 
       {compareBranches && (
-        <Panel title="Branches" hint="Last 30 days, by revenue" bare className="mb-4">
+        <Panel title="Branches" hint="Last 30 days, by revenue" bare className="mb-4 animate-rise [animation-delay:300ms]">
           {branchPerformance.loading && !branchPerformance.data ? (
             <Loading label="Comparing branches…" />
           ) : branchesLocked ? (
@@ -266,8 +278,8 @@ export function Dashboard() {
           ) : (branchPerformance.data ?? []).length === 0 ? (
             <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">No orders at any branch yet.</p>
           ) : (
-            (branchPerformance.data ?? []).map((branch) => (
-              <Row key={branch.branchId}>
+            (branchPerformance.data ?? []).map((branch, n) => (
+              <Row key={branch.branchId} className="animate-rise" style={rise(380 + Math.min(n, 8) * 45)}>
                 <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
                   {branch.branchName}
                   {branch.branchId === staff.branchId && <span className="ml-1.5 font-normal text-ink-4">(here)</span>}
@@ -283,14 +295,14 @@ export function Dashboard() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <Panel title="Selling today" hint="By dishes served" bare>
+        <Panel title="Selling today" hint="By dishes served" bare className="animate-rise [animation-delay:340ms]">
           {topDishes.loading ? (
             <Loading label="Counting today…" />
           ) : bestSellers.length === 0 ? (
             <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">Nothing has sold yet today.</p>
           ) : (
-            bestSellers.map((dish) => (
-              <Row key={dish.dishId}>
+            bestSellers.map((dish, n) => (
+              <Row key={dish.dishId} className="animate-rise" style={rise(420 + Math.min(n, 8) * 45)}>
                 <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{dish.dishName}</span>
                 <span className="shrink-0 text-[13.5px] tnum text-ink-3">
                   {formatMoney(dish.totalAmount, menu.restaurant.currency)}
@@ -301,6 +313,7 @@ export function Dashboard() {
           )}
         </Panel>
 
+        <Rise ms={380}>
         <RevenueTrendChart
           trend={trend.data}
           period={trendPeriod}
@@ -311,34 +324,45 @@ export function Dashboard() {
           onRetry={trend.reload}
           currency={menu.restaurant.currency}
         />
+        </Rise>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+<Rise ms={420}>
         <StatTile
           label="Restaurant rating"
           value={feedback.restaurantRating ? `${feedback.restaurantRating.toFixed(2)} ★` : '—'}
           sub={`${feedback.reviewCount.toLocaleString()} verified reviews`}
           variant="subtle"
         />
+        </Rise>
+<Rise ms={480}>
         <StatTile
           label="Would order again"
           value={feedback.recommendRate !== null ? `${Math.round(feedback.recommendRate * 100)}%` : '—'}
           sub="across rated dishes"
           variant="subtle"
         />
+        </Rise>
+<Rise ms={540}>
         <StatTile
           label="Dishes without ratings"
           value={String(feedback.unratedDishes)}
           sub={`of ${feedback.ratedDishes + feedback.unratedDishes} on the menu`}
           variant="subtle"
         />
+        </Rise>
+<Rise ms={600}>
         <StatTile
           label="Dish decision rate"
           value={dishDecisionRate !== null ? `${Math.round(dishDecisionRate * 100)}%` : '—'}
           sub="dish page → added to cart"
           variant="subtle"
         />
+        </Rise>
       </div>
+
+      {orderSheet.sheet}
 
       <PaymentSheet
         table={payingOrder ? floorBillSubject(payingOrder) : null}
@@ -366,6 +390,16 @@ export function Dashboard() {
         onShowQr={() => setPayingId(null)}
       />
     </>
+  );
+}
+
+const rise = (ms: number) => ({ animationDelay: `${ms}ms` });
+
+function Rise({ ms, children }: { ms: number; children: ReactNode }) {
+  return (
+    <div className="animate-rise *:h-full" style={rise(ms)}>
+      {children}
+    </div>
   );
 }
 

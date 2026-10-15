@@ -20,15 +20,15 @@ function LowStock() {
       title="Running low"
       hint={`${low.length} ingredient${low.length === 1 ? '' : 's'} below the warning line`}
       bare
-      className="mb-4"
+      className="mb-4 animate-rise [animation-delay:240ms]"
       action={
         <Link to="/admin/inventory" className="text-[12.5px] font-semibold text-flame-1">
           Open stock
         </Link>
       }
     >
-      {low.slice(0, 6).map((ing) => (
-        <Row key={ing.id}>
+      {low.slice(0, 6).map((ing, n) => (
+        <Row key={ing.id} className="animate-rise" style={{ animationDelay: `${300 + n * 45}ms` }}>
           <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{ing.name}</span>
           <span className="shrink-0 text-[14px] font-bold text-berry tnum">
             {ing.quantity <= 0 ? 'Out' : formatQty(ing.quantity, ing.unit)}

@@ -270,6 +270,8 @@ interface ApiOrder {
   deliveryNote?: string | null;
   floorVisitorName?: string | null;
   floorName?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
 }
 
 interface ApiPaymentItem {
@@ -475,6 +477,8 @@ function toOrder(api: ApiOrder): Order {
     deliveryNote: api.deliveryNote ?? null,
     floorVisitorName: api.floorVisitorName ?? null,
     floorName: api.floorName ?? null,
+    customerName: api.customerName ?? null,
+    customerPhone: api.customerPhone ?? null,
   };
 }
 

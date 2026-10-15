@@ -10,7 +10,6 @@ import {
   listTables,
   regenerateQr,
   setTableActive,
-  subscribeToTables,
   updateTable,
 } from '../../api/staff';
 import type { DiningTable, Order } from '../../domain/types';
@@ -59,7 +58,7 @@ const TABLES_POLL_MS = 8000;
 export function Tables() {
   const staff = useStaff();
   const { allows } = useAuth();
-  const { menu, orders, reloadOrders } = useDashboard();
+  const { menu, orders, reloadOrders, tablesTick } = useDashboard();
   const { pending, busy, run } = useCommand();
   const push = useToast();
 
@@ -68,16 +67,17 @@ export function Tables() {
 
   // A diner's QR scan can open a session, and another staff member's device
   // can end one, on any device that isn't this one — the floor plan has to
-  // notice either without someone refreshing it. Live, the socket pushes
-  // `table.updated` the moment a session starts or ends; the mock has no
+  // notice either without someone refreshing it. Live, `AdminLayout` holds the socket room and bumps `tablesTick`
+  // on `table.updated` the moment a session starts or ends; the mock has no
   // server to push from, so it keeps polling instead.
   useEffect(() => {
-    if (IS_LIVE_API) {
-      return subscribeToTables(reloadTables, reloadTables);
-    }
+    if (IS_LIVE_API) return;
     const timer = setInterval(reloadTables, TABLES_POLL_MS);
     return () => clearInterval(timer);
   }, [reloadTables]);
+  useEffect(() => {
+    if (tablesTick) reloadTables();
+  }, [tablesTick, reloadTables]);
 
   const [name, setName] = useState('');
   const [capacity, setCapacity] = useState('4');
@@ -140,7 +140,12 @@ export function Tables() {
               type="button"
               className={ADMIN_GHOST}
               onClick={() => {
-                const opened = printQrSheet(active, menu.restaurant.name, menu.restaurant.slug, menu.restaurant.logoUrl || undefined);
+                const opened = printQrSheet(
+                  active,
+                  menu.restaurant.name,
+                  menu.restaurant.slug,
+                  menu.restaurant.logoUrl || undefined,
+                );
                 if (!opened) push('Allow pop-ups to print the QR sheet.', '⚠️');
               }}
             >
@@ -173,9 +178,10 @@ export function Tables() {
             {visibleRows.length === 0 && (
               <p className="col-span-full py-6 text-center text-[13px] text-ink-4">No tables match this filter.</p>
             )}
-            {visibleRows.map((table) => (
+            {visibleRows.map((table, n) => (
               <TableCard
                 key={table.id}
+                delay={Math.min(n, 10) * 45}
                 table={table}
                 slug={menu.restaurant.slug}
                 restaurantName={menu.restaurant.name}
@@ -188,7 +194,15 @@ export function Tables() {
                 onCancelRename={() => setRenaming(null)}
                 onSaveRename={(nextName, nextCapacity) => {
                   setRenaming(null);
-                  act(table.id, () => updateTable(staff, table.id, { name: nextName, capacity: nextCapacity }), 'Table updated');
+                  act(
+                    table.id,
+                    () =>
+                      updateTable(staff, table.id, {
+                        name: nextName,
+                        capacity: nextCapacity,
+                      }),
+                    'Table updated',
+                  );
                 }}
                 onToggle={() =>
                   act(
@@ -271,7 +285,17 @@ export function Tables() {
           const sessionId = billTable.currentSessionId;
           return run(
             billTable.id,
-            () => completePayment(staff, sessionId, changes.items, changes.method, changes.discount, changes.endSession, changes.redeemPoints, changes.customerId),
+            () =>
+              completePayment(
+                staff,
+                sessionId,
+                changes.items,
+                changes.method,
+                changes.discount,
+                changes.endSession,
+                changes.redeemPoints,
+                changes.customerId,
+              ),
             changes.endSession ? `${billTable.name} paid up and cleared` : `${billTable.name} paid up`,
           ).then((ok) => {
             if (ok) {
@@ -297,6 +321,7 @@ export function Tables() {
 }
 
 interface CardProps {
+  delay: number;
   table: DiningTable;
   slug: string;
   restaurantName: string;
@@ -316,120 +341,140 @@ interface CardProps {
   onEndSession: () => void;
 }
 
-function TableCard({ table, slug, restaurantName, editable, canSettle, openOrders, pending, renaming, ...on }: CardProps) {
+function TableCard({
+  table,
+  slug,
+  restaurantName,
+  editable,
+  canSettle,
+  openOrders,
+  pending,
+  renaming,
+  delay,
+  ...on
+}: CardProps) {
   const url = tableUrl(slug, table);
   const busy = pending === table.id;
   const occupied = isOccupied(table);
   const disabled = !table.isActive;
 
   return (
-    <article
-      className={cx(
-        PANEL,
-        'flex flex-col gap-2.5 p-3 transition-move',
-        pending === table.id && 'opacity-50',
-        disabled && 'opacity-60',
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <Link
-          to={`/admin/tables/${table.id}`}
-          className={cx(
-            DISPLAY,
-            'truncate text-[26px] leading-none font-black transition-colors hover:text-flame-2',
-            occupied ? 'text-ink' : 'text-ink-2',
-          )}
-        >
-          {table.name}
-        </Link>
-        <span className="mt-1 flex shrink-0 items-center gap-1.5">
-          <span
-            className={cx('size-2 rounded-full', disabled ? 'bg-ink-4/40' : occupied ? 'bg-flame-2 pulse-dot' : 'bg-mint')}
-          />
-          <span
-            className={cx(
-              'text-[10px] font-bold tracking-wide uppercase',
-              disabled ? 'text-ink-4' : occupied ? 'text-flame-2 animate-pulse' : 'text-mint',
-            )}
-          >
-            {disabled ? 'Off' : occupied ? 'In use' : 'Free'}
-          </span>
-        </span>
-      </div>
-
-      <p className="text-[12px] text-ink-4">
-        {table.capacity} seat{table.capacity === 1 ? '' : 's'}
-        {occupied && ` · ${openOrders.length} open order${openOrders.length === 1 ? '' : 's'}`}
-      </p>
-
-
-      <div className="flex items-end justify-between gap-2">
-        {occupied && table.currentSessionToken && <SessionCode label="Session code" className='ring-0 bg-transparent py-0' token={table.currentSessionToken} />}
-        <span className="flex shrink-0 gap-1">
+    <div className="animate-rise" style={{ animationDelay: `${delay}ms` }}>
+      <article
+        className={cx(
+          PANEL,
+          'flex h-full flex-col gap-2.5 p-3 transition-move',
+          pending === table.id && 'opacity-50',
+          disabled && 'opacity-60',
+        )}
+      >
+        <div className="flex items-start justify-between gap-2">
           <Link
             to={`/admin/tables/${table.id}`}
-            className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-ink-4 uppercase ring-1 ring-hairline ring-inset transition-colors hover:text-flame-1 hover:ring-flame-2/40"
+            className={cx(
+              DISPLAY,
+              'truncate text-[26px] leading-none font-black transition-colors hover:text-flame-2',
+              occupied ? 'text-ink' : 'text-ink-2',
+            )}
           >
-            Details
+            {table.name}
           </Link>
-          <button
-            type="button"
-            className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-ink-4 uppercase ring-1 ring-hairline ring-inset transition-colors hover:text-flame-1 hover:ring-flame-2/40"
-            onClick={on.onShowQr}
-          >
-            QR
-          </button>
-          <button
-            type="button"
-            className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-ink-4 uppercase ring-1 ring-hairline ring-inset transition-colors hover:text-flame-1 hover:ring-flame-2/40"
-            onClick={() => on.onCopy(url)}
-          >
-            Link
-          </button>
-        </span>
-      </div>
-
-      {renaming ? (
-        <RenameForm table={table} onCancel={on.onCancelRename} onSave={on.onSaveRename} />
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          {occupied && canSettle && (
-            <button
-              type="button"
-              disabled={busy}
-              className={cx(ADMIN_PRIMARY, 'flex w-full items-center justify-center gap-1.5 rounded-[10px]')}
-              onClick={on.onOpenBill}
-            >
-              <Receipt size={15} />
-              Settle payment
-            </button>
-          )}
-
-          {!occupied && editable && (
-            <button
-              type="button"
-              disabled={busy}
+          <span className="mt-1 flex shrink-0 items-center gap-1.5">
+            <span
               className={cx(
-                'w-full rounded-[10px] py-2 text-[10px] font-bold tracking-wide uppercase ring-1 ring-inset transition-move active:scale-[0.99] disabled:pointer-events-none disabled:opacity-35',
-                disabled ? 'text-mint ring-mint/40' : 'text-ink-3 ring-hairline',
+                'size-2 rounded-full',
+                disabled ? 'bg-ink-4/40' : occupied ? 'bg-flame-2 pulse-dot' : 'bg-mint',
               )}
-              onClick={on.onToggle}
+            />
+            <span
+              className={cx(
+                'text-[10px] font-bold tracking-wide uppercase',
+                disabled ? 'text-ink-4' : occupied ? 'text-flame-2 animate-pulse' : 'text-mint',
+              )}
             >
-              {disabled ? 'Enable table' : 'Disable table'}
-            </button>
-          )}
+              {disabled ? 'Off' : occupied ? 'In use' : 'Free'}
+            </span>
+          </span>
+        </div>
 
-          {editable && (
-            <div className="flex flex-wrap items-center gap-1 pt-0.5">
+        <p className="text-[12px] text-ink-4">
+          {table.capacity} seat{table.capacity === 1 ? '' : 's'}
+          {occupied && ` · ${openOrders.length} open order${openOrders.length === 1 ? '' : 's'}`}
+        </p>
+
+        <div className="flex items-end justify-between gap-2">
+          {occupied && table.currentSessionToken && (
+            <SessionCode
+              label="Session code"
+              className="ring-0 bg-transparent py-0"
+              token={table.currentSessionToken}
+            />
+          )}
+          <span className="flex shrink-0 gap-1">
+            <Link
+              to={`/admin/tables/${table.id}`}
+              className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-ink-4 uppercase ring-1 ring-hairline ring-inset transition-colors hover:text-flame-1 hover:ring-flame-2/40"
+            >
+              Details
+            </Link>
+            <button
+              type="button"
+              className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-ink-4 uppercase ring-1 ring-hairline ring-inset transition-colors hover:text-flame-1 hover:ring-flame-2/40"
+              onClick={on.onShowQr}
+            >
+              QR
+            </button>
+            <button
+              type="button"
+              className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-ink-4 uppercase ring-1 ring-hairline ring-inset transition-colors hover:text-flame-1 hover:ring-flame-2/40"
+              onClick={() => on.onCopy(url)}
+            >
+              Link
+            </button>
+          </span>
+        </div>
+
+        {renaming ? (
+          <RenameForm table={table} onCancel={on.onCancelRename} onSave={on.onSaveRename} />
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {occupied && canSettle && (
               <button
                 type="button"
                 disabled={busy}
-                className={cx(ADMIN_TINY, 'h-6 px-2 text-[10px] text-ink-3 hover:text-ink')}
-                onClick={on.onRename}
+                className={cx(ADMIN_PRIMARY, 'flex w-full items-center justify-center gap-1.5 rounded-[10px]')}
+                onClick={on.onOpenBill}
               >
-                Rename
+                <Receipt size={15} />
+                Settle payment
               </button>
-              {/* <button
+            )}
+
+            {!occupied && editable && (
+              <button
+                type="button"
+                disabled={busy}
+                className={cx(
+                  'w-full rounded-[10px] py-2 text-[10px] font-bold tracking-wide uppercase ring-1 ring-inset transition-move active:scale-[0.99] disabled:pointer-events-none disabled:opacity-35',
+                  disabled ? 'text-mint ring-mint/40' : 'text-ink-3 ring-hairline',
+                )}
+                onClick={on.onToggle}
+              >
+                {disabled ? 'Enable table' : 'Disable table'}
+              </button>
+            )}
+
+            {editable && (
+              <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                <button
+                  type="button"
+                  disabled={busy}
+                  className={cx(ADMIN_TINY, 'h-6 px-2 text-[10px] text-ink-3 hover:text-ink')}
+                  onClick={on.onRename}
+                >
+                  Rename
+                </button>
+                {/* <button
                 type="button"
                 className={cx(ADMIN_TINY, 'h-6 px-2 text-[10px] text-ink-3 hover:text-ink')}
                 onClick={() => printQrSheet([table], restaurantName, slug)}
@@ -444,24 +489,26 @@ function TableCard({ table, slug, restaurantName, editable, canSettle, openOrder
                 className="h-6 px-2 text-[10px]"
                 onConfirm={on.onRegenerate}
               /> */}
-              {occupied && (
-              <Confirm
-                label="End session"
-                question={occupied ? 'End the visit with the bill still open?' : 'Clear this table for the next visit?'}
-                confirmLabel="End it"
-                disabled={busy}
-                className="h-6 px-2 text-[10px]"
-                onConfirm={on.onEndSession}
-              />
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </article>
+                {occupied && (
+                  <Confirm
+                    label="End session"
+                    question={
+                      occupied ? 'End the visit with the bill still open?' : 'Clear this table for the next visit?'
+                    }
+                    confirmLabel="End it"
+                    disabled={busy}
+                    className="h-6 px-2 text-[10px]"
+                    onConfirm={on.onEndSession}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </article>
+    </div>
   );
 }
-
 
 export function RenameForm({
   table,

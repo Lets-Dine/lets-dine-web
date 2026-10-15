@@ -11,7 +11,6 @@ import {
   regenerateQr,
   setTableActive,
   startTableSession,
-  subscribeToTables,
   updateTable,
 } from '../../api/staff';
 import { STATUS_LABEL } from '../../domain/orderStatus';
@@ -58,7 +57,7 @@ export function TableDetail() {
   const { tableId = '' } = useParams();
   const staff = useStaff();
   const { allows } = useAuth();
-  const { menu, reloadOrders } = useDashboard();
+  const { menu, reloadOrders, tablesTick } = useDashboard();
   const { pending, busy, run } = useCommand();
   const push = useToast();
   const now = useNow();
@@ -69,10 +68,13 @@ export function TableDetail() {
   // Same live-push-or-poll fallback the floor plan uses — a diner scanning in
   // (or another device settling the bill) has to show up here too.
   useEffect(() => {
-    if (IS_LIVE_API) return subscribeToTables(reloadTables, reloadTables);
+    if (IS_LIVE_API) return;
     const timer = setInterval(reloadTables, TABLE_POLL_MS);
     return () => clearInterval(timer);
   }, [reloadTables]);
+  useEffect(() => {
+    if (tablesTick) reloadTables();
+  }, [tablesTick, reloadTables]);
 
   const table = tables.data?.find((t) => t.id === tableId) ?? null;
   const editable = allows('tables:edit');

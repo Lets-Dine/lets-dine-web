@@ -30,8 +30,10 @@ export function Sheet({ label, onClose, wide, children }: { label: string; onClo
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // A dialog nested inside this one (a sub-sheet) fires the same events, and React bubbles them up.
+      onClose={(e) => e.target === e.currentTarget && onClose()}
       onCancel={(e) => {
+        if (e.target !== e.currentTarget) return;
         e.preventDefault();
         close();
       }}
@@ -41,7 +43,7 @@ export function Sheet({ label, onClose, wide, children }: { label: string; onClo
         'sheet fixed m-0 flex max-h-none flex-col overflow-hidden bg-surface p-0 text-ink shadow-deep outline-none backdrop:bg-black/55 backdrop:backdrop-blur-[2px]',
         'inset-x-0 bottom-0 top-auto max-h-[92dvh] w-full max-w-none rounded-t-3xl',
         'sm:inset-y-0 sm:left-auto sm:right-0 sm:top-0 sm:h-dvh sm:max-h-none sm:rounded-none sm:rounded-l-3xl',
-        wide ? 'sm:w-[720px]' : 'sm:w-[460px]',
+        wide ? 'sm:w-[min(720px,100vw)]' : 'sm:w-[460px]',
       )}
     >
       {children(close)}

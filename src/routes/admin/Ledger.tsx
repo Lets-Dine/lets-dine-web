@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { addExpense, closeLedger, deleteExpense, fetchCloses, fetchEntries, fetchLedger, reopenLedger } from '../../api/ledger';
-import type { LedgerEntry } from '../../api/ledger';
+import type {  LedgerEntry } from '../../api/ledger';
 import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_TINY, Confirm, DOCKET_CARD, Field, Loading, MoneyInput, PageTitle, Panel, Perforation, Segmented, TextInput, useCommand } from '../../components/admin/kit';
+import { cx } from '../../components/ui';
 import { X } from '../../components/icons';
 import { clockTime, relativeTime } from '../../components/time';
 import { formatMoney } from '../../domain/money';
@@ -28,7 +30,7 @@ const CATEGORY_HINTS = {
 type Panel = null | 'INCOME' | 'EXPENSE' | 'TRANSFER' | 'close';
 
 /** Which side of the period is open under the totals. */
-type Flow = 'in' | 'out';
+export type Flow = 'in' | 'out';
 
 /** What a line is grouped under in the breakdown: sales by how they were paid, anything else by its category. */
 function sourceOf(e: LedgerEntry): string {
@@ -76,6 +78,7 @@ export function Ledger() {
   };
 
   const [panel, setPanel] = useState<Panel>(null);
+  const navigate = useNavigate();
   const [flow, setFlow] = useState<Flow | null>(null);
   const [amount, setAmount] = useState<Minor>(0);
   const [method, setMethod] = useState<PaymentMethod>('CASH');
@@ -169,8 +172,10 @@ export function Ledger() {
   if (s.needsOpening) {
     return (
       <>
-        <PageTitle title="Cash book" subtitle="Start with what is in the drawer and the bank — every sale, expense and transfer after it is tracked line by line, against both." />
-        <Panel title="Open the day" className="max-w-md">
+        <div className="animate-rise">
+          <PageTitle title="Cash book" subtitle="Start with what is in the drawer and the bank — every sale, expense and transfer after it is tracked line by line, against both." />
+        </div>
+        <Panel title="Open the day" className="max-w-md animate-rise [animation-delay:80ms]">
           {closeForm}
         </Panel>
       </>
@@ -179,9 +184,11 @@ export function Ledger() {
 
   return (
     <>
-      <PageTitle title="Cash book" subtitle={s.periodStart ? `This period · opened ${relativeTime(s.periodStart)}` : undefined} />
+      <div className="animate-rise">
+        <PageTitle title="Cash book" subtitle={s.periodStart ? `This period · opened ${relativeTime(s.periodStart)}` : undefined} />
+      </div>
 
-      <div className={DOCKET_CARD}>
+      <div className={cx('animate-rise [animation-delay:80ms]', DOCKET_CARD)}>
         {entries.loading && !entries.data ? (
           <Loading label="Reading the tape…" />
         ) : (
@@ -195,7 +202,7 @@ export function Ledger() {
             </div>
             <ol>
               {tape.map(({ entry: e, cash, bank }, i) => (
-                <li key={e.id}>
+                <li key={e.id} className="animate-rise" style={{ animationDelay: `${160 + Math.min(i, 10) * 40}ms` }}>
                   {i > 0 && <Perforation />}
                   <TapeLine
                     entry={e}
@@ -249,7 +256,7 @@ export function Ledger() {
       {flow && <FlowDialog flow={flow} lines={flowLines} total={flow === 'in' ? totalIn : totalOut} money={money} onClose={() => setFlow(null)} />}
 
       {/* Secondary: the cashier reads the tape first; adding a line or closing is one quiet step away. */}
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+      <div className="mt-3 flex animate-rise flex-wrap items-center gap-1.5 [animation-delay:300ms]">
         {(
           [
             ['INCOME', '+ Income'],
@@ -267,6 +274,9 @@ export function Ledger() {
             {label}
           </button>
         ))}
+        <Link to="transactions" className={`${ADMIN_TINY} text-ink-3 hover:text-ink`}>
+          Transactions by day
+        </Link>
         <span className="flex-1" />
         {s.closedToday ? (
           <span className="px-2 text-[12.5px] text-ink-3">Closed today at {s.periodStart ? clockTime(s.periodStart) : ''}</span>
@@ -307,7 +317,7 @@ export function Ledger() {
       </div>
 
       {panel === 'TRANSFER' && (
-        <Panel className="mt-3" variant="subtle" title="Move money" hint="Deposit cash into the bank, or withdraw from the bank into the drawer. It isn't income or spend.">
+        <Panel className="mt-3 animate-rise" variant="subtle" title="Move money" hint="Deposit cash into the bank, or withdraw from the bank into the drawer. It isn't income or spend.">
           <div className="space-y-3">
             <Segmented label="Direction" value={direction} onChange={setDirection} options={DIRECTIONS} />
             <div className="grid gap-3 sm:grid-cols-[11rem_1fr]">
@@ -331,7 +341,7 @@ export function Ledger() {
       )}
 
       {(panel === 'INCOME' || panel === 'EXPENSE') && (
-        <Panel className="mt-3" variant="subtle" title={panel === 'INCOME' ? 'Add income' : 'Add expense'} hint="Money in that isn't a table sale, or money out. It lands on the tape as the next line.">
+        <Panel className="mt-3 animate-rise" variant="subtle" title={panel === 'INCOME' ? 'Add income' : 'Add expense'} hint="Money in that isn't a table sale, or money out. It lands on the tape as the next line.">
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-[11rem_1fr_1fr]">
               <Field label="Amount">
@@ -364,12 +374,12 @@ export function Ledger() {
       )}
 
       {panel === 'close' && (
-        <Panel className="mt-3" variant="subtle" title="Close the books" hint="Count the drawer and read the bank balance to end this period. The next one opens with what you enter.">
+        <Panel className="mt-3 animate-rise" variant="subtle" title="Close the books" hint="Count the drawer and read the bank balance to end this period. The next one opens with what you enter.">
           {closeForm}
         </Panel>
       )}
 
-      <Panel className="mt-5" title="Past closes" bare>
+      <Panel className="mt-5 animate-rise [animation-delay:360ms]" title="Past closes" bare>
         {(closes.data ?? []).length <= 1 ? (
           <p className="p-5 text-[13px] text-ink-3">No closed periods yet.</p>
         ) : (
@@ -377,7 +387,7 @@ export function Ledger() {
             <table className="w-full text-left text-[13.5px]">
               <thead className="text-[12px] text-ink-3">
                 <tr>
-                  {['Closed', 'Opened with', 'In', 'Out', 'Drawer', 'Drawer diff', 'Bank', 'Bank diff'].map((h) => (
+                  {['Closed', 'Opened with', 'In', 'Out', 'Drawer', 'Drawer diff', 'Bank', 'Bank diff', ''].map((h) => (
                     <th key={h} className="px-4 py-2.5 font-medium whitespace-nowrap">
                       {h}
                     </th>
@@ -385,8 +395,8 @@ export function Ledger() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline tnum">
-                {(closes.data ?? []).map((c) => (
-                  <tr key={c.id}>
+                {(closes.data ?? []).slice(0, 30).map((c, i) => (
+                  <tr key={c.id} className="animate-rise" style={{ animationDelay: `${420 + Math.min(i, 10) * 40}ms` }}>
                     <td className="px-4 py-2.5 whitespace-nowrap">{relativeTime(c.closedAt)}</td>
                     <td className="px-4 py-2.5">{money(c.opening + c.bankOpening)}</td>
                     <td className="px-4 py-2.5">{money(c.cashSales + c.cardSales + c.cashIncome + c.cardIncome)}</td>
@@ -395,6 +405,20 @@ export function Ledger() {
                     <td className={`px-4 py-2.5 ${c.variance < 0 ? 'text-berry' : ''}`}>{money(c.variance)}</td>
                     <td className="px-4 py-2.5">{money(c.bankCounted)}</td>
                     <td className={`px-4 py-2.5 ${c.bankVariance < 0 ? 'text-berry' : ''}`}>{money(c.bankVariance)}</td>
+                    <td className="px-4 py-2.5">
+                      {/* The oldest close only sets the opening float — there is no period before it to read. */}
+                      {closes.data?.[i + 1] && (
+                        <button
+                          type="button"
+                          className="font-semibold text-ink-3 underline underline-offset-2 hover:text-ink"
+                          onClick={() =>
+                            navigate(`transactions?${new URLSearchParams({ from: closes.data![i + 1].closedAt, to: c.closedAt, label: `Period closed ${relativeTime(c.closedAt)}`, cash: String(c.opening), bank: String(c.bankOpening) })}`)
+                          }
+                        >
+                          Lines
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -406,7 +430,19 @@ export function Ledger() {
   );
 }
 
-function Total({ label, value, active, onClick }: { label: string; value: string; active?: boolean; onClick?: () => void }) {
+/** The clock time, with the date above it when the line isn't from today. */
+export function Stamp({ at }: { at: string }) {
+  const d = new Date(at);
+  const past = d.toDateString() !== new Date().toDateString();
+  return (
+    <>
+      {past && <span className="block text-[11px] font-medium opacity-80">{d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>}
+      {clockTime(at)}
+    </>
+  );
+}
+
+export function Total({ label, value, active, onClick }: { label: string; value: string; active?: boolean; onClick?: () => void }) {
   const body = (
     <>
       <dt className="text-[11px] font-bold tracking-wide text-docket-inksoft uppercase">{label}</dt>
@@ -435,7 +471,7 @@ function slicePath(start: number, end: number): string {
  * One side of the period in a dialog: a pie of where it came from or went, with the legend that
  * names and sizes every slice. The transactions behind it are one click further, not shown up front.
  */
-function FlowDialog({ flow, lines, total, money, onClose }: { flow: Flow; lines: LedgerEntry[]; total: Minor; money: (v: Minor) => string; onClose: () => void }) {
+export function FlowDialog({ flow, lines, total, money, onClose }: { flow: Flow; lines: LedgerEntry[]; total: Minor; money: (v: Minor) => string; onClose: () => void }) {
   const groups = breakdown(lines);
   const [hot, setHot] = useState<number | null>(null);
   const [showTx, setShowTx] = useState(false);
@@ -538,7 +574,7 @@ function FlowDialog({ flow, lines, total, money, onClose }: { flow: Flow; lines:
                 {history.map((e) => (
                   <li key={e.id} className="grid grid-cols-[3.75rem_1fr_auto] items-baseline gap-x-3 py-2.5 text-[13.5px]">
                     <time className="text-[12.5px] font-semibold text-ink-3 tnum" dateTime={e.at}>
-                      {clockTime(e.at)}
+                      <Stamp at={e.at} />
                     </time>
                     <div className="min-w-0">
                       <div className="truncate font-medium">{e.label}</div>
@@ -559,7 +595,7 @@ function FlowDialog({ flow, lines, total, money, onClose }: { flow: Flow; lines:
   );
 }
 
-function Sum({ label, value }: { label: string; value: string }) {
+export function Sum({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-2 sm:block">
       <dt className="text-docket-inksoft">{label}</dt>
@@ -578,32 +614,35 @@ function Held({ label, value }: { label: string; value: string }) {
 }
 
 /** One line of the tape: when, what, the amount, and where the drawer and the bank stand after it. */
-function TapeLine({
+export function TapeLine({
   entry: e,
   cash,
   bank,
   money,
   busy,
   onRemove,
+  readOnly,
 }: {
   entry: LedgerEntry;
-  cash: Minor;
-  bank: Minor;
+  /** Running balances after this line; absent when the window has no known starting point. */
+  cash?: Minor;
+  bank?: Minor;
   money: (v: Minor) => string;
   busy: boolean;
-  onRemove: () => void;
+  onRemove?: () => void;
+  readOnly?: boolean;
 }) {
   const opening = e.kind === 'opening';
   const expense = e.kind === 'expense';
   const transfer = e.kind === 'transfer';
-  const removable = (expense || e.kind === 'income' || transfer) && !e.locked;
+  const removable = !readOnly && (expense || e.kind === 'income' || transfer) && !e.locked;
   // Where the money went — implied for the opening and for a transfer, whose label already says it.
   const via = opening || transfer ? '' : e.method === 'CASH' ? 'Cash' : 'Bank';
   const detail = [via, opening ? `Drawer ${money(e.cashDelta)} · Bank ${money(e.bankDelta)}` : '', e.detail, e.locked ? 'Delivery settlement' : ''].filter(Boolean).join(' · ');
   return (
     <div className="grid grid-cols-[3.75rem_1fr_auto] items-start gap-x-3 gap-y-0.5 px-6 py-3.5 sm:grid-cols-[4.5rem_1fr_7rem_7rem_7rem] sm:items-baseline">
       <time className="text-[12.5px] font-semibold text-docket-inksoft tnum" dateTime={e.at}>
-        {clockTime(e.at)}
+        <Stamp at={e.at} />
       </time>
       <div className="min-w-0">
         <div className={opening ? 'font-display text-[16px] font-black' : 'text-[14.5px] font-semibold'}>{e.label}</div>
@@ -623,12 +662,12 @@ function TapeLine({
         {money(e.amount)}
       </span>
       <span className="col-start-2 row-start-3 text-[12px] text-docket-inksoft tnum sm:col-start-4 sm:row-start-1 sm:text-right">
-        <span className="sm:hidden">Drawer </span>
-        {money(cash)}
+        <span className="sm:hidden">{cash === undefined ? '' : 'Drawer '}</span>
+        {cash === undefined ? '' : money(cash)}
       </span>
       <span className="col-start-2 row-start-4 text-[12px] text-docket-inksoft tnum sm:col-start-5 sm:row-start-1 sm:text-right">
-        <span className="sm:hidden">Bank </span>
-        {money(bank)}
+        <span className="sm:hidden">{bank === undefined ? '' : 'Bank '}</span>
+        {bank === undefined ? '' : money(bank)}
       </span>
     </div>
   );

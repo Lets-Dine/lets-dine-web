@@ -151,9 +151,10 @@ export function MenuBoard() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {grouped.map(({ category, dishes }) => (
+          {grouped.map(({ category, dishes }, n) => (
             <CategorySection
               key={category.id}
+              delay={Math.min(n, 6) * 70}
               category={category}
               dishes={dishes}
               currency={menu.restaurant.currency}
@@ -192,6 +193,7 @@ export function MenuBoard() {
 }
 
 interface GroupProps {
+  delay: number;
   category: MenuCategory;
   dishes: Dish[];
   currency: string;
@@ -203,9 +205,9 @@ interface GroupProps {
   onArchive: (dish: Dish) => void;
 }
 
-function CategorySection({ category, dishes, currency, editable, pending, ...handlers }: GroupProps) {
+function CategorySection({ category, dishes, currency, editable, pending, delay, ...handlers }: GroupProps) {
   return (
-    <div className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
+    <div style={{ animationDelay: `${delay}ms` }} className="animate-rise overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
       <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
         <h3 className="font-display text-[18px] font-black tracking-tight">
           {category.emoji} {category.name}
@@ -220,6 +222,7 @@ function CategorySection({ category, dishes, currency, editable, pending, ...han
           key={dish.id}
           dish={dish}
           index={index}
+          delay={delay + 120 + Math.min(index, 8) * 40}
           count={dishes.length}
           currency={currency}
           editable={editable}
@@ -247,9 +250,20 @@ function Stamp({ tone, children }: { tone: 'pick' | 'off'; children: React.React
   );
 }
 
+function Lead({ to, className, children }: { to?: string; className: string; children: React.ReactNode }) {
+  return to ? (
+    <Link to={to} className={className}>
+      {children}
+    </Link>
+  ) : (
+    <div className={className}>{children}</div>
+  );
+}
+
 function DishRow({
   dish,
   index,
+  delay,
   count,
   currency,
   editable,
@@ -261,6 +275,7 @@ function DishRow({
 }: {
   dish: Dish;
   index: number;
+  delay: number;
   count: number;
   currency: string;
   editable: boolean;
@@ -274,17 +289,15 @@ function DishRow({
   const off = !dish.isAvailable && !dish.isArchived;
 
   return (
-    <div
-      className={cx(
-        'flex flex-wrap items-center gap-3.5 border-t border-dashed border-docket-line px-6 py-4 first:border-t-0',
-        busy && 'opacity-50',
-      )}
-    >
+    <div style={{ animationDelay: `${delay}ms` }} className="animate-rise border-t border-dashed border-docket-line first:border-t-0">
+    <div className={cx('flex flex-wrap items-center gap-3.5 px-6 py-4', busy && 'opacity-50')}>
+      {/* The photo and name open the dish, so editing is one click on the row, not a hunt for the button. */}
+      <Lead {...(editable ? { to: `/admin/menu/${dish.id}` } : {})} className="group flex min-w-0 flex-1 basis-45 items-center gap-3.5 rounded-lg">
       <DishImage dish={dish} className="size-11 shrink-0 rounded-full ring-1 ring-docket-line" monogram="text-[13px]" />
 
-      <div className="min-w-0 flex-1 basis-45">
+      <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="truncate text-[14px] font-bold">{dish.name}</span>
+          <span className={cx('truncate text-[14px] font-bold', editable && 'underline-offset-4 group-hover:underline')}>{dish.name}</span>
           {dish.isFeatured && (
             <Stamp tone="pick">
               <Sparkle size={9} /> Pick
@@ -304,6 +317,7 @@ function DishRow({
           <span className="hidden tnum sm:inline">{dish.stats.orders30d} orders / 30d</span>
         </div>
       </div>
+      </Lead>
 
       <span className="font-display shrink-0 text-[17px] font-black tnum">{formatMoney(dish.price, currency)}</span>
 
@@ -383,6 +397,7 @@ function DishRow({
       ) : (
         <span className="rounded-lg bg-docket-line/60 px-2.5 py-1 text-[12px] text-docket-inksoft">View only</span>
       )}
+    </div>
     </div>
   );
 }

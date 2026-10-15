@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { ChangeEvent, ReactNode } from 'react';
+import type { ChangeEvent, CSSProperties, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isPlanError } from '../../api/subscription';
 import { ApiError } from '../../api/store';
@@ -298,7 +298,7 @@ export function StatusPill({ status, label }: { status: OrderStatus; label: stri
   return (
     <span
       className={cx(
-        'inline-flex h-6 items-center rounded-full px-2.5 text-[12px] font-bold uppercase tracking-[0.06em]',
+        'inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-full px-2.5 text-[12px] font-bold uppercase tracking-[0.06em]',
         STATUS_STYLE[status],
       )}
     >
@@ -714,9 +714,9 @@ export function Empty({
   );
 }
 
-export function Row({ children, className }: { children: ReactNode; className?: string }) {
+export function Row({ children, className, style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
   return (
-    <div className={cx('flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5', className)}>
+    <div style={style} className={cx('flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5', className)}>
       {children}
     </div>
   );

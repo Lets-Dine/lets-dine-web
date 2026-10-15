@@ -170,9 +170,11 @@ export function Payments() {
 
   return (
     <>
-      <PageTitle title="Payments" subtitle="Every table settled, with what it was actually charged and how." />
+      <div className="animate-rise">
+        <PageTitle title="Payments" subtitle="Every table settled, with what it was actually charged and how." />
+      </div>
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mb-5 flex animate-rise flex-wrap items-center gap-3 [animation-delay:60ms]">
         <div className="overflow-x-auto no-scrollbar">
           <Segmented
             label="Method"
@@ -201,7 +203,7 @@ export function Payments() {
       </div>
 
       {rows.length > 0 && (
-        <div className={cx('mb-4', DOCKET_CARD)}>
+        <div className={cx('mb-4 animate-rise [animation-delay:120ms]', DOCKET_CARD)}>
           {/* ── The roll's own header — the same document a reprint would show. ── */}
           <div className="px-6 pt-7 pb-5 text-center">
             <p className="text-[10px] font-bold tracking-[0.24em] text-docket-inksoft uppercase">{menu.restaurant.name}</p>
@@ -248,17 +250,20 @@ export function Payments() {
       ) : (
         <>
           <div className="grid gap-4">
-            {groups.map((group) => (
-              <DocketDaySection key={group[0].id} label={dayLabel(group[0].createdAt)} count={group.length} itemLabel="payment">
-                {group.map((payment) => (
+            {groups.map((group, g) => (
+              <div key={group[0].id} className="animate-rise" style={{ animationDelay: `${200 + Math.min(g, 4) * 70}ms` }}>
+              <DocketDaySection label={dayLabel(group[0].createdAt)} count={group.length} itemLabel="payment">
+                {group.map((payment, n) => (
                   <PaymentStub
                     key={payment.id}
+                    delay={260 + Math.min(g, 4) * 70 + Math.min(n, 8) * 40}
                     payment={payment}
                     tableName={tableName(payment.tableId)}
                     onOpen={() => setSelected(payment)}
                   />
                 ))}
               </DocketDaySection>
+              </div>
             ))}
           </div>
 
@@ -297,12 +302,13 @@ function MethodStamp({ method, size = 'sm' }: { method: PaymentMethod; size?: 's
   );
 }
 
-function PaymentStub({ payment, tableName, onOpen }: { payment: Payment; tableName: string; onOpen: () => void }) {
+function PaymentStub({ payment, tableName, onOpen, delay }: { payment: Payment; tableName: string; onOpen: () => void; delay: number }) {
   return (
+    <div style={{ animationDelay: `${delay}ms` }} className="animate-rise border-t border-dashed border-docket-line first:border-t-0">
     <button
       type="button"
       onClick={onOpen}
-      className="group flex w-full items-center gap-3.5 border-t border-dashed border-docket-line px-6 py-4 text-left transition-colors first:border-t-0 hover:bg-docket-line/35"
+      className="group flex w-full items-center gap-3.5 px-6 py-4 text-left transition-colors hover:bg-docket-line/35"
     >
       <MethodStamp method={payment.method} />
       <span className="min-w-0 flex-1">
@@ -324,6 +330,7 @@ function PaymentStub({ payment, tableName, onOpen }: { payment: Payment; tableNa
       </span>
       <ChevronRight size={16} className="shrink-0 text-docket-inksoft/60 transition-transform group-hover:translate-x-0.5" />
     </button>
+    </div>
   );
 }
 

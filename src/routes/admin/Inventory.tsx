@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   addIngredient,
   adjustStock,
@@ -19,6 +19,7 @@ import {
 } from '../../api/inventory';
 import type { Ingredient, IngredientSummary, StockState } from '../../api/inventory';
 import { ADMIN_GHOST, ADMIN_PRIMARY, Confirm, Field, INPUT_BOX, MoneyInput, PageTitle, Panel, Segmented, Select, TextInput, useCommand } from '../../components/admin/kit';
+import { Num } from '../../components/admin/profile';
 import { QtyField } from '../../components/admin/QtyField';
 import { useDiscardBack } from '../../components/admin/useDiscardBack';
 import { Bell, Box, ChevronLeft, ChevronRight, History, Minus, Plus, Search, Send, Sliders, X } from '../../components/icons';
@@ -115,8 +116,10 @@ const dayOnly = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'sho
 
 const UNIT_NAMES: Record<string, string> = { g: 'Gram (g)', ml: 'Millilitre (ml)', pcs: 'Piece (pcs)' };
 
-const CARD = 'rounded-2xl bg-surface p-5 ring-1 ring-hairline ring-inset';
-const CARD_TITLE = 'text-[15px] font-semibold tracking-tight';
+const CARD = 'animate-rise rounded-3xl bg-surface-2/50 px-5 py-5 ring-1 ring-hairline ring-inset sm:px-6';
+const CARD_TITLE = 'text-[17px] font-semibold tracking-tight';
+/** Sections rise one after another, as on the customer page. */
+const rise = (ms: number) => ({ animationDelay: `${ms}ms` });
 
 /** The latest movement said as a sentence, in the words a cook would use. */
 function describeMovement(m: NonNullable<IngredientSummary['lastMovement']>, name: string, unit: string): string {
@@ -151,7 +154,7 @@ function BasicDetails({ ing, summary, currency }: { ing: Ingredient; summary: In
     ['Last supplier', buy?.supplier ?? '-'],
   ];
   return (
-    <section aria-label="Basic details" className={CARD}>
+    <section aria-label="Basic details" className={CARD} style={rise(300)}>
       <h3 className={CARD_TITLE}>Basic details</h3>
       <dl className="mt-3 grid grid-cols-[minmax(0,9.5rem)_1fr] gap-x-4 gap-y-2.5 text-[14px]">
         {rows.map(([label, value]) => (
@@ -174,19 +177,19 @@ function StockOverview({ ing, state, summary }: { ing: Ingredient; state: StockS
   ];
   const last = summary?.lastMovement;
   return (
-    <section aria-label="Stock overview" className={CARD}>
+    <section aria-label="Stock overview" className={CARD} style={rise(240)}>
       <h3 className={CARD_TITLE}>Stock overview</h3>
-      <div className="mt-3 grid grid-cols-3 gap-2.5">
+      <div className="mt-4 grid grid-cols-3 divide-x divide-hairline">
         {tiles.map((t) => (
-          <div key={t.label} className="min-w-0 rounded-xl bg-surface-2/60 p-3 ring-1 ring-hairline ring-inset">
+          <div key={t.label} className="min-w-0 px-3 first:pl-0 last:pr-0">
             <p className="truncate text-[12.5px] text-ink-3">{t.label}</p>
-            <p className="mt-1.5 text-[20px] leading-none">{t.value === undefined ? <span className="text-ink-4">-</span> : <Qty value={t.value} unit={ing.unit} unitClassName="text-ink-3" />}</p>
+            <p className="mt-2 text-[24px] leading-none">{t.value === undefined ? <span className="text-ink-4">-</span> : <Qty value={t.value} unit={ing.unit} unitClassName="text-ink-3" />}</p>
             <p className={cx('mt-1.5 truncate text-[11.5px] font-semibold', t.tone === 'text-ink' ? 'text-ink-4' : t.tone)}>{t.hint}</p>
           </div>
         ))}
       </div>
       {last && (
-        <p className="mt-3 rounded-xl bg-surface-2/60 px-3.5 py-2.5 text-[13px] leading-relaxed text-ink-2">
+        <p className="mt-4 border-t border-hairline pt-3.5 text-[13.5px] leading-relaxed text-ink-2">
           <span className="font-semibold text-ink">Latest: </span>
           {describeMovement(last, ing.name, ing.unit)} <span className="whitespace-nowrap text-flame-1">{dayOnly.format(new Date(last.at))}</span>
         </p>
@@ -205,32 +208,39 @@ function LatestPurchases({ ing, currency }: { ing: Ingredient; currency: string 
   const purchases = useAsync(() => fetchPurchases(ing.id, PURCHASE_COUNT).catch(() => null), [ing.id]);
   const rows = purchases.data;
   return (
-    <section aria-label="Latest purchases">
-      <h3 className={cx(CARD_TITLE, 'px-1')}>Latest purchases</h3>
+    <section aria-label="Latest purchases and returns" className={CARD} style={rise(360)}>
+      <h3 className={CARD_TITLE}>Latest purchases &amp; returns</h3>
       {!rows ? (
         purchases.loading ? <div role="status" aria-label="Loading purchases" className="shimmer-bg animate-shimmer mt-3 h-20 rounded-xl" /> : null
       ) : rows.length === 0 ? (
-        <p className="mt-2 px-1 text-[13px] text-ink-3">No delivery of {ing.name} has been recorded yet.</p>
+        <p className="mt-2 text-[13px] text-ink-3">No delivery or return of {ing.name} has been recorded yet.</p>
       ) : (
-        <div className="mt-3 overflow-x-auto rounded-xl ring-1 ring-hairline ring-inset">
+        <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[420px] border-collapse text-left text-[13.5px]">
-            <thead className="bg-surface-2/60 text-[12.5px] text-ink-3">
+            <thead className="text-[12.5px] text-ink-3">
               <tr>
                 <th className="px-3.5 py-2.5 font-semibold">Date</th>
                 <th className="px-3.5 py-2.5 font-semibold">Supplier</th>
                 <th className="px-3.5 py-2.5 text-right font-semibold">Quantity</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">Paid</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold">Paid / refunded</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-t border-hairline">
                   <td className="px-3.5 py-2.5 whitespace-nowrap text-ink-3">{dayOnly.format(new Date(r.at))}</td>
-                  <td className="max-w-[12rem] truncate px-3.5 py-2.5 font-semibold">{r.supplier ?? <span className="font-normal text-ink-4">-</span>}</td>
-                  <td className="px-3.5 py-2.5 text-right">
-                    <Qty value={r.quantity} unit={ing.unit} unitClassName="text-ink-3" />
+                  <td className="max-w-[12rem] truncate px-3.5 py-2.5 font-semibold">
+                    {r.supplier ?? <span className="font-normal text-ink-4">-</span>}
+                    {r.kind === 'return' && <span className="ml-2 rounded-full bg-berry/16 px-2 py-0.5 text-[11.5px] font-semibold text-berry-ink">Returned</span>}
                   </td>
-                  <td className="px-3.5 py-2.5 text-right tnum">{r.cost ? formatMoney(r.cost, currency) : <span className="text-ink-4">-</span>}</td>
+                  <td className="px-3.5 py-2.5 text-right">
+                    {r.kind === 'return' && <span className="tnum font-bold text-berry-ink">−</span>}
+                    <Qty value={Math.abs(r.quantity)} unit={ing.unit} unitClassName="text-ink-3" />
+                  </td>
+                  <td className="px-3.5 py-2.5 text-right tnum">
+                    {r.cost ? formatMoney(r.cost, currency) : <span className="text-ink-4">-</span>}
+                    {r.kind === 'return' && r.cost ? <span className="ml-1 text-[12px] text-ink-3">back</span> : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -248,8 +258,8 @@ function DishConsumption({ ing, onAdd }: { ing: Ingredient; onAdd: () => void })
   const data = usage.data;
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
   return (
-    <section aria-label="Consumption">
-      <div className="flex items-center justify-between gap-3 px-1">
+    <section aria-label="Consumption" className={CARD} style={rise(420)}>
+      <div className="flex items-center justify-between gap-3">
         <h3 className={CARD_TITLE}>Consumption</h3>
         <button
           type="button"
@@ -267,9 +277,9 @@ function DishConsumption({ ing, onAdd }: { ing: Ingredient; onAdd: () => void })
         <p className="mt-2 text-[13px] text-ink-3">Nothing has used {ing.name} yet.</p>
       ) : (
         <>
-          <div className={cx('mt-3 overflow-x-auto rounded-xl ring-1 ring-hairline ring-inset transition-opacity', usage.loading && 'opacity-50')}>
+          <div className={cx('mt-3 overflow-x-auto transition-opacity', usage.loading && 'opacity-50')}>
             <table className="w-full min-w-[420px] border-collapse text-left text-[13.5px]">
-              <thead className="bg-surface-2/60 text-[12.5px] text-ink-3">
+              <thead className="text-[12.5px] text-ink-3">
                 <tr>
                   <th className="px-3.5 py-2.5 font-semibold">When</th>
                   <th className="px-3.5 py-2.5 font-semibold">Used for</th>
@@ -394,7 +404,8 @@ function SheetShell({ label, onClose, wide, children }: { label: string; onClose
   );
 }
 
-type Open = { id: string; tool: Tool | null } | null;
+/** `lot` preselects the delivery in the return form. */
+type Open = { id: string; tool: Tool | null; lot?: string } | null;
 
 /** Rank for the list: what needs you first (out, then low, then fine), and within each, alphabetical. */
 const RANK: Record<StockState, number> = { out: 0, low: 1, ok: 2 };
@@ -418,6 +429,20 @@ export function Inventory() {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Open>(null);
   const [adding, setAdding] = useState(false);
+
+  // A link from elsewhere (the Watchlist) can open an ingredient, and straight into a form: ?open=<id>&tool=return&lot=<id>.
+  const [params, setParams] = useSearchParams();
+  const wanted = params.get('open');
+  useEffect(() => {
+    if (!wanted || !list.data) return;
+    const ing = list.data.find((i) => i.id === wanted);
+    const tool = params.get('tool') as Tool | null;
+    // A form is only offered where the sheet itself would offer it; otherwise land on the details.
+    const usable = tool && tool in TOOLS && canManage && (tool === 'receive' || tool === 'recount' || tool === 'edit' || ing?.quantity);
+    // Only people who can act on stock open the sheet from the grid, so a link does not open it for anyone else.
+    if (ing && canManage) setOpen({ id: ing.id, tool: usable ? tool : null, lot: params.get('lot') ?? undefined });
+    setParams({}, { replace: true });
+  }, [wanted, list.data, params, setParams, canManage]);
 
   /** Runs a change, then closes the modal and refreshes the list. */
   const act = (ing: Ingredient, action: () => Promise<unknown>, message: string): Promise<boolean> =>
@@ -507,9 +532,12 @@ export function Inventory() {
             </Panel>
           ) : (
             <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,15.5rem),1fr))] gap-3">
-              {visible.map(({ ing, state }) => (
+              {visible.map(({ ing, state }, i) => (
                 <li key={ing.id} className={cx('transition-opacity', pending === ing.id && 'opacity-50')}>
-                  <StockRow ing={ing} state={state} interactive={canManage} onOpen={() => setOpen({ id: ing.id, tool: null })} />
+                  {/* Tiles rise in a short cascade (capped, so a long list doesn't make you wait). */}
+                  <div className="h-full animate-rise" style={rise(Math.min(i, 10) * 45)}>
+                    <StockRow ing={ing} state={state} interactive={canManage} onOpen={() => setOpen({ id: ing.id, tool: null })} delay={Math.min(i, 10) * 45 + 200} />
+                  </div>
                 </li>
               ))}
             </ul>
@@ -523,6 +551,7 @@ export function Inventory() {
           key={`${openIng.id}:${open?.tool ?? 'home'}`}
           ing={openIng}
           initialTool={open?.tool ?? null}
+          initialLot={open?.lot}
           currency={currency}
           supplierNames={(suppliers.data ?? []).map((x) => x.name)}
           branches={otherBranches}
@@ -560,7 +589,7 @@ export function Inventory() {
  * One ingredient as a compact tile: name, what is left, and a level gauge against its warning line
  * (the gauge's midpoint is the warning, so a full bar means at least twice that). Opens its modal.
  */
-function StockRow({ ing, state, interactive, onOpen }: { ing: Ingredient; state: StockState; interactive: boolean; onOpen: () => void }) {
+function StockRow({ ing, state, interactive, onOpen, delay }: { ing: Ingredient; state: StockState; interactive: boolean; onOpen: () => void; delay: number }) {
   const copy = STATE_COPY[state];
   const level = ing.parLevel > 0 ? Math.min(1, ing.quantity / (ing.parLevel * 2)) : null;
   const warn = ing.parLevel > 0 ? `Warns below ${formatQty(ing.parLevel, ing.unit)}` : 'No warning set';
@@ -578,7 +607,7 @@ function StockRow({ ing, state, interactive, onOpen }: { ing: Ingredient; state:
       <Qty value={ing.quantity} unit={ing.unit} unitClassName="text-ink-3" className={cx('mt-3 block text-[28px] leading-none', state === 'out' && 'text-berry-ink')} />
       {level !== null && (
         <span className="mt-3.5 block h-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
-          <span className={cx('block h-full rounded-full', copy.bar)} style={{ width: `${Math.max(level * 100, ing.quantity > 0 ? 4 : 0)}%` }} />
+          <span className={cx('block h-full origin-left animate-grow-x rounded-full', copy.bar)} style={{ width: `${Math.max(level * 100, ing.quantity > 0 ? 4 : 0)}%`, animationDelay: `${delay}ms` }} />
         </span>
       )}
       <span className={cx('block truncate text-[12.5px] text-ink-3', level !== null ? 'mt-2' : 'mt-3.5')}>{warn}</span>
@@ -765,6 +794,7 @@ function FirstRun({ onAdd }: { onAdd?: () => void }) {
 function IngredientSheet({
   ing,
   initialTool,
+  initialLot,
   currency,
   supplierNames,
   branches,
@@ -780,6 +810,7 @@ function IngredientSheet({
 }: {
   ing: Ingredient;
   initialTool: Tool | null;
+  initialLot?: string;
   currency: string;
   supplierNames: string[];
   branches: { id: string; name: string }[];
@@ -803,7 +834,7 @@ function IngredientSheet({
   const [method, setMethod] = useState<PaymentMethod>('CASH');
   const [onCredit, setOnCredit] = useState(false);
   const returnable = useAsync(() => fetchReturnableLots(ing.id).catch(() => []), [ing.id]);
-  const [lotId, setLotId] = useState('');
+  const [lotId, setLotId] = useState(initialLot ?? '');
   const [refund, setRefund] = useState<Minor>(0);
   const [refundTyped, setRefundTyped] = useState(false);
   const [refundKey, setRefundKey] = useState(0);
@@ -878,41 +909,50 @@ function IngredientSheet({
             </button>
           </div>
 
-          {/* What you are working on stays put; on the details page the actions sit right beside the name. */}
-          <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-5 pt-2 pb-4">
-            <div className="min-w-0">
-              <h2 className={cx(DISPLAY, 'truncate text-[26px]')}>{ing.name}</h2>
-              {view !== 'home' && (
+          {/* What you are working on stays put; on the details page the name leads, a sentence says where it stands, and the actions sit under it. */}
+          <header className="px-5 pt-2 pb-5">
+            {view === 'home' ? (
+              <>
+                <h2 className={cx(DISPLAY, 'animate-rise wrap-break-word text-[clamp(30px,6vw,44px)] leading-[1] tracking-[-0.03em]')}>{ing.name}</h2>
+                <p className="mt-3 max-w-[40ch] animate-rise text-[clamp(17px,2.2vw,21px)] font-medium leading-[1.35] text-ink-2 [animation-delay:80ms]">
+                  {state === 'out' ? (
+                    <>
+                      <span className={copy.text}>Out of stock</span>
+                      {ing.parLevel > 0 && <>, with a warning level of <Num>{formatQty(ing.parLevel, ing.unit)}</Num></>}.
+                    </>
+                  ) : state === 'low' ? (
+                    <>
+                      Only <Num>{formatQty(ing.quantity, ing.unit)}</Num> left, under its warning level of <Num>{formatQty(ing.parLevel, ing.unit)}</Num>.
+                    </>
+                  ) : (
+                    <>
+                      <Num>{formatQty(ing.quantity, ing.unit)}</Num> on the shelf{ing.parLevel > 0 && <>, above its warning level of <Num>{formatQty(ing.parLevel, ing.unit)}</Num></>}.
+                    </>
+                  )}
+                </p>
+                <nav aria-label="Actions" className="mt-5 flex animate-rise flex-wrap gap-2.5 [animation-delay:160ms]">
+                  {tools
+                    .filter((t) => t !== 'consume')
+                    .map((t) => {
+                      const { Icon, short, title } = TOOLS[t];
+                      const lead = t === 'receive';
+                      return (
+                        <button key={t} type="button" onClick={() => go(t)} title={title} className={cx(lead && state !== 'ok' ? ADMIN_PRIMARY : ADMIN_GHOST, 'h-11 px-5 text-[14.5px]')}>
+                          <Icon size={16} />
+                          {short}
+                        </button>
+                      );
+                    })}
+                </nav>
+              </>
+            ) : (
+              <div className="min-w-0">
+                <h2 className={cx(DISPLAY, 'truncate text-[26px]')}>{ing.name}</h2>
                 <p className="mt-1 flex flex-wrap items-baseline gap-x-2.5 text-[13px] text-ink-3">
                   <Qty value={ing.quantity} unit={ing.unit} className="text-[18px] text-ink" unitClassName="text-ink-3" />
                   <span className={cx('rounded-md px-2 py-0.5 text-[11.5px] font-bold', copy.pill)}>{copy.label}</span>
                 </p>
-              )}
-            </div>
-            {view === 'home' && (
-              <nav aria-label="Actions" className="flex flex-wrap gap-2">
-                {tools
-                  .filter((t) => t !== 'consume')
-                  .map((t) => {
-                    const { Icon, short, title } = TOOLS[t];
-                    const lead = t === 'receive';
-                    return (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => go(t)}
-                        title={title}
-                        className={cx(
-                          'inline-flex h-10 items-center gap-1.5 rounded-xl px-3.5 text-[14px] font-semibold transition-move active:scale-95',
-                          lead ? (state !== 'ok' ? 'bg-flame text-white' : 'bg-mint/14 text-mint-ink ring-1 ring-mint/30 ring-inset') : 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset hover:text-ink',
-                        )}
-                      >
-                        <Icon size={16} />
-                        {short}
-                      </button>
-                    );
-                  })}
-              </nav>
+              </div>
             )}
           </header>
 

@@ -83,8 +83,8 @@ export function Suppliers() {
         </Panel>
       ) : (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))] gap-3">
-          {rows.map((s) => (
-            <li key={s.name}>
+          {rows.map((s, i) => (
+            <li key={s.name} className="animate-rise" style={{ animationDelay: `${Math.min(i, 10) * 45}ms` }}>
               <SupplierCard s={s} currency={currency} canSave={canManage} busy={busy} onSave={() => save({ name: s.name, phone: '' })} />
             </li>
           ))}

@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchMargins, fetchQuality, loadMarginTarget, saveMarginTarget } from '../../api/inventory';
+import { fetchSuppliers } from '../../api/suppliers';
 import type { DishMargin, LotQuality } from '../../api/inventory';
 import { ADMIN_GHOST, INPUT_BOX, Loading, PANEL, PageTitle, Segmented } from '../../components/admin/kit';
-import { Bike, Check, Plate, Receipt, Search, TrendUp } from '../../components/icons';
+import { Bike, Check, Contact, Plate, Receipt, Search, Send, TrendUp } from '../../components/icons';
 import { cx } from '../../components/ui';
 import { formatMoney } from '../../domain/money';
+import { useAuth } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
 
@@ -39,6 +41,8 @@ interface Issue {
   rising?: boolean;
   title: string;
   detail: ReactNode;
+  /** Quiet links under the detail: the people to talk to about it. */
+  extra?: ReactNode;
   action?: { to: string; label: string };
 }
 
@@ -64,6 +68,9 @@ export function Watchlist() {
   const [days, setDays] = useState('30');
   const margins = useAsync(fetchMargins, []);
   const quality = useAsync(() => fetchQuality(Number(days)), [days]);
+  // Phone numbers for the suppliers named on flagged deliveries; the links just don't appear if this can't load.
+  const suppliers = useAsync(() => fetchSuppliers().catch(() => []), []);
+  const canManage = useAuth().allows('inventory:manage');
 
   const dishes = margins.data ?? NO_DISHES;
   const lots = quality.data ?? NO_LOTS;
@@ -119,7 +126,13 @@ export function Watchlist() {
             batch.
           </>
         ),
-        action: { to: '/admin/inventory', label: 'Open stock' },
+        extra: lot.supplier && <SupplierLinks name={lot.supplier} phone={suppliers.data?.find((s) => s.name === lot.supplier)?.phone ?? ''} />,
+        // What is left of the delivery can go back; once it is used up, the ingredient is the place to look at it.
+        action: !canManage
+          ? { to: '/admin/inventory', label: 'Open stock' }
+          : lot.canReturn
+            ? { to: `/admin/inventory?open=${lot.ingredientId}&tool=return&lot=${lot.lotId}`, label: 'Return to supplier' }
+            : { to: `/admin/inventory?open=${lot.ingredientId}`, label: `Open ${lot.ingredientName}` },
       });
     }
     for (const r of dishes.filter((x) => x.missing.length > 0)) {
@@ -137,7 +150,7 @@ export function Watchlist() {
       });
     }
     return out.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
-  }, [dishes, lots, target, currency]);
+  }, [dishes, lots, target, currency, suppliers.data, canManage]);
 
   const [filter, setFilter] = useState<Kind | 'all'>('all');
   const inKind = (i: Issue, k: Kind) => i.kind === k || (k === 'rising' && i.rising === true);
@@ -252,8 +265,8 @@ export function Watchlist() {
               <p className="px-1 text-[13.5px] text-ink-3">Nothing in this group.</p>
             ) : (
               <ul className={cx(PANEL, 'overflow-hidden', quality.loading && 'opacity-60 transition-opacity')} aria-busy={quality.loading}>
-                {shown.map((i) => (
-                  <IssueRow key={i.key} issue={i} />
+                {shown.map((i, n) => (
+                  <IssueRow key={i.key} issue={i} delay={Math.min(n, 10) * 45} />
                 ))}
               </ul>
             )}
@@ -283,10 +296,33 @@ function FilterChip({ on, onClick, label, count, tone }: { on: boolean; onClick:
   );
 }
 
-function IssueRow({ issue }: { issue: Issue }) {
+/** The supplier behind a flagged delivery: their page, and a call or message when a number is saved. */
+function SupplierLinks({ name, phone }: { name: string; phone: string }) {
+  const digits = phone.replace(/\D/g, '');
+  const link = 'inline-flex items-center gap-1 font-semibold text-docket-ink underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-flame-2/60';
+  return (
+    <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+      <Link to={`/admin/suppliers/${encodeURIComponent(name)}`} className={link}>
+        {name}
+      </Link>
+      {digits && (
+        <>
+          <a href={`tel:${digits}`} className={link}>
+            <Contact size={13} /> Call
+          </a>
+          <a href={`https://wa.me/${digits.length === 10 ? '977' + digits : digits}`} target="_blank" rel="noreferrer" className={link}>
+            <Send size={13} /> WhatsApp
+          </a>
+        </>
+      )}
+    </p>
+  );
+}
+
+function IssueRow({ issue, delay }: { issue: Issue; delay: number }) {
   const { label, tone, Icon } = KINDS[issue.kind];
   return (
-    <li className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 border-b border-docket-line px-4 py-3.5 last:border-0 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5">
+    <li style={{ animationDelay: `${delay}ms` }} className="animate-rise grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 border-b border-docket-line px-4 py-3.5 last:border-0 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5">
       <span className={cx('mt-0.5 grid size-8 place-items-center rounded-full sm:mt-0', tone === 'bad' ? 'bg-berry/14 text-berry-ink' : 'bg-gold/20 text-gold-ink')}>
         <Icon size={16} />
       </span>
@@ -298,6 +334,7 @@ function IssueRow({ issue }: { issue: Issue }) {
           <span className={cx('text-[12px] font-bold', tone === 'bad' ? 'text-berry-ink' : 'text-gold-ink')}>{label}</span>
         </div>
         <p className="mt-0.5 max-w-[78ch] text-[13px] leading-relaxed text-docket-inksoft">{issue.detail}</p>
+        {issue.extra}
       </div>
       {issue.action && (
         <Link
@@ -392,15 +429,15 @@ function Everything({ dishes, lots, target, currency, days }: { dishes: DishMarg
           {tab === 'dishes' ? (
             <>
               <HeadRow cols={DISH_COLS} labels={['Dish', 'Price', 'Cost', 'Margin', 'Biggest cost']} />
-              {(visible as DishMargin[]).map((r) => (
-                <DishRow key={dishKey(r)} r={r} target={target} currency={currency} />
+              {(visible as DishMargin[]).map((r, n) => (
+                <DishRow key={dishKey(r)} r={r} target={target} currency={currency} delay={Math.min(n, 10) * 45} />
               ))}
             </>
           ) : (
             <>
               <HeadRow cols={LOT_COLS} labels={['Ingredient', 'Delivered', 'Poor reviews', 'Other deliveries', 'Verdict']} />
-              {(visible as LotQuality[]).map((l) => (
-                <LotRow key={l.lotId} l={l} />
+              {(visible as LotQuality[]).map((l, n) => (
+                <LotRow key={l.lotId} l={l} delay={Math.min(n, 10) * 45} />
               ))}
             </>
           )}
@@ -435,7 +472,7 @@ function HeadRow({ cols, labels }: { cols: string; labels: string[] }) {
   );
 }
 
-function DishRow({ r, target, currency }: { r: DishMargin; target: number; currency: string }) {
+function DishRow({ r, target, currency, delay }: { r: DishMargin; target: number; currency: string; delay: number }) {
   const unpriced = r.missing.length > 0;
   const thin = !unpriced && isThin(r, target);
   const rising = !unpriced && risingDriver(r);
@@ -446,7 +483,7 @@ function DishRow({ r, target, currency }: { r: DishMargin; target: number; curre
     rising && { text: 'Cost rising', cls: 'text-gold-ink' },
   ].filter((t): t is { text: string; cls: string } => Boolean(t));
   return (
-    <div className={cx('grid gap-x-4 gap-y-1 border-b border-docket-line px-4 py-3 text-[13.5px] last:border-0 sm:items-center sm:px-5', DISH_COLS)}>
+    <div style={{ animationDelay: `${delay}ms` }} className={cx('animate-rise grid gap-x-4 gap-y-1 border-b border-docket-line px-4 py-3 text-[13.5px] last:border-0 sm:items-center sm:px-5', DISH_COLS)}>
       <div className="flex min-w-0 items-baseline gap-2">
         <Link to={`/admin/menu/${r.dishId}`} title={dishName(r)} className="min-w-0 truncate text-[14.5px] font-semibold text-docket-ink underline-offset-4 hover:underline">
           {dishName(r)}
@@ -480,10 +517,10 @@ function DishRow({ r, target, currency }: { r: DishMargin; target: number; curre
   );
 }
 
-function LotRow({ l }: { l: LotQuality }) {
+function LotRow({ l, delay }: { l: LotQuality; delay: number }) {
   const verdict = l.flagged ? { text: 'Worse than usual', cls: 'text-berry-ink' } : l.reviewCount < 4 ? { text: 'Too few reviews', cls: 'text-docket-inksoft' } : { text: 'Normal', cls: 'text-docket-ink' };
   return (
-    <div className={cx('grid gap-x-4 gap-y-1 border-b border-docket-line px-4 py-3 text-[13.5px] last:border-0 sm:items-center sm:px-5', LOT_COLS)}>
+    <div style={{ animationDelay: `${delay}ms` }} className={cx('animate-rise grid gap-x-4 gap-y-1 border-b border-docket-line px-4 py-3 text-[13.5px] last:border-0 sm:items-center sm:px-5', LOT_COLS)}>
       <span title={l.ingredientName} className="truncate text-[14.5px] font-semibold text-docket-ink">
         {l.ingredientName}
       </span>
