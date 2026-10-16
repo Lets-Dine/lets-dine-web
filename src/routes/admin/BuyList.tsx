@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchBuyList, formatQty } from '../../api/inventory';
 import type { BuyListItem } from '../../api/inventory';
-import { ADMIN_TINY, Loading, PageTitle, Panel, Segmented, useCommand } from '../../components/admin/kit';
-import { Check, Copy, Send } from '../../components/icons';
-import { cx } from '../../components/ui';
+import { ADMIN_GHOST, Loading, Segmented, useCommand } from '../../components/admin/kit';
+import { Block, Num } from '../../components/admin/profile';
+import { ChevronLeft, Copy, Send } from '../../components/icons';
+import { DISPLAY, cx } from '../../components/ui';
 import { formatMoney } from '../../domain/money';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
@@ -44,114 +46,135 @@ export function BuyList() {
     return [...map];
   }, [list.data]);
 
-  if (list.loading && !list.data) return <Loading />;
+  if (list.loading && !list.data) return <Loading label="Working out the list…" />;
   const items = list.data ?? [];
   const total = items.reduce((sum, i) => sum + (i.estimatedCost ?? 0), 0);
   const unpriced = items.filter((i) => i.estimatedCost === null).length;
   const when = days === '1' ? 'tomorrow' : `the next ${days} days`;
 
   return (
-    <>
-      <PageTitle
-        title="Buy list"
-        purpose="What to order next."
-        subtitle="Worked out from what the kitchen usually uses, ready to send to each supplier."
-        action={<Segmented label="Cover" value={days} onChange={setDays} options={HORIZONS} />}
-      />
+    <div className="mx-auto max-w-6xl">
+      <Link to="/admin/inventory" className="mb-4 inline-flex items-center gap-1 text-[13px] font-semibold text-ink-3 hover:text-ink">
+        <ChevronLeft size={15} /> Stock
+      </Link>
 
-      <div className="mb-4 flex items-start gap-3 rounded-2xl bg-surface p-4 ring-1 ring-hairline ring-inset sm:p-5">
-        <span className={cx('mt-0.5 grid size-9 shrink-0 place-items-center rounded-full', items.length === 0 ? 'bg-mint/14 text-mint-ink' : 'bg-flame/14 text-flame-1')} aria-hidden>
-          <Check size={18} />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-[16px] font-semibold tracking-tight">
-            {items.length === 0
-              ? `Nothing to buy for ${when}`
-              : `${items.length} item${items.length === 1 ? '' : 's'} to buy for ${when}${total > 0 ? ` — about ${formatMoney(total, currency)}` : ''}`}
-          </h2>
-          <p className="mt-0.5 max-w-[62ch] text-[13.5px] leading-relaxed text-ink-3">
-            {items.length === 0
-              ? 'What’s on the shelf covers the expected use, and every ingredient stays above its warning line.'
-              : `Each quantity is what the kitchen usually uses on those days, plus enough to stay above the warning line, less what you have.${unpriced > 0 ? ` ${unpriced} ${unpriced === 1 ? 'has' : 'have'} no known price yet.` : ''}`}
-          </p>
+      <section>
+        <h1 className={cx(DISPLAY, 'animate-rise wrap-break-word text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Buy list</h1>
+        <p className="mt-5 max-w-[30ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:80ms] sm:max-w-[36ch]">
+          {items.length === 0 ? (
+            <>Nothing to buy for {when}. The shelf already covers it.</>
+          ) : (
+            <>
+              <Num>{items.length}</Num> {items.length === 1 ? 'item' : 'items'} for {when}
+              {total > 0 && (
+                <>
+                  , about <Num>{formatMoney(total, currency)}</Num>
+                </>
+              )}
+              .
+            </>
+          )}
+        </p>
+        <div className="mt-6 animate-rise [animation-delay:160ms]">
+          <Segmented label="Cover" value={days} onChange={setDays} options={HORIZONS} />
+        </div>
+      </section>
+
+      <section aria-label="List at a glance" className="mt-12 animate-rise overflow-hidden rounded-[28px] bg-surface-2 ring-1 ring-hairline-strong ring-inset [animation-delay:240ms]">
+        <div className="grid divide-y divide-hairline md:grid-cols-3 md:divide-x md:divide-y-0">
+          <Cell title="Cover">
+            <p className={cx(DISPLAY, 'text-[24px]')}>{days === '1' ? 'Tomorrow' : `${days} days`}</p>
+          </Cell>
+          <Cell title="About">
+            <p className={cx(DISPLAY, 'text-[24px] tnum')}>{total > 0 ? formatMoney(total, currency) : '—'}</p>
+          </Cell>
+          <Cell title="No price yet">
+            <p className={cx(DISPLAY, 'text-[24px] tnum', unpriced > 0 && 'text-flame-1')}>{unpriced === 0 ? 'None' : unpriced}</p>
+          </Cell>
+        </div>
+      </section>
+
+      <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+        <div className="grid content-start gap-6">
+          {groups.map(([supplier, rows], gi) => {
+            const subtotal = rows.reduce((sum, i) => sum + (i.estimatedCost ?? 0), 0);
+            const message = orderMessage(supplier, rows);
+            return (
+              <Block key={supplier} title={supplier} hint={`${rows.length} ${rows.length === 1 ? 'item' : 'items'}`} delay={380 + gi * 60}>
+                <div className="mb-4 flex flex-wrap gap-2">
+                  <button type="button" className={pill} onClick={() => void run('copy', () => navigator.clipboard.writeText(message), 'Message copied')}>
+                    <Copy size={14} /> Copy
+                  </button>
+                  <a className={pill} href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer">
+                    <Send size={14} /> WhatsApp
+                  </a>
+                  <a className={pill} href={`viber://forward?text=${encodeURIComponent(message)}`}>
+                    <Send size={14} /> Viber
+                  </a>
+                </div>
+                <ol>
+                  {rows.map((item, i) => (
+                    <li key={item.ingredientId} className="group flex items-baseline justify-between gap-4 border-b border-hairline py-3.5 first:pt-0 last:border-0 last:pb-0">
+                      <span className="min-w-0">
+                        <span className={cx(DISPLAY, 'block truncate transition-[translate] duration-300 ease-out-quart group-hover:translate-x-1', i === 0 ? 'text-[26px]' : 'text-[20px] font-semibold text-ink-2')}>
+                          {item.name}
+                        </span>
+                        <span className="mt-0.5 block text-[13.5px] text-ink-3">
+                          Have {formatQty(item.onHand, item.unit)}
+                          {item.expectedUse > 0 ? ` · usually uses ${formatQty(item.expectedUse, item.unit)}` : ' · no usage history yet'}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className={cx(DISPLAY, 'block text-[22px] tnum')}>{formatQty(item.toBuy, item.unit)}</span>
+                        <span className="text-[13px] text-ink-3 tnum">{item.estimatedCost === null ? 'No price yet' : formatMoney(item.estimatedCost, currency)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                {subtotal > 0 && <p className="mt-4 text-right text-[14.5px] font-semibold tnum">About {formatMoney(subtotal, currency)}</p>}
+                {supplier === NO_SUPPLIER && (
+                  <p className="mt-4 text-[13.5px] leading-relaxed text-ink-3">Name a supplier when the delivery arrives and these items will group under them next time.</p>
+                )}
+              </Block>
+            );
+          })}
+        </div>
+
+        <div className="grid content-start gap-6">
+          {items.length > 0 && (
+            <section className="animate-rise rounded-3xl bg-flame-2/12 p-5 ring-1 ring-flame-2/35 ring-inset [animation-delay:320ms] sm:p-6">
+              <h2 className="flex items-center gap-2 text-[17px] font-semibold tracking-tight">
+                <span className="size-2 rounded-full bg-flame-2 motion-safe:animate-pulse" /> Next move
+              </h2>
+              <p className={cx(DISPLAY, 'mt-3 text-[22px] font-semibold leading-snug')}>Send each supplier their list.</p>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-ink-2">
+                Copy the message, or open it in WhatsApp or Viber. When it arrives, record the delivery on Stock and enter what you paid, so the next list is priced.
+              </p>
+              <Link to="/admin/inventory" className={cx(ADMIN_GHOST, 'mt-4 h-11 px-5 text-[14.5px]')}>
+                Open Stock
+              </Link>
+            </section>
+          )}
+
+          <Block title="How this list is made" delay={items.length > 0 ? 400 : 320}>
+            <p className="text-[14.5px] leading-relaxed text-ink-2">
+              Each quantity is what the kitchen usually uses on those days, plus enough to stay above the warning line, less what you already have. The last three weeks of orders count, the most recent most, so it gets better the longer the kitchen runs on Stock. A new ingredient has no history and is simply topped up to its warning line.
+            </p>
+          </Block>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {items.length > 0 && (
-        <ol className="mb-4 grid gap-2 text-[13.5px] text-ink-3 sm:grid-cols-2">
-          {['Send each supplier their message below. Copy it, or open it in WhatsApp or Viber.', 'When the order arrives, open Stock and press Delivery arrived on each item. Enter what you paid so the next list is priced.'].map((step, i) => (
-            <li key={step} className="flex gap-2.5">
-              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-flame/14 text-[12px] font-bold text-flame-1 tnum">{i + 1}</span>
-              <span className="leading-snug">{step}</span>
-            </li>
-          ))}
-        </ol>
-      )}
+const pill =
+  'inline-flex h-8 items-center gap-1.5 rounded-full bg-surface-2 px-3 text-[13px] font-semibold text-ink ring-1 ring-hairline ring-inset transition-move hover:bg-surface-3 active:scale-95';
 
-      <div className="grid gap-4">
-        {groups.map(([supplier, rows]) => {
-          const subtotal = rows.reduce((sum, i) => sum + (i.estimatedCost ?? 0), 0);
-          const message = orderMessage(supplier, rows);
-          return (
-            <section key={supplier} aria-label={supplier}>
-              <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
-                <h3 className="min-w-0 flex-1 text-[14px] font-semibold">
-                  {supplier} <span className="font-normal text-ink-4">· {rows.length}</span>
-                </h3>
-                <button
-                  type="button"
-                  className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')}
-                  onClick={() => void run('copy', () => navigator.clipboard.writeText(message), 'Message copied')}
-                >
-                  <Copy size={13} /> Copy message
-                </button>
-                <a
-                  className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')}
-                  href={`https://wa.me/?text=${encodeURIComponent(message)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Send size={13} /> WhatsApp
-                </a>
-                <a className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')} href={`viber://forward?text=${encodeURIComponent(message)}`}>
-                  <Send size={13} /> Viber
-                </a>
-              </div>
-              <div className="overflow-hidden rounded-2xl bg-docket-surface text-docket-ink ring-1 ring-hairline ring-inset">
-                {rows.map((item) => (
-                  <div key={item.ingredientId} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-docket-line px-4 py-3.5 last:border-0 sm:px-5">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-semibold">{item.name}</span>
-                      <span className="block text-[12.5px] text-docket-inksoft">
-                        Have {formatQty(item.onHand, item.unit)}
-                        {item.expectedUse > 0 ? ` · usually uses ${formatQty(item.expectedUse, item.unit)}` : ' · no usage history yet'}
-                      </span>
-                    </span>
-                    <span className="text-[16px] font-bold tnum">Buy {formatQty(item.toBuy, item.unit)}</span>
-                    <span className="w-24 text-right text-[13px] text-docket-inksoft tnum">{item.estimatedCost === null ? '—' : formatMoney(item.estimatedCost, currency)}</span>
-                  </div>
-                ))}
-                {subtotal > 0 && (
-                  <div className="flex justify-end bg-docket-line/40 px-4 py-2.5 text-[13px] font-semibold tnum sm:px-5">About {formatMoney(subtotal, currency)}</div>
-                )}
-              </div>
-            </section>
-          );
-        })}
-
-        {groups.some(([supplier]) => supplier === NO_SUPPLIER) && (
-          <p className="px-1 text-[13px] text-ink-3">Name a supplier when you receive a delivery and these items will group under them next time.</p>
-        )}
-
-        <Panel variant="subtle">
-          <p className="max-w-[68ch] text-[13px] leading-relaxed text-ink-3">
-            Based on the last three weeks of orders, the most recent counting most, so it gets better the longer the kitchen runs on Stock. A new ingredient has no history and is simply topped up to its warning line.{' '}
-            <Link to="/admin/inventory" className="font-semibold text-flame-1">
-              Receive what arrives on the Stock page.
-            </Link>
-          </p>
-        </Panel>
-      </div>
-    </>
+function Cell({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="px-6 py-6">
+      <h2 className="mb-3 text-[13px] font-semibold text-ink-3">{title}</h2>
+      {children}
+    </div>
   );
 }

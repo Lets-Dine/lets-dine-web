@@ -54,7 +54,9 @@ export function Floors() {
 
   return (
     <>
+      <div className="animate-rise">
       <PageTitle title="Floors" subtitle={`${active.length} taking orders · ${rows.length - active.length} disabled`} />
+      </div>
 
       {floors.loading && rows.length === 0 ? (
         <Loading label="Reading the floor list…" />
@@ -66,9 +68,9 @@ export function Floors() {
                 No floors yet — add one for a shared, room-less QR.
               </p>
             )}
-            {rows.map((floor) => (
+            {rows.map((floor, i) => (
+              <div key={floor.id} className="animate-rise *:h-full" style={{ animationDelay: `${120 + Math.min(i, 10) * 45}ms` }}>
               <FloorCard
-                key={floor.id}
                 floor={floor}
                 editable={editable}
                 pending={pending}
@@ -95,11 +97,12 @@ export function Floors() {
                 }}
                 onShowQr={() => setQrId(floor.id)}
               />
+              </div>
             ))}
           </div>
 
           {editable && (
-            <Panel title="Add a floor">
+            <Panel title="Add a floor" className="animate-rise [animation-delay:180ms]">
               <form
                 className="grid gap-4"
                 onSubmit={(e) => {

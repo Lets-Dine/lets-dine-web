@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { addLibraryPhoto, getLibrarySignature, listLibrary, removeLibraryPhoto, updateLibraryGroup } from '../../api/dishPhotos';
 import type { LibraryPhoto } from '../../api/dishPhotos';
 import { ImageUpload } from '../../components/admin/ImageUpload';
-import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_TINY, Empty, Field, INPUT_BOX, Loading, PageTitle, Panel, TextInput, useCommand } from '../../components/admin/kit';
+import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_TINY, Empty, Field, INPUT_BOX, Loading, PageTitle, Panel, Select, TextInput, useCommand } from '../../components/admin/kit';
 import { Check, Search, X } from '../../components/icons';
 import { cx } from '../../components/ui';
 import { useAsync } from '../../state/useAsync';
@@ -94,16 +94,11 @@ export function PlatformPhotos() {
         <div className="grid gap-4">
           <div className="flex flex-wrap gap-3">
             <Field label="Dish name" className="min-w-44 flex-1">
-              <TextInput value={name} onChange={setName} maxLength={60} placeholder="Momo" list="photo-dish-names" />
+              <Select value={name} onChange={setName} maxLength={60} placeholder="Momo" allowNew options={knownNames.map((n) => ({ value: n, label: n }))} />
             </Field>
             <Field label="Also known as" className="min-w-44 flex-1">
               <TextInput value={tagText} onChange={setTagText} maxLength={120} placeholder="dumpling, steamed" />
             </Field>
-            <datalist id="photo-dish-names">
-              {knownNames.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
           </div>
 
           <div className="flex flex-wrap items-end gap-3">

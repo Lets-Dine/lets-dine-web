@@ -89,6 +89,7 @@ export function Orders() {
 
   return (
     <>
+      <div className="animate-rise">
       <PageTitle
         title="Orders"
         subtitle={
@@ -97,12 +98,13 @@ export function Orders() {
             : `Nothing waiting · ${counts.kitchen} in the kitchen`
         }
       />
+      </div>
 
       {overdue > 0 && lane !== 'focus' && (
         <button
           type="button"
           onClick={() => setLane('focus')}
-          className="mb-3 flex w-full items-center gap-2.5 rounded-xl bg-berry/12 px-3.5 py-2.5 text-left ring-1 ring-berry/25 ring-inset transition-move active:scale-[0.99]"
+          className="mb-3 flex w-full items-center gap-2.5 rounded-xl bg-berry/12 px-3.5 py-2.5 text-left ring-1 ring-berry/25 ring-inset transition-move active:scale-[0.99] animate-rise [animation-delay:60ms]"
         >
           <span className="size-2 shrink-0 rounded-full bg-berry animate-breathe" aria-hidden />
           <span className="min-w-0 flex-1 text-[13.5px] font-semibold text-berry-ink">
@@ -122,7 +124,7 @@ export function Orders() {
         </button>
       )}
 
-      <div className="mb-5 overflow-x-auto no-scrollbar">
+      <div className="mb-5 overflow-x-auto no-scrollbar animate-rise [animation-delay:60ms]">
         <Segmented
           label="Order stage"
           value={lane}
@@ -135,7 +137,7 @@ export function Orders() {
       </div>
 
       {shown.length === 0 ? (
-        <Panel>
+        <Panel className="animate-rise [animation-delay:120ms]">
           <Empty
             image="/empty.svg"
             title={lane === 'focus' ? 'Nothing is overdue' : lane === 'new' ? 'Nothing waiting' : 'Nothing here'}

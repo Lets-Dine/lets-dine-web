@@ -996,12 +996,14 @@ function IngredientSheet({
                         <input type="date" value={arrivedOn} max={today} onChange={(e) => setArrivedOn(e.target.value || today)} className={cx(INPUT_BOX, 'tnum')} />
                       </Field>
                       <Field label="From">
-                        <TextInput value={supplier} onChange={setSupplier} maxLength={80} placeholder="Supplier (optional)" list="supplier-names" />
-                        <datalist id="supplier-names">
-                          {supplierNames.map((n) => (
-                            <option key={n} value={n} />
-                          ))}
-                        </datalist>
+                        <Select
+                          value={supplier}
+                          onChange={setSupplier}
+                          options={[{ value: '', label: 'No supplier' }, ...supplierNames.map((n) => ({ value: n, label: n }))]}
+                          placeholder="Supplier (optional)"
+                          maxLength={80}
+                          allowNew
+                        />
                       </Field>
                       <Field
                         label="What you paid"

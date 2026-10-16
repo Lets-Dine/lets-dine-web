@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { cx } from '../ui';
-import { INPUT_BOX } from './kit';
+import { INPUT_BOX, Select } from './kit';
 
 const SCALES: Record<string, { label: string; factor: number }[]> = {
   g: [
@@ -41,22 +41,17 @@ export function QtyField({ unit, onChange, placeholder = '0', big = false }: { u
         }}
       />
       {scales.length > 1 ? (
-        <select
+        <Select
           aria-label="Unit"
-          className={cx(INPUT_BOX, 'w-20 shrink-0 cursor-pointer')}
-          value={scale}
-          onChange={(e) => {
-            const s = Number(e.target.value);
+          className="w-20 shrink-0"
+          value={String(scale)}
+          onChange={(next) => {
+            const s = Number(next);
             setScale(s);
             emit(text, s);
           }}
-        >
-          {scales.map((s, i) => (
-            <option key={s.label} value={i} className="bg-surface-2">
-              {s.label}
-            </option>
-          ))}
-        </select>
+          options={scales.map((s, i) => ({ value: String(i), label: s.label }))}
+        />
       ) : (
         <span className="flex w-20 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-[13.5px] font-semibold text-ink-3 ring-1 ring-hairline ring-inset">{scales[0].label}</span>
       )}

@@ -119,19 +119,21 @@ export function Customers() {
 
   return (
     <>
-      <PageTitle
-        title="Customers"
-        subtitle="The people who keep coming back — and the ones who've gone quiet."
-        action={
-          canAdd && (
-            <button type="button" className={ADMIN_PRIMARY} onClick={() => setAdding(true)}>
-              <Plus size={16} /> Add customer
-            </button>
-          )
-        }
-      />
+      <div className="animate-rise">
+        <PageTitle
+          title="Customers"
+          subtitle="The people who keep coming back — and the ones who've gone quiet."
+          action={
+            canAdd && (
+              <button type="button" className={ADMIN_PRIMARY} onClick={() => setAdding(true)}>
+                <Plus size={16} /> Add customer
+              </button>
+            )
+          }
+        />
+      </div>
 
-      <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+      <div className="mb-4 animate-rise grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center [animation-delay:60ms]">
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="group" aria-label="Filter customers">
           {FILTERS.map((f) => (
             <button key={f.value} type="button" aria-pressed={filter === f.value} onClick={() => setFilter(f.value)} className={cx(CHIP, filter === f.value ? CHIP_ON : CHIP_OFF)}>
@@ -161,7 +163,7 @@ export function Customers() {
         {loading ? 'Loading customers' : `${count} customers`}
       </p>
 
-      <section className={cx(PANEL, 'overflow-hidden')}>
+      <section className={cx(PANEL, 'overflow-hidden animate-rise [animation-delay:120ms]')}>
         {error && rows.length === 0 ? (
           <Empty
             emoji="⚠️"
@@ -196,8 +198,8 @@ export function Customers() {
               <span className="text-right">Spent</span>
             </div>
             <ul className={cx('transition-opacity duration-150', loading && 'opacity-60')}>
-              {rows.map((c) => (
-                <li key={c.id} className={cx('border-b border-hairline last:border-0', fresh === c.id && 'animate-rise bg-flame-2/8')}>
+              {rows.map((c, i) => (
+                <li key={c.id} className={cx('animate-rise border-b border-hairline last:border-0', fresh === c.id && 'bg-flame-2/8')} style={{ animationDelay: `${220 + Math.min(i, 10) * 40}ms` }}>
                   <button
                     type="button"
                     onClick={() => navigate(`/admin/customers/${c.id}`)}

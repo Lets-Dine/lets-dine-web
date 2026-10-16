@@ -48,17 +48,19 @@ export function Categories() {
 
   return (
     <>
-      <PageTitle title="Categories" subtitle="The order here is the order diners scroll through the menu." />
+      <div className="animate-rise">
+        <PageTitle title="Categories" subtitle="The order here is the order diners scroll through the menu." />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.9fr_1fr] lg:items-start">
-        <div className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
+        <div className="animate-rise overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line [animation-delay:60ms]">
           <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
             <h2 className="font-display text-[18px] font-black tracking-tight">Menu order</h2>
           </div>
           <Perforation />
           <ul>
             {ordered.map((category, index) => (
-              <li key={category.id}>
+              <li key={category.id} className="animate-rise" style={{ animationDelay: `${160 + Math.min(index, 10) * 40}ms` }}>
                 {editing === category.id ? (
                   <CategoryEditor
                     category={category}
@@ -132,7 +134,7 @@ export function Categories() {
           </ul>
         </div>
 
-        <div className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
+        <div className="animate-rise overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line [animation-delay:120ms]">
           <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
             <h2 className="font-display text-[18px] font-black tracking-tight">Add a category</h2>
           </div>

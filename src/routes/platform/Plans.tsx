@@ -6,7 +6,7 @@ import { monthsFree } from '../../domain/subscription';
 import { symbolFor } from '../../domain/money';
 import type { Minor } from '../../domain/types';
 import { useAsync } from '../../state/useAsync';
-import { ADMIN_GHOST, ADMIN_PRIMARY, INPUT_BOX, Loading, PageTitle, Panel, useCommand } from '../../components/admin/kit';
+import { ADMIN_GHOST, ADMIN_PRIMARY, INPUT_BOX, Loading, PageTitle, Panel, Select, useCommand } from '../../components/admin/kit';
 import { usePageTitle } from '../../state/usePageTitle';
 import { cx } from '../../components/ui';
 
@@ -95,15 +95,13 @@ export function PlatformPlans() {
               <Group label="Features" />
               <Line plans={draft} label="Analytics">
                 {(p, i) => (
-                  <select
+                  <Select
                     aria-label={`Analytics for ${p.name}`}
-                    className={cx(INPUT_BOX, 'h-9 cursor-pointer py-0 text-[13.5px]')}
+                    className="h-9 py-0 text-[13.5px]"
                     value={p.features.analyticsTier}
-                    onChange={(e) => patch(i, (x) => ({ ...x, features: { ...x.features, analyticsTier: e.target.value as 'basic' | 'full' } }))}
-                  >
-                    <option value="basic">Basic</option>
-                    <option value="full">Full</option>
-                  </select>
+                    onChange={(tier) => patch(i, (x) => ({ ...x, features: { ...x.features, analyticsTier: tier as 'basic' | 'full' } }))}
+                    options={[{ value: 'basic', label: 'Basic' }, { value: 'full', label: 'Full' }]}
+                  />
                 )}
               </Line>
               <Line plans={draft} label="Data exports">

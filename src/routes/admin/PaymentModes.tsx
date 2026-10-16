@@ -12,7 +12,7 @@ import { useAsync } from '../../state/useAsync';
  * How this restaurant takes payment. Cash and card are recorded by staff at the till and need no
  * setup; Fonepay QR is the one mode that needs the restaurant's own merchant account, so that is
  * where money from a scanned QR settles. The merchant credentials are kept encrypted server-side and
- * are never sent back here — which is why the two secret fields are always blank when the dialog opens.
+ * are never sent back here -- which is why the two secret fields are always blank when the dialog opens.
  */
 export function PaymentModes() {
   const { allows } = useAuth();
@@ -27,19 +27,22 @@ export function PaymentModes() {
 
   return (
     <>
-      <PageTitle title="Payment modes" subtitle="How your guests can pay the bill" />
+      <div className="animate-rise">
+        <PageTitle title="Payment modes" subtitle="How your guests can pay the bill" />
+      </div>
 
-      <div className="max-w-3xl">
+      <div className="max-w-3xl animate-rise [animation-delay:120ms]">
         <Panel bare>
           <ul className="divide-y divide-hairline">
-            <ModeRow icon={<Cash size={18} />} name="Cash" detail="Staff record it at the till. Nothing to set up." status="On" tone="on" />
-            <ModeRow icon={<Cash size={18} />} name="Card" detail="Staff record the card machine's receipt. Nothing to set up." status="On" tone="on" />
+            <ModeRow icon={<Cash size={18} />} name="Cash" detail="Staff record it at the till. Nothing to set up." status="On" tone="on" delay={200} />
+            <ModeRow icon={<Cash size={18} />} name="Card" detail="Staff record the card machine's receipt. Nothing to set up." status="On" tone="on" delay={245} />
             <ModeRow
               icon={<Qr size={18} />}
               name="Fonepay QR"
               detail="Guests scan a QR for the exact bill amount; it pays into your own Fonepay merchant account."
-              status={!FONEPAY_ENABLED ? 'Unavailable in demo' : fonepay.loading && !summary ? 'Checking…' : fonepay.error ? 'Couldn’t load' : summary?.configured ? (summary.enabled ? 'On' : 'Off') : 'Not set up'}
+              status={!FONEPAY_ENABLED ? 'Unavailable in demo' : fonepay.loading && !summary ? 'Checking…' : fonepay.error ? "Couldn't load" : summary?.configured ? (summary.enabled ? 'On' : 'Off') : 'Not set up'}
               tone={on ? 'on' : 'off'}
+              delay={290}
               action={
                 FONEPAY_ENABLED && canEdit ? (
                   <>
@@ -166,6 +169,7 @@ function ModeRow({
   status,
   tone,
   action,
+  delay,
 }: {
   icon: ReactNode;
   name: string;
@@ -173,9 +177,10 @@ function ModeRow({
   status: string;
   tone: 'on' | 'off';
   action?: ReactNode;
+  delay: number;
 }) {
   return (
-    <li className="flex flex-wrap items-center gap-3.5 px-4 py-3.5 sm:px-5">
+    <li style={{ animationDelay: `${delay}ms` }} className="animate-rise flex flex-wrap items-center gap-3.5 px-4 py-3.5 sm:px-5">
       <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-surface-2 text-ink-3 ring-1 ring-hairline ring-inset">{icon}</span>
       <div className="min-w-0 flex-1">
         <p className="text-[14.5px] font-semibold">{name}</p>

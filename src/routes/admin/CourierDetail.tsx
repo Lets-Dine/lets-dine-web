@@ -193,7 +193,7 @@ function CourierPage({ kind, id }: { kind: 'partner' | 'rider'; id: string }) {
               <>{rider?.partnerId ? `Rides for ${parent?.name ?? 'a partner'}; their cash and fees settle on the partner's account.` : 'No account of their own yet.'}{open.length > 0 ? <> <Num>{open.length}</Num> on the road now.</> : null}</>
             )}
           </p>
-          {note && <p className="mt-3 max-w-[48ch] text-[14.5px] text-ink-3">{note}</p>}
+          {note && <p className="mt-3 max-w-[48ch] animate-rise text-[14.5px] text-ink-3 [animation-delay:120ms]">{note}</p>}
           <div className="mt-6 flex animate-rise flex-wrap gap-2.5 [animation-delay:160ms]">
             {canManage && owed !== null && balance && (
               <button type="button" className={cx(ADMIN_PRIMARY, 'h-11 px-5 text-[14.5px]')} onClick={() => setSettling(true)}>
@@ -228,8 +228,8 @@ function CourierPage({ kind, id }: { kind: 'partner' | 'rider'; id: string }) {
             </button>
           </div>
           <ul className="mt-3 grid gap-1.5 text-[15px] text-ink-2 sm:grid-cols-2">
-            {open.slice(0, 4).map((run) => (
-              <li key={run.id} className="flex items-baseline justify-between gap-3">
+            {open.slice(0, 4).map((run, i) => (
+              <li key={run.id} className="animate-rise flex items-baseline justify-between gap-3" style={{ animationDelay: `${220 + Math.min(i, 4) * 40}ms` }}>
                 <span className="truncate">
                   <span className="font-semibold text-ink tnum">{run.orderRef}</span> · {run.customerName}
                 </span>
@@ -268,7 +268,7 @@ function CourierPage({ kind, id }: { kind: 'partner' | 'rider'; id: string }) {
         </div>
 
         <div className="min-w-0 lg:col-start-1 lg:row-start-1">
-          <div role="tablist" className="mb-3 inline-flex max-w-full gap-1 overflow-x-auto rounded-full bg-surface-2 p-1 ring-1 ring-hairline ring-inset">
+          <div role="tablist" className="mb-3 animate-rise inline-flex max-w-full gap-1 overflow-x-auto rounded-full bg-surface-2 p-1 ring-1 ring-hairline ring-inset [animation-delay:280ms]">
             {tabs.map((t) => (
               <button
                 key={t.key}
@@ -349,8 +349,8 @@ function OnTheRoad({ runs, money }: { runs: DeliveryAssignment[]; money: (m: num
   return (
     <Panel bare title="On the road" hint="Counted in the balance once they are marked delivered">
       <ul>
-        {runs.map((run) => (
-          <li key={run.id} className="flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5">
+        {runs.map((run, i) => (
+          <li key={run.id} className="animate-rise flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5" style={{ animationDelay: `${320 + Math.min(i, 10) * 40}ms` }}>
             <span className="size-2 shrink-0 rounded-full bg-mint motion-safe:animate-breathe-slow" aria-hidden />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[14px] font-semibold">
@@ -397,8 +397,8 @@ function Statement({ account, statement, viaPartner, money }: { account: Account
         <Empty title="Nothing here yet" message={account ? 'Once an order is delivered, or you record a settlement, it shows up here with the balance after it.' : 'Completed runs appear here.'} />
       ) : (
         <div>
-          {days.map((day) => (
-            <div key={dayLabel(day[0].at)}>
+          {days.map((day, g) => (
+            <div key={dayLabel(day[0].at)} className="animate-rise" style={{ animationDelay: `${320 + Math.min(g, 4) * 70}ms` }}>
               <div className="flex items-baseline justify-between gap-3 border-b border-hairline bg-surface-2/40 px-4 py-2 sm:px-5">
                 <h3 className="text-[12.5px] font-semibold text-ink-2">{dayLabel(day[0].at)}</h3>
                 <span className="text-[12px] text-ink-4 tnum">
@@ -406,8 +406,8 @@ function Statement({ account, statement, viaPartner, money }: { account: Account
                 </span>
               </div>
               <ul>
-                {day.map((line) => (
-                  <StatementRow key={`${line.type}:${line.id}`} line={line} money={money} />
+                {day.map((line, n) => (
+                  <StatementRow key={`${line.type}:${line.id}`} line={line} money={money} delay={380 + Math.min(g, 4) * 70 + Math.min(n, 10) * 40} />
                 ))}
               </ul>
             </div>
@@ -435,11 +435,11 @@ function Signed({ delta, money, className }: { delta: number; money: (m: number)
   return <span className={cx('tnum', delta > 0 ? 'text-gold-ink' : 'text-pass', className)}>{delta > 0 ? '+' : '−'}{money(Math.abs(delta))}</span>;
 }
 
-function StatementRow({ line, money }: { line: StatementLine; money: (m: number) => string }) {
+function StatementRow({ line, money, delay }: { line: StatementLine; money: (m: number) => string; delay: number }) {
   if (line.type === 'SETTLEMENT') {
     const s = line.settlement;
     return (
-      <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5 ">
+      <li className="animate-rise grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5" style={{ animationDelay: `${delay}ms` }}>
         <span aria-hidden className="grid size-8 place-items-center rounded-full bg-mint/12 text-mint-ink">
           <Handshake size={15} />
         </span>
@@ -463,7 +463,7 @@ function StatementRow({ line, money }: { line: StatementLine; money: (m: number)
   const short = (a.cashToCollect ?? 0) - (a.cashCollected ?? 0);
   const delta = 'delta' in line ? line.delta : null;
   return (
-    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5 ">
+    <li className="animate-rise grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5" style={{ animationDelay: `${delay}ms` }}>
       <span aria-hidden className="grid size-8 place-items-center rounded-full bg-surface-2 text-ink-3 ring-1 ring-hairline ring-inset">
         <Bike size={15} />
       </span>
@@ -606,8 +606,8 @@ function PartnerRiders({ riders }: { riders: RiderListing[] }) {
   return (
     <Panel bare title="Their riders" hint="Their runs add to this account">
       <ul>
-        {riders.map((r) => (
-          <li key={r.id} className="border-b border-hairline last:border-0">
+        {riders.map((r, i) => (
+          <li key={r.id} className="animate-rise border-b border-hairline last:border-0" style={{ animationDelay: `${340 + Math.min(i, 10) * 40}ms` }}>
             <Link to={`/admin/delivery/riders/${r.id}`} className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2/40 sm:px-5">
               <Monogram name={r.name} size="sm" />
               <span className="min-w-0 flex-1">

@@ -38,6 +38,7 @@ export function StockTake() {
 
   return (
     <>
+      <div className="animate-rise">
       <PageTitle
         title="Count everything"
         purpose="Check the shelves against the system."
@@ -48,9 +49,10 @@ export function StockTake() {
           </Link>
         }
       />
+      </div>
 
       {rows.length === 0 ? (
-        <Panel>
+        <Panel className="animate-rise [animation-delay:120ms]">
           <p className="py-4 text-center text-[13.5px] text-ink-3">
             No ingredients to count yet. Add some on the{' '}
             <Link to="/admin/inventory" className="font-semibold text-flame-1">
@@ -61,7 +63,7 @@ export function StockTake() {
         </Panel>
       ) : (
         <div className="grid gap-4">
-          <ol className="grid gap-2 text-[13.5px] text-ink-3 sm:grid-cols-3">
+          <ol className="grid gap-2 text-[13.5px] text-ink-3 sm:grid-cols-3 animate-rise [animation-delay:60ms]">
             {['Count each ingredient below. Skip any you are not counting today.', 'Press Submit count at the bottom.', 'Stock is corrected to your numbers, and you see what went missing.'].map((step, i) => (
               <li key={step} className="flex gap-2.5">
                 <span className="grid size-6 shrink-0 place-items-center rounded-full bg-flame/14 text-[12px] font-bold text-flame-1 tnum">{i + 1}</span>
@@ -69,9 +71,9 @@ export function StockTake() {
               </li>
             ))}
           </ol>
-          <div className="overflow-hidden rounded-2xl bg-docket-surface text-docket-ink ring-1 ring-hairline ring-inset">
-            {rows.map((row) => (
-              <div key={`${round}:${row.ingredientId}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-docket-line px-4 py-3 last:border-0 sm:px-5">
+          <div className="overflow-hidden rounded-2xl bg-docket-surface text-docket-ink ring-1 ring-hairline ring-inset animate-rise [animation-delay:120ms]">
+            {rows.map((row, i) => (
+              <div key={`${round}:${row.ingredientId}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-docket-line px-4 py-3 last:border-0 sm:px-5 animate-rise" style={{ animationDelay: `${220 + Math.min(i, 10) * 45}ms` }}>
                 <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{row.name}</span>
                 <span className="w-56 max-w-full text-ink">
                   <QtyField unit={row.unit} onChange={(q) => setCounts((prev) => ({ ...prev, [row.ingredientId]: q }))} placeholder="Not counted" />
@@ -80,7 +82,7 @@ export function StockTake() {
             ))}
           </div>
 
-          <div className="sticky bottom-3 flex flex-wrap items-center gap-3 rounded-2xl bg-surface p-3 shadow-lift ring-1 ring-hairline ring-inset sm:p-4">
+          <div className="sticky bottom-3 flex flex-wrap items-center gap-3 rounded-2xl bg-surface p-3 shadow-lift ring-1 ring-hairline ring-inset sm:p-4 animate-rise [animation-delay:180ms]">
             <span className="min-w-0 flex-1 text-[13.5px] text-ink-3">
               <span className="font-semibold text-ink tnum">
                 {entered.length} of {rows.length}
@@ -104,9 +106,11 @@ function Outcome({ result, currency, onAgain }: { result: StockTakeResult[]; cur
 
   return (
     <>
+      <div className="animate-rise">
       <PageTitle title="Count everything" subtitle="Count recorded. Stock now matches what you counted." />
+      </div>
 
-      <div className="mb-4 flex items-start gap-3 rounded-2xl bg-surface p-4 ring-1 ring-hairline ring-inset sm:p-5">
+      <div className="mb-4 flex items-start gap-3 rounded-2xl bg-surface p-4 ring-1 ring-hairline ring-inset sm:p-5 animate-rise [animation-delay:60ms]">
         <span className={cx('mt-0.5 grid size-9 shrink-0 place-items-center rounded-full', good ? 'bg-mint/14 text-mint-ink' : 'bg-gold/16 text-gold-ink')} aria-hidden>
           {good ? <Check size={18} /> : <Alert size={18} />}
         </span>
@@ -123,9 +127,9 @@ function Outcome({ result, currency, onAgain }: { result: StockTakeResult[]; cur
       </div>
 
       {off.length > 0 && (
-        <div className="mb-4 overflow-hidden rounded-2xl bg-docket-surface text-docket-ink ring-1 ring-hairline ring-inset">
-          {off.map((r) => (
-            <div key={r.ingredientId} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-docket-line px-4 py-3.5 last:border-0 sm:px-5">
+        <div className="mb-4 overflow-hidden rounded-2xl bg-docket-surface text-docket-ink ring-1 ring-hairline ring-inset animate-rise [animation-delay:120ms]">
+          {off.map((r, i) => (
+            <div key={r.ingredientId} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-docket-line px-4 py-3.5 last:border-0 sm:px-5 animate-rise" style={{ animationDelay: `${220 + Math.min(i, 10) * 45}ms` }}>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[15px] font-semibold">{r.name}</span>
                 <span className="block text-[12.5px] text-docket-inksoft">
@@ -145,7 +149,7 @@ function Outcome({ result, currency, onAgain }: { result: StockTakeResult[]; cur
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 animate-rise [animation-delay:180ms]">
         <button type="button" className={ADMIN_PRIMARY} onClick={onAgain}>
           Start another count
         </button>

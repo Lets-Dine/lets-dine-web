@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { addExpense, closeLedger, deleteExpense, fetchCloses, fetchEntries, fetchLedger, reopenLedger } from '../../api/ledger';
 import type {  LedgerEntry } from '../../api/ledger';
-import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_TINY, Confirm, DOCKET_CARD, Field, Loading, MoneyInput, PageTitle, Panel, Perforation, Segmented, TextInput, useCommand } from '../../components/admin/kit';
+import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_TINY, Confirm, DOCKET_CARD, Field, Loading, MoneyInput, PageTitle, Panel, Perforation, Segmented, Select, TextInput, useCommand } from '../../components/admin/kit';
 import { cx } from '../../components/ui';
 import { X } from '../../components/icons';
 import { clockTime, relativeTime } from '../../components/time';
@@ -193,13 +193,7 @@ export function Ledger() {
           <Loading label="Reading the tape…" />
         ) : (
           <>
-            <div className="hidden grid-cols-[4.5rem_1fr_7rem_7rem_7rem] gap-x-3 px-6 pt-4 pb-2 text-[10px] font-bold tracking-[0.1em] text-docket-inksoft uppercase sm:grid">
-              <span>Time</span>
-              <span>Line</span>
-              <span className="text-right">Amount</span>
-              <span className="text-right">Drawer</span>
-              <span className="text-right">Bank</span>
-            </div>
+            <TapeHeader balances />
             <ol>
               {tape.map(({ entry: e, cash, bank }, i) => (
                 <li key={e.id} className="animate-rise" style={{ animationDelay: `${160 + Math.min(i, 10) * 40}ms` }}>
@@ -348,12 +342,7 @@ export function Ledger() {
                 <MoneyInput key={`e${formKey}${panel}`} value={amount || ''} onChange={setAmount} currency={currency} />
               </Field>
               <Field label="Category">
-                <TextInput value={category} onChange={setCategory} maxLength={60} list="ledger-categories" placeholder={CATEGORY_HINTS[panel].slice(0, 3).join(', ')} autoFocus />
-                <datalist id="ledger-categories">
-                  {CATEGORY_HINTS[panel].map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
+                <Select value={category} onChange={setCategory} maxLength={60} allowNew autoFocus placeholder={CATEGORY_HINTS[panel].slice(0, 3).join(', ')} options={CATEGORY_HINTS[panel].map((c) => ({ value: c, label: c }))} />
               </Field>
               <Field label="Note">
                 <TextInput value={note} onChange={setNote} maxLength={300} placeholder="Optional" />
@@ -614,6 +603,25 @@ function Held({ label, value }: { label: string; value: string }) {
 }
 
 /** One line of the tape: when, what, the amount, and where the drawer and the bank stand after it. */
+/** Desktop columns for the tape and its header: time, line, amount, then drawer and bank only when balances are known. */
+const tapeCols = (balances: boolean) => (balances ? 'sm:grid-cols-[4.5rem_minmax(0,1fr)_8rem_8rem_8rem]' : 'sm:grid-cols-[4.5rem_minmax(0,1fr)_8rem]');
+
+export function TapeHeader({ balances }: { balances: boolean }) {
+  return (
+    <div className={cx('hidden gap-x-3 px-6 pt-4 pb-2 text-[10px] font-bold tracking-[0.1em] text-docket-inksoft uppercase sm:grid', tapeCols(balances))}>
+      <span>Time</span>
+      <span>Line</span>
+      <span className="text-right">Amount</span>
+      {balances && (
+        <>
+          <span className="text-right">Drawer</span>
+          <span className="text-right">Bank</span>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function TapeLine({
   entry: e,
   cash,
@@ -639,8 +647,9 @@ export function TapeLine({
   // Where the money went — implied for the opening and for a transfer, whose label already says it.
   const via = opening || transfer ? '' : e.method === 'CASH' ? 'Cash' : 'Bank';
   const detail = [via, opening ? `Drawer ${money(e.cashDelta)} · Bank ${money(e.bankDelta)}` : '', e.detail, e.locked ? 'Delivery settlement' : ''].filter(Boolean).join(' · ');
+  const balances = cash !== undefined || bank !== undefined;
   return (
-    <div className="grid grid-cols-[3.75rem_1fr_auto] items-start gap-x-3 gap-y-0.5 px-6 py-3.5 sm:grid-cols-[4.5rem_1fr_7rem_7rem_7rem] sm:items-baseline">
+    <div className={cx('grid grid-cols-[3.75rem_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-0.5 px-6 py-3.5 sm:items-baseline', tapeCols(balances))}>
       <time className="text-[12.5px] font-semibold text-docket-inksoft tnum" dateTime={e.at}>
         <Stamp at={e.at} />
       </time>
@@ -661,14 +670,18 @@ export function TapeLine({
         {opening || transfer ? '' : expense ? '−' : '+'}
         {money(e.amount)}
       </span>
-      <span className="col-start-2 row-start-3 text-[12px] text-docket-inksoft tnum sm:col-start-4 sm:row-start-1 sm:text-right">
-        <span className="sm:hidden">{cash === undefined ? '' : 'Drawer '}</span>
-        {cash === undefined ? '' : money(cash)}
-      </span>
-      <span className="col-start-2 row-start-4 text-[12px] text-docket-inksoft tnum sm:col-start-5 sm:row-start-1 sm:text-right">
-        <span className="sm:hidden">{bank === undefined ? '' : 'Bank '}</span>
-        {bank === undefined ? '' : money(bank)}
-      </span>
+      {balances && (
+        <>
+          <span className="col-start-2 row-start-3 text-[12px] text-docket-inksoft tnum sm:col-start-4 sm:row-start-1 sm:text-right">
+            <span className="sm:hidden">{cash === undefined ? '' : 'Drawer '}</span>
+            {cash === undefined ? '' : money(cash)}
+          </span>
+          <span className="col-start-2 row-start-4 text-[12px] text-docket-inksoft tnum sm:col-start-5 sm:row-start-1 sm:text-right">
+            <span className="sm:hidden">{bank === undefined ? '' : 'Bank '}</span>
+            {bank === undefined ? '' : money(bank)}
+          </span>
+        </>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { BRANCHES_ENABLED } from '../../api/staff';
 import { ApiError } from '../../api/store';
 import { useAuth } from '../../state/AuthContext';
 import { useToast } from '../../state/ToastContext';
+import { Select } from './kit';
 import { cx } from '../ui';
 
 /**
@@ -43,18 +44,13 @@ export function BranchSwitcher({ className }: { className?: string }) {
   return (
     <label className={cx('block', className)}>
       <span className="sr-only">Branch</span>
-      <select
+      <Select
         value={current.id}
         disabled={pending}
-        onChange={(e) => void onChange(e.target.value)}
-        className="w-full cursor-pointer rounded-lg bg-surface-2/60 px-2.5 py-1.5 text-[13px] font-semibold text-ink ring-1 ring-hairline ring-inset disabled:opacity-60"
-      >
-        {branches.map((branch) => (
-          <option key={branch.id} value={branch.id} className="bg-surface-2">
-            {branch.name}
-          </option>
-        ))}
-      </select>
+        onChange={(id) => void onChange(id)}
+        options={branches.map((branch) => ({ value: branch.id, label: branch.name }))}
+        className="rounded-lg bg-surface-2/60 px-2.5 py-1.5 text-[13px] font-semibold"
+      />
     </label>
   );
 }

@@ -10,13 +10,13 @@ import { Stars } from '../../components/Rating';
 import { relativeTime } from '../../components/time';
 import {
   Empty,
-  INPUT_BOX,
   Loading,
   PANEL,
   PageTitle,
   Panel,
   Row,
   Segmented,
+  Select,
   StatTile,
 } from '../../components/admin/kit';
 import { TAG, TAG_OFF, cx } from '../../components/ui';
@@ -69,33 +69,43 @@ export function Reviews() {
 
   return (
     <>
-      <PageTitle title="Reviews" subtitle="Every one of these is attached to an order that was actually completed." />
+      <div className="animate-rise">
+        <PageTitle title="Reviews" subtitle="Every one of these is attached to an order that was actually completed." />
+      </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile
-          label="Restaurant rating"
-          value={feedback.restaurantRating ? `${feedback.restaurantRating.toFixed(2)} ★` : '—'}
-          sub="weighted by review count"
-          variant="subtle"
-        />
-        <StatTile
-          label="Average dish rating"
-          value={feedback.averageDishRating ? `${feedback.averageDishRating.toFixed(2)} ★` : '—'}
-          sub={`${feedback.ratedDishes} rated dishes`}
-          variant="subtle"
-        />
-        <StatTile label="Reviews" value={feedback.reviewCount.toLocaleString()} sub="verified diners" variant="subtle" />
-        <StatTile
-          label="Would order again"
-          value={feedback.recommendRate !== null ? `${Math.round(feedback.recommendRate * 100)}%` : '—'}
-          sub="across rated dishes"
-          variant="subtle"
-        />
+        <div className="animate-rise [animation-delay:60ms]">
+          <StatTile
+            label="Restaurant rating"
+            value={feedback.restaurantRating ? `${feedback.restaurantRating.toFixed(2)} ★` : '—'}
+            sub="weighted by review count"
+            variant="subtle"
+          />
+        </div>
+        <div className="animate-rise [animation-delay:105ms]">
+          <StatTile
+            label="Average dish rating"
+            value={feedback.averageDishRating ? `${feedback.averageDishRating.toFixed(2)} ★` : '—'}
+            sub={`${feedback.ratedDishes} rated dishes`}
+            variant="subtle"
+          />
+        </div>
+        <div className="animate-rise [animation-delay:150ms]">
+          <StatTile label="Reviews" value={feedback.reviewCount.toLocaleString()} sub="verified diners" variant="subtle" />
+        </div>
+        <div className="animate-rise [animation-delay:195ms]">
+          <StatTile
+            label="Would order again"
+            value={feedback.recommendRate !== null ? `${Math.round(feedback.recommendRate * 100)}%` : '—'}
+            sub="across rated dishes"
+            variant="subtle"
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr] lg:items-start">
         <div>
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2 animate-rise [animation-delay:240ms]">
             <Segmented
               label="Sentiment"
               value={sentiment}
@@ -106,55 +116,9 @@ export function Reviews() {
                 { value: 'positive', label: 'Compliments' },
               ]}
             />
-            <select
-              className={cx(INPUT_BOX, 'w-auto appearance-none py-2')}
-              value={dishId}
-              onChange={(e) => setDishId(e.target.value)}
-              aria-label="Filter by dish"
-            >
-              <option value="all" className="bg-surface-2">
-                Every dish
-              </option>
-              {menu.dishes.map((d) => (
-                <option key={d.id} value={d.id} className="bg-surface-2">
-                  {d.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className={cx(INPUT_BOX, 'w-auto appearance-none py-2')}
-              value={stars}
-              onChange={(e) => setStars(e.target.value)}
-              aria-label="Filter by rating"
-            >
-              <option value="all" className="bg-surface-2">
-                Any rating
-              </option>
-              {[5, 4, 3, 2, 1].map((n) => (
-                <option key={n} value={n} className="bg-surface-2">
-                  {n} star{n === 1 ? '' : 's'}
-                </option>
-              ))}
-            </select>
-            <select
-              className={cx(INPUT_BOX, 'w-auto appearance-none py-2')}
-              value={age}
-              onChange={(e) => setAge(e.target.value as Age)}
-              aria-label="Filter by date"
-            >
-              <option value="all" className="bg-surface-2">
-                All time
-              </option>
-              <option value="7" className="bg-surface-2">
-                Last 7 days
-              </option>
-              <option value="30" className="bg-surface-2">
-                Last 30 days
-              </option>
-              <option value="90" className="bg-surface-2">
-                Last 90 days
-              </option>
-            </select>
+            <Select className="w-56" aria-label="Filter by dish" value={dishId} onChange={setDishId} options={[{ value: 'all', label: 'Every dish' }, ...menu.dishes.map((d) => ({ value: d.id, label: d.name }))]} />
+            <Select className="w-40" aria-label="Filter by rating" value={stars} onChange={setStars} options={[{ value: 'all', label: 'Any rating' }, ...[5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n} star${n === 1 ? '' : 's'}` }))]} />
+            <Select<Age> className="w-40" aria-label="Filter by date" value={age} onChange={setAge} options={[{ value: 'all', label: 'All time' }, { value: '7', label: 'Last 7 days' }, { value: '30', label: 'Last 30 days' }, { value: '90', label: 'Last 90 days' }]} />
           </div>
 
           {reviews.loading && rows.length === 0 ? (
@@ -169,8 +133,8 @@ export function Reviews() {
                 {rows.length} review{rows.length === 1 ? '' : 's'}
               </p>
               <div className="grid gap-2.5">
-                {rows.slice(0, 60).map((review) => (
-                  <article key={review.id} className={cx(PANEL, 'p-4')}>
+                {rows.slice(0, 60).map((review, i) => (
+                  <article key={review.id} className={cx(PANEL, 'p-4 animate-rise')} style={{ animationDelay: `${340 + Math.min(i, 10) * 45}ms` }}>
                     <header className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <Stars value={review.overall} size={13} />
@@ -219,9 +183,9 @@ export function Reviews() {
           )}
         </div>
 
-        <Panel title="Dish ratings" hint={`Dishes with at least ${MERCH.minRatingsToRank} ratings`} bare>
-          {leaderboard.map((dish) => (
-            <Row key={dish.id}>
+        <Panel title="Dish ratings" hint={`Dishes with at least ${MERCH.minRatingsToRank} ratings`} bare className="animate-rise [animation-delay:300ms]">
+          {leaderboard.map((dish, i) => (
+            <Row key={dish.id} className="animate-rise" style={{ animationDelay: `${360 + Math.min(i, 8) * 45}ms` }}>
               <span className="min-w-0 flex-1">
                 <Link to={`/admin/menu/${dish.id}`} className="block truncate text-[14px] font-semibold hover:text-flame-1">
                   {dish.name}

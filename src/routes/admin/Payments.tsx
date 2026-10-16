@@ -6,7 +6,7 @@ import type { Payment, PaymentMethod } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { clockTime, relativeTime } from '../../components/time';
-import { DOCKET_CARD, DocketDaySection, DocketEmpty, INPUT_BOX, LedgerStat, Loading, PageTitle, Perforation, Segmented, dayLabel, groupByDay } from '../../components/admin/kit';
+import { DOCKET_CARD, DocketDaySection, DocketEmpty, LedgerStat, Loading, PageTitle, Perforation, Segmented, Select, dayLabel, groupByDay } from '../../components/admin/kit';
 import { cx } from '../../components/ui';
 import { Cash, Check, ChevronRight, Qr, Receipt, X } from '../../components/icons';
 import { useDashboard } from './AdminLayout';
@@ -187,19 +187,13 @@ export function Payments() {
           />
         </div>
 
-        <select
-          className={cx(INPUT_BOX, 'w-auto appearance-none py-2')}
-          value={tableId}
-          onChange={(e) => setTableId(e.target.value)}
+        <Select
+          className="w-48"
           aria-label="Filter by table"
-        >
-          <option value="all">Every table</option>
-          {tableOptions.map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
-          ))}
-        </select>
+          value={tableId}
+          onChange={setTableId}
+          options={[{ value: 'all', label: 'Every table' }, ...tableOptions.map(([id, name]) => ({ value: id, label: name }))]}
+        />
       </div>
 
       {rows.length > 0 && (

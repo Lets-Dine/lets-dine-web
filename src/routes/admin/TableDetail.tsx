@@ -185,6 +185,7 @@ export function TableDetail() {
 
   return (
     <>
+      <div className="animate-rise">
       <PageTitle
         title={table.name}
         subtitle={`${table.capacity} seat${table.capacity === 1 ? '' : 's'} · ${
@@ -196,11 +197,12 @@ export function TableDetail() {
           </Link>
         }
       />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px] lg:items-start">
         <div className="grid gap-4">
           {!occupied ? (
-            <Panel title="No one seated here yet">
+            <Panel title="No one seated here yet" className="animate-rise [animation-delay:120ms]">
               <Empty
                 emoji="🪑"
                 title={disabled ? 'This table is disabled' : 'This table is free'}
@@ -239,6 +241,7 @@ export function TableDetail() {
                   )
                 }
                 bare
+                className="animate-rise [animation-delay:120ms]"
               >
                 {canOrder && (
                   <div className="p-4">
@@ -307,15 +310,15 @@ export function TableDetail() {
                 {visit.loading && visitOrders.length === 0 ? (
                   <Loading label="Reading the visit…" />
                 ) : visitOrders.length === 0 ? (
-                  <div className={cx(canOrder && 'border-t border-hairline', 'p-4')}>
+                  <div className={cx(canOrder && 'border-t border-hairline', 'p-4 animate-rise [animation-delay:180ms]')}>
                     <Empty title="Nothing ordered yet" message="Add dishes above, then place the order when the diner is ready." />
                   </div>
                 ) : (
                   // Each order is its own separated section — a stronger divider and its own
                   // heading + item count, the same separation Payments gives each day.
                   <>
-                    {orderedVisitOrders.map((order) => (
-                      <div key={order.id} className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line p-6 mb-4">
+                    {orderedVisitOrders.map((order, i) => (
+                      <div key={order.id} className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line p-6 mb-4 animate-rise" style={{ animationDelay: `${220 + Math.min(i, 10) * 45}ms` }}>
                         <div className="flex items-baseline justify-between gap-3">
                           <h3 className={cx(DISPLAY, 'text-[15px] tnum')}>{order.reference}</h3>
                           <span className="shrink-0 text-[11px] font-bold tracking-wide text-ink-4 uppercase">
@@ -354,12 +357,12 @@ export function TableDetail() {
 
         <div className="grid gap-4">
           {occupied && table.currentSessionToken && (
-            <Panel title="Session code" hint="What a diner reads back to join from their own phone">
+            <Panel title="Session code" hint="What a diner reads back to join from their own phone" className="animate-rise [animation-delay:180ms]">
               <SessionCode label="Session code" token={table.currentSessionToken} />
             </Panel>
           )}
 
-          <Panel title="QR code">
+          <Panel title="QR code" className="animate-rise [animation-delay:240ms]">
             <div className="grid gap-2">
               <button type="button" className={ADMIN_GHOST} onClick={() => setShowQr(true)}>
                 Show QR
@@ -393,7 +396,7 @@ export function TableDetail() {
           </Panel>
 
           {editable && (
-            <Panel title="Table settings">
+            <Panel title="Table settings" className="animate-rise [animation-delay:300ms]">
               {renaming ? (
                 <RenameForm
                   table={table}
@@ -428,7 +431,7 @@ export function TableDetail() {
           )}
 
           {occupied && (
-            <Panel title="End this visit" hint="Clears the table for the next party">
+            <Panel title="End this visit" hint="Clears the table for the next party" className="animate-rise [animation-delay:360ms]">
               <Confirm
                 label="End session"
                 question="End the visit with the bill still open?"

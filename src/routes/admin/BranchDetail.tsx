@@ -49,13 +49,21 @@ export function BranchDetail() {
         )
       ) : (
         <>
-          <PageTitle title={branch.data.name} subtitle={branch.data.isDefault ? 'The main branch' : branch.data.address || undefined} />
+          <div className="animate-rise">
+            <PageTitle title={branch.data.name} subtitle={branch.data.isDefault ? 'The main branch' : branch.data.address || undefined} />
+          </div>
           <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
             <div className="grid gap-4">
-              <DetailsPanel key={`${branch.data.id}:${branch.data.hours?.length}`} branch={branch.data} canEdit={canEdit} onSaved={branch.reload} />
-              <HoursPanel branch={branch.data} canEdit={canEdit} onSaved={branch.reload} />
+              <div className="animate-rise [animation-delay:120ms]">
+                <DetailsPanel key={`${branch.data.id}:${branch.data.hours?.length}`} branch={branch.data} canEdit={canEdit} onSaved={branch.reload} />
+              </div>
+              <div className="animate-rise [animation-delay:190ms]">
+                <HoursPanel branch={branch.data} canEdit={canEdit} onSaved={branch.reload} />
+              </div>
             </div>
-            <MenuPanel branch={branch.data} canEdit={canEdit} />
+            <div className="animate-rise [animation-delay:120ms]">
+              <MenuPanel branch={branch.data} canEdit={canEdit} />
+            </div>
           </div>
         </>
       )}

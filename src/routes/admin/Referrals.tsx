@@ -35,10 +35,16 @@ export function Referrals() {
 
   return (
     <>
-      <PageTitle title="Referrals" subtitle="Invite a restaurant. When they pay for a plan, one month is added to yours." />
+      <div className="animate-rise">
+        <PageTitle title="Referrals" subtitle="Invite a restaurant. When they pay for a plan, one month is added to yours." />
+      </div>
       <div className="grid gap-4">
-        <InviteLink code={code} invited={referrals.length} rewarded={rewarded} />
-        <ReferralList referrals={referrals} />
+        <div className="animate-rise [animation-delay:120ms]">
+          <InviteLink code={code} invited={referrals.length} rewarded={rewarded} />
+        </div>
+        <div className="animate-rise [animation-delay:190ms]">
+          <ReferralList referrals={referrals} />
+        </div>
       </div>
     </>
   );
@@ -93,8 +99,8 @@ function ReferralList({ referrals }: { referrals: Referral[] }) {
       {referrals.length === 0 ? (
         <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">No one has joined with your link yet.</p>
       ) : (
-        referrals.map((row) => (
-          <div key={row.id} className="border-b border-hairline px-4 py-4 last:border-0 sm:px-5">
+        referrals.map((row, i) => (
+          <div key={row.id} className="animate-rise border-b border-hairline px-4 py-4 last:border-0 sm:px-5" style={{ animationDelay: `${260 + Math.min(i, 10) * 40}ms` }}>
             <div className="flex items-baseline justify-between gap-3">
               <div className="min-w-0 truncate text-[14px] font-semibold">{row.name}</div>
               <div className="shrink-0 text-[12.5px] text-ink-4 tnum">Joined {formatDay(row.joinedAt)}</div>

@@ -10,6 +10,7 @@ import {
   ADMIN_TINY,
   Confirm,
   INPUT_BOX,
+  Select,
   PageTitle,
   Perforation,
   Segmented,
@@ -120,21 +121,13 @@ export function MenuBoard() {
           />
         </label>
 
-        <select
-          className={cx(INPUT_BOX, 'w-auto appearance-none py-2')}
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
+        <Select
+          className="w-52"
           aria-label="Filter by category"
-        >
-          <option value="all" className="bg-surface-2">
-            All categories
-          </option>
-          {menu.categories.map((c) => (
-            <option key={c.id} value={c.id} className="bg-surface-2">
-              {c.emoji} {c.name}
-            </option>
-          ))}
-        </select>
+          value={categoryId}
+          onChange={setCategoryId}
+          options={[{ value: 'all', label: 'All categories' }, ...menu.categories.map((c) => ({ value: c.id, label: `${c.emoji} ${c.name}` }))]}
+        />
       </div>
 
       {grouped.length === 0 ? (

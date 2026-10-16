@@ -10,7 +10,7 @@ import { formatMoney } from '../../domain/money';
 import type { Minor, PaymentMethod } from '../../domain/types';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
-import { FlowDialog, Sum, TapeLine, Total } from './Ledger';
+import { FlowDialog, Sum, TapeHeader, TapeLine, Total } from './Ledger';
 import type { Flow } from './Ledger';
 
 const DAY = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -142,13 +142,7 @@ export function LedgerHistory() {
             <Loading label="Reading the tape…" />
           ) : (
             <div className={cx(DOCKET_CARD, 'min-h-56')}>
-              <div className="hidden grid-cols-[4.5rem_1fr_7rem_7rem_7rem] gap-x-3 px-6 pt-4 pb-2 text-[10px] font-bold tracking-[0.1em] text-docket-inksoft uppercase sm:grid">
-                <span>Time</span>
-                <span>Line</span>
-                <span className="text-right">Amount</span>
-                <span className="text-right">{base ? 'Drawer' : ''}</span>
-                <span className="text-right">{base ? 'Bank' : ''}</span>
-              </div>
+              <TapeHeader balances={Boolean(base)} />
               {tape.length === 0 ? (
                 <p className="px-6 py-8 text-[13.5px] text-docket-inksoft">No sales, expenses or transfers fall in these days. Try a wider range.</p>
               ) : (

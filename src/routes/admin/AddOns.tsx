@@ -52,10 +52,12 @@ export function AddOns() {
 
   return (
     <>
-      <PageTitle title="Add-ons" subtitle="Priced extras diners can attach to a dish — link them from each dish's editor." />
+      <div className="animate-rise">
+        <PageTitle title="Add-ons" subtitle="Priced extras diners can attach to a dish — link them from each dish's editor." />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.9fr_1fr] lg:items-start">
-        <div className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
+        <div className="animate-rise overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line [animation-delay:60ms]">
           <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
             <h2 className="font-display text-[18px] font-black tracking-tight">On the menu</h2>
             <span className="shrink-0 text-[11px] font-bold tracking-wide text-docket-inksoft uppercase">
@@ -68,7 +70,7 @@ export function AddOns() {
           ) : (
             <ul>
               {live.map((addOn, index) => (
-                <li key={addOn.id}>
+                <li key={addOn.id} className="animate-rise" style={{ animationDelay: `${160 + Math.min(index, 10) * 40}ms` }}>
                   {editing === addOn.id ? (
                     <AddOnEditor
                       addOn={addOn}
@@ -139,7 +141,7 @@ export function AddOns() {
               <Perforation label="Archived" thick />
               <ul>
                 {archived.map((addOn, index) => (
-                  <li key={addOn.id}>
+                  <li key={addOn.id} className="animate-rise" style={{ animationDelay: `${160 + live.length * 40 + Math.min(index, 10) * 40}ms` }}>
                     <div className={cx('flex items-center gap-3 px-6 py-4 opacity-60', pending === addOn.id && 'opacity-30')}>
                       <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{addOn.name}</span>
                       <span className="font-display shrink-0 text-[15px] font-black tnum">
@@ -162,7 +164,7 @@ export function AddOns() {
           )}
         </div>
 
-        <div className="overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
+        <div className="animate-rise overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line [animation-delay:120ms]">
           <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
             <h2 className="font-display text-[18px] font-black tracking-tight">Add an add-on</h2>
           </div>

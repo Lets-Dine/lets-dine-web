@@ -192,7 +192,7 @@ function Page({ item, reload }: { item: Detail; reload: () => void }) {
             {item.deliveriesList.length === 0 ? (
               <p className="text-[13.5px] text-ink-3">Nothing delivered yet. Pick this supplier when you receive stock on the Stock page.</p>
             ) : (
-              <DeliveryTable rows={item.deliveriesList} currency={currency} onReturn={canManage ? startReturn : undefined} />
+              <DeliveryTable rows={item.deliveriesList} currency={currency} onReturn={canManage ? startReturn : undefined} delay={400} />
             )}
           </Block>
 
@@ -205,7 +205,7 @@ function Page({ item, reload }: { item: Detail; reload: () => void }) {
             {item.prices.length === 0 ? (
               <p className="text-[13.5px] text-ink-3">No priced deliveries yet. Enter what you paid when a delivery arrives.</p>
             ) : (
-              <PriceList rows={item.prices} currency={currency} />
+              <PriceList rows={item.prices} currency={currency} delay={460} />
             )}
           </Block>
         </div>
@@ -248,8 +248,8 @@ function Page({ item, reload }: { item: Detail; reload: () => void }) {
               <p className="text-[13.5px] text-ink-3">{item.owed > 0 ? 'No payments yet.' : 'Nothing is owed. Mark a delivery “On credit” when it arrives to start a balance.'}</p>
             ) : (
               <ul>
-                {item.payments.map((p) => (
-                  <li key={p.id} className="flex items-baseline justify-between gap-3 border-b border-hairline py-3 text-[14px] first:pt-0 last:border-0 last:pb-0">
+                {item.payments.map((p, i) => (
+                  <li key={p.id} className="animate-rise flex items-baseline justify-between gap-3 border-b border-hairline py-3 text-[14px] first:pt-0 last:border-0 last:pb-0" style={{ animationDelay: `${360 + Math.min(i, 10) * 40}ms` }}>
                     <span className="min-w-0">
                       <span className="block text-ink-3">{day.format(new Date(p.createdAt))}</span>
                       {p.note && <span className="block truncate text-[12.5px] text-ink-3">{p.note}</span>}
@@ -264,8 +264,8 @@ function Page({ item, reload }: { item: Detail; reload: () => void }) {
           {item.returns.length > 0 && (
             <Block title="Returns" hint="sent back" delay={350}>
               <ul>
-                {item.returns.map((r) => (
-                  <li key={r.id} className="flex items-baseline justify-between gap-3 border-b border-hairline py-3 text-[14px] first:pt-0 last:border-0 last:pb-0">
+                {item.returns.map((r, i) => (
+                  <li key={r.id} className="animate-rise flex items-baseline justify-between gap-3 border-b border-hairline py-3 text-[14px] first:pt-0 last:border-0 last:pb-0" style={{ animationDelay: `${450 + Math.min(i, 10) * 40}ms` }}>
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">
                         {r.ingredientName} <span className="font-normal text-ink-3 tnum">{formatQty(r.quantity, r.unit)}</span>
@@ -306,8 +306,8 @@ function Page({ item, reload }: { item: Detail; reload: () => void }) {
               <p className="text-[13.5px] text-ink-3">Nothing logged. A supplier with a clean record is worth knowing about.</p>
             ) : (
               <ul>
-                {item.issues.map((i) => (
-                  <li key={i.id} className="flex items-baseline justify-between gap-3 border-b border-hairline py-3 text-[14px] first:pt-0 last:border-0 last:pb-0">
+                {item.issues.map((i, n) => (
+                  <li key={i.id} className="animate-rise flex items-baseline justify-between gap-3 border-b border-hairline py-3 text-[14px] first:pt-0 last:border-0 last:pb-0" style={{ animationDelay: `${480 + Math.min(n, 10) * 40}ms` }}>
                     <span className="font-semibold">{ISSUES.find((x) => x.kind === i.kind)?.label ?? 'Other'}</span>
                     <span className="text-ink-3">
                       {day.format(new Date(i.createdAt))}
@@ -363,7 +363,7 @@ function ViewAll({ label, onClick }: { label: string; onClick: () => void }) {
 }
 
 /** Shared by the page's preview and the full list in the sheet. */
-function DeliveryTable({ rows, currency, onReturn }: { rows: SupplierDelivery[]; currency: string; onReturn?: (d: SupplierDelivery) => void }) {
+function DeliveryTable({ rows, currency, onReturn, delay }: { rows: SupplierDelivery[]; currency: string; onReturn?: (d: SupplierDelivery) => void; delay?: number }) {
   return (
     <div className="-mx-1 overflow-x-auto">
       <table className="w-full min-w-[420px] border-collapse text-left text-[14px]">
@@ -377,8 +377,8 @@ function DeliveryTable({ rows, currency, onReturn }: { rows: SupplierDelivery[];
           </tr>
         </thead>
         <tbody>
-          {rows.map((d) => (
-            <tr key={d.id} className="border-t border-hairline">
+          {rows.map((d, i) => (
+            <tr key={d.id} className={delay !== undefined ? 'animate-rise border-t border-hairline' : 'border-t border-hairline'} style={delay !== undefined ? { animationDelay: `${delay + Math.min(i, 10) * 40}ms` } : {}}>
               <td className="px-1 py-3 whitespace-nowrap text-ink-3">{day.format(new Date(d.receivedAt))}</td>
               <td className="max-w-[14rem] truncate px-1 py-3 font-semibold">{d.ingredientName}</td>
               <td className="px-1 py-3 text-right whitespace-nowrap tnum">{formatQty(d.quantity, d.unit)}</td>
@@ -403,10 +403,10 @@ function DeliveryTable({ rows, currency, onReturn }: { rows: SupplierDelivery[];
   );
 }
 
-function PriceList({ rows, currency }: { rows: IngredientPrice[]; currency: string }) {
+function PriceList({ rows, currency, delay }: { rows: IngredientPrice[]; currency: string; delay?: number }) {
   return (
     <ol>
-      {rows.map((p) => {
+      {rows.map((p, i) => {
         const now = priceLabel(p.latestUnitCost, p.unit, currency);
         // Only worth showing what it was when it actually moved (the rounded prices differ).
         const was = p.previousUnitCost !== null ? priceLabel(p.previousUnitCost, p.unit, currency) : null;
@@ -414,7 +414,7 @@ function PriceList({ rows, currency }: { rows: IngredientPrice[]; currency: stri
         const elsewhere = p.cheaper ? priceLabel(p.cheaper.unitCost, p.unit, currency) : null;
         const cheaper = p.cheaper && elsewhere !== now ? { supplier: p.cheaper.supplier, price: elsewhere as string } : null;
         return (
-          <li key={p.ingredientId} className="flex items-baseline justify-between gap-3 border-b border-hairline py-2.5 text-[14px] first:pt-0 last:border-0 last:pb-0">
+          <li key={p.ingredientId} className={delay !== undefined ? 'animate-rise flex items-baseline justify-between gap-3 border-b border-hairline py-2.5 text-[14px] first:pt-0 last:border-0 last:pb-0' : 'flex items-baseline justify-between gap-3 border-b border-hairline py-2.5 text-[14px] first:pt-0 last:border-0 last:pb-0'} style={delay !== undefined ? { animationDelay: `${delay + Math.min(i, 10) * 40}ms` } : {}}>
             <span className="min-w-0 truncate font-semibold">{p.ingredientName}</span>
             <span className="flex shrink-0 flex-wrap items-baseline justify-end gap-x-2 tnum">
               {changed && (

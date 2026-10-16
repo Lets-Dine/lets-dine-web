@@ -61,6 +61,12 @@ export const ChevronRight = ({ size = 20, className }: IconProps) => (
   </svg>
 );
 
+export const ChevronDown = ({ size = 20, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M5 9l7 7 7-7" />
+  </svg>
+);
+
 export const Search = ({ size = 18, className }: IconProps) => (
   <svg {...base(size)} className={className}>
     <circle cx="11" cy="11" r="7" />

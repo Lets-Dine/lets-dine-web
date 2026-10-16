@@ -85,11 +85,13 @@ export function Settings() {
 
   return (
     <>
-      <PageTitle title="Settings" subtitle={`Signed in as ${staff.name} · ${ROLE_LABEL[staff.role]}`} />
+      <div className="animate-rise">
+        <PageTitle title="Settings" subtitle={`Signed in as ${staff.name} · ${ROLE_LABEL[staff.role]}`} />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr] lg:items-start">
         <div className="grid gap-4">
-          <Panel title="Restaurant" hint={canEdit ? undefined : 'Only an owner can change these'}>
+          <Panel title="Restaurant" hint={canEdit ? undefined : 'Only an owner can change these'} className="animate-rise [animation-delay:120ms]">
             <fieldset disabled={!canEdit} className="grid gap-4 disabled:opacity-60">
               <Field label="Name">
                 <TextInput value={name} onChange={setName} maxLength={60} />
@@ -106,7 +108,7 @@ export function Settings() {
             </fieldset>
           </Panel>
 
-          <Panel title="Logo" hint="Shown beside your name in the dashboard and on the diner menu">
+          <Panel title="Logo" hint="Shown beside your name in the dashboard and on the diner menu" className="animate-rise [animation-delay:180ms]">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
               <RestaurantMark name={name || restaurant.name} logoUrl={logoUrl} className="size-28 text-[44px]" />
               <fieldset disabled={!canEdit} className="min-w-0 flex-1 disabled:opacity-60">
@@ -127,7 +129,7 @@ export function Settings() {
             </div>
           </Panel>
 
-          <Panel title="Cover image" hint="Shown at the top of the diner menu">
+          <Panel title="Cover image" hint="Shown at the top of the diner menu" className="animate-rise [animation-delay:240ms]">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
               <div className="h-28 w-full shrink-0 overflow-hidden rounded-2xl ring-1 ring-hairline ring-inset sm:w-44">
                 {coverImageUrl ? (
@@ -150,7 +152,7 @@ export function Settings() {
             </div>
           </Panel>
 
-          <Panel title="Charges" hint="Applied to every order the moment it is placed">
+          <Panel title="Charges" hint="Applied to every order the moment it is placed" className="animate-rise [animation-delay:300ms]">
             <fieldset disabled={!canEdit} className="grid gap-4 sm:grid-cols-2 disabled:opacity-60">
               <Field label="Service charge" hint="Percent of the subtotal.">
                 <PercentInput value={service} onChange={setService} />
@@ -168,10 +170,14 @@ export function Settings() {
             </p>
           </Panel>
 
-          {IS_LIVE_API && allows('settings:view') && <LoyaltySettings currency={restaurant.currency} canEdit={canEdit} onSaved={audit.reload} />}
+          {IS_LIVE_API && allows('settings:view') && (
+            <div className="animate-rise [animation-delay:360ms]">
+              <LoyaltySettings currency={restaurant.currency} canEdit={canEdit} onSaved={audit.reload} />
+            </div>
+          )}
 
           {INVENTORY_ENABLED && (
-            <Panel title="Stock" hint={canEdit ? undefined : 'Only an owner can change this'}>
+            <Panel title="Stock" hint={canEdit ? undefined : 'Only an owner can change this'} className="animate-rise [animation-delay:420ms]">
               {planAllowsStockUse ? (
                 <fieldset disabled={!canEdit} className="disabled:opacity-60">
                   <Toggle
@@ -188,7 +194,7 @@ export function Settings() {
           )}
 
           {canEdit && (
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 animate-rise [animation-delay:420ms]">
               <span className="text-[13px] text-ink-4">{dirty ? 'Unsaved changes' : 'Everything saved'}</span>
               <button type="button" className={ADMIN_PRIMARY} disabled={busy || !dirty} onClick={save}>
                 {busy ? 'Saving…' : 'Save settings'}
@@ -196,7 +202,7 @@ export function Settings() {
             </div>
           )}
 
-          <Panel title="Recent activity" hint="Price changes, availability, menu edits, order status — §51" bare>
+          <Panel title="Recent activity" hint="Price changes, availability, menu edits, order status — §51" bare className="animate-rise [animation-delay:420ms]">
             {audit.loading && !audit.data ? (
               <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">Loading…</p>
             ) : (audit.data ?? []).length === 0 ? (
@@ -205,8 +211,8 @@ export function Settings() {
               </p>
             ) : (
               <ul>
-                {(audit.data ?? []).map((entry) => (
-                  <ActivityRow key={entry.id} entry={entry} />
+                {(audit.data ?? []).map((entry, i) => (
+                  <ActivityRow key={entry.id} entry={entry} delay={440 + Math.min(i, 4) * 40} />
                 ))}
               </ul>
             )}
@@ -221,7 +227,7 @@ export function Settings() {
         </div>
 
         <div className="grid gap-4">
-          <Panel title="Your access">
+          <Panel title="Your access" className="animate-rise [animation-delay:180ms]">
             <p className="text-[14px] font-semibold">{ROLE_LABEL[staff.role]}</p>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{ROLE_SCOPE[staff.role]}</p>
             <p className="mt-3 text-[12.5px] leading-relaxed text-ink-4">
@@ -239,9 +245,9 @@ export function Settings() {
 /** Deliberately quiet — no colour coding here. The full-colour, filterable
  *  version of this same row lives on the dedicated audit page (`AuditLog.tsx`),
  *  which is where a long list actually needs to be scanned at a glance. */
-function ActivityRow({ entry }: { entry: AuditEntry }) {
+function ActivityRow({ entry, delay }: { entry: AuditEntry; delay: number }) {
   return (
-    <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-hairline px-4 py-2.5 last:border-0 sm:px-5">
+    <li style={{ animationDelay: `${delay}ms` }} className="animate-rise flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-hairline px-4 py-2.5 last:border-0 sm:px-5">
       <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-4">{entry.action.replace(/_/g, ' ')}</span>
       <span className="text-[13.5px] font-semibold">{entry.subject}</span>
       <span className="ml-auto whitespace-nowrap text-[12px] text-ink-4">

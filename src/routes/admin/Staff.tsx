@@ -72,19 +72,21 @@ export function Staff() {
 
   return (
     <>
-      <PageTitle title="Staff" subtitle="Everyone with a login to this dashboard." />
+      <div className="animate-rise">
+        <PageTitle title="Staff" subtitle="Everyone with a login to this dashboard." />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
-        <Panel title="Team" bare>
+        <Panel title="Team" bare className="animate-rise [animation-delay:120ms]">
           {roster.loading && !roster.data ? (
             <Loading />
           ) : (roster.data ?? []).length === 0 ? (
             <Empty emoji="🧑‍🍳" title="Nobody on the roster yet" message="Add the first member of the team." />
           ) : (
             <ul>
-              {(roster.data ?? []).map((member) => (
+              {(roster.data ?? []).map((member, i) => (
                 <Fragment key={member.id}>
-                <li className="flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5">
+                <li style={{ animationDelay: `${180 + Math.min(i, 8) * 40}ms` }} className="animate-rise flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 sm:px-5">
                   <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-[13px] font-semibold uppercase">
                     {member.name.slice(0, 1)}
                   </span>
@@ -146,7 +148,7 @@ export function Staff() {
         </Panel>
 
         {canEdit ? (
-          <Panel title="Add a staff member">
+          <Panel title="Add a staff member" className="animate-rise [animation-delay:180ms]">
             <form
               className="grid gap-4"
               onSubmit={(e) => {
@@ -186,7 +188,7 @@ export function Staff() {
             </form>
           </Panel>
         ) : (
-          <Panel title="Add a staff member" hint="Only an owner can add people to the team">
+          <Panel title="Add a staff member" hint="Only an owner can add people to the team" className="animate-rise [animation-delay:180ms]">
             <p className="text-[12.5px] leading-relaxed text-ink-4">
               Ask {ROLE_LABEL.OWNER.toLowerCase()} to invite someone new.
             </p>

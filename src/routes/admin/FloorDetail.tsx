@@ -102,6 +102,7 @@ export function FloorDetail() {
 
   return (
     <>
+      <div className="animate-rise">
       <PageTitle
         title={floor.name}
         subtitle={`${floor.isActive ? 'Taking orders' : 'Disabled'} · ${openCount} open order${openCount === 1 ? '' : 's'}`}
@@ -111,11 +112,12 @@ export function FloorDetail() {
           </Link>
         }
       />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px] lg:items-start">
         <div className="grid gap-4">
           {sortedOrders.length === 0 ? (
-            <Panel title="Orders">
+            <Panel title="Orders" className="animate-rise [animation-delay:120ms]">
               <Empty
                 emoji="🧾"
                 title="Nothing ordered here yet"
@@ -142,7 +144,7 @@ export function FloorDetail() {
         </div>
 
         <div className="grid gap-4">
-          <Panel title="QR code">
+          <Panel title="QR code" className="animate-rise [animation-delay:180ms]">
             <div className="grid gap-2">
               <button type="button" className={ADMIN_GHOST} onClick={() => setShowQr(true)}>
                 Show QR
@@ -176,7 +178,7 @@ export function FloorDetail() {
           </Panel>
 
           {editable && (
-            <Panel title="Floor settings">
+            <Panel title="Floor settings" className="animate-rise [animation-delay:240ms]">
               <button
                 type="button"
                 className={ADMIN_GHOST}

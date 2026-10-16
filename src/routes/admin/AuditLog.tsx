@@ -12,6 +12,7 @@ import {
   Loading,
   PageTitle,
   Segmented,
+  Select,
 } from '../../components/admin/kit';
 import { cx } from '../../components/ui';
 import { History, Search } from '../../components/icons';
@@ -311,16 +312,18 @@ export function AuditLog() {
 
   return (
     <>
-      <PageTitle
-        title="Audit log"
-        subtitle={
-          staff.branches && staff.branches.length > 1
-            ? `Management actions at ${staff.branches.find((b) => b.id === staff.branchId)?.name ?? 'this branch'}, kept with who did it and what changed`
-            : 'Every management action, kept with who did it and what changed'
-        }
-      />
+      <div className="animate-rise">
+        <PageTitle
+          title="Audit log"
+          subtitle={
+            staff.branches && staff.branches.length > 1
+              ? `Management actions at ${staff.branches.find((b) => b.id === staff.branchId)?.name ?? 'this branch'}, kept with who did it and what changed`
+              : 'Every management action, kept with who did it and what changed'
+          }
+        />
+      </div>
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mb-5 flex flex-wrap items-center gap-3 animate-rise [animation-delay:60ms]">
         <div className="overflow-x-auto no-scrollbar">
           <Segmented
             label="Category"
@@ -346,23 +349,17 @@ export function AuditLog() {
           />
         </label>
 
-        <select
-          className={cx(INPUT_BOX, 'w-auto appearance-none py-2')}
-          value={actor}
-          onChange={(e) => setActor(e.target.value)}
+        <Select
+          className="w-52"
           aria-label="Filter by staff member"
-        >
-          <option value="all">Everyone</option>
-          {actors.map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
-          ))}
-        </select>
+          value={actor}
+          onChange={setActor}
+          options={[{ value: 'all', label: 'Everyone' }, ...actors.map(([id, name]) => ({ value: id, label: name }))]}
+        />
       </div>
 
       {entries.length > 0 && (
-        <div className={cx('mb-4', DOCKET_CARD)}>
+        <div className={cx('mb-4 animate-rise [animation-delay:120ms]', DOCKET_CARD)}>
           {/* ── The roll's own header — the same document a reprint would show. ── */}
           <div className="px-6 pt-7 pb-5 text-center">
             <p className="text-[10px] font-bold tracking-[0.24em] text-docket-inksoft uppercase">Restaurant dashboard</p>
@@ -408,12 +405,14 @@ export function AuditLog() {
       ) : (
         <>
           <div className="grid gap-4">
-            {groups.map((group) => (
-              <DocketDaySection key={group[0].id} label={dayLabel(group[0].at)} count={group.length} itemLabel="action">
-                {group.map((entry) => (
-                  <AuditStub key={entry.id} entry={entry} />
-                ))}
-              </DocketDaySection>
+            {groups.map((group, g) => (
+              <div key={group[0].id} className="animate-rise" style={{ animationDelay: `${200 + Math.min(g, 4) * 70}ms` }}>
+                <DocketDaySection label={dayLabel(group[0].at)} count={group.length} itemLabel="action">
+                  {group.map((entry, n) => (
+                    <AuditStub key={entry.id} entry={entry} delay={260 + Math.min(g, 4) * 70 + Math.min(n, 8) * 40} />
+                  ))}
+                </DocketDaySection>
+              </div>
             ))}
           </div>
 
@@ -426,10 +425,11 @@ export function AuditLog() {
   );
 }
 
-function AuditStub({ entry }: { entry: AuditEntry }) {
-  const tone = ACTION_TONE[entry.action];
+function AuditStub({ entry, delay }: { entry: AuditEntry; delay: number }) {
+  // An action the table doesn't know yet (a newer server) falls back to quiet grey instead of crashing the page.
+  const tone = ACTION_TONE[entry.action] ?? 'text-ink-3';
   return (
-    <div className="flex items-start gap-3.5 border-t border-dashed border-docket-line px-6 py-4 first:border-t-0">
+    <div style={{ animationDelay: `${delay}ms` }} className="animate-rise flex items-start gap-3.5 border-t border-dashed border-docket-line px-6 py-4 first:border-t-0">
       <span className={cx('mt-1.5 size-2.5 shrink-0 rounded-full', tone.replace('text-', 'bg-'))} aria-hidden />
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">

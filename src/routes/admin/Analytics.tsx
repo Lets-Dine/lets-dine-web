@@ -62,128 +62,158 @@ export function Analytics() {
 
   return (
     <>
-      <PageTitle
-        title="Analytics"
-        subtitle="Cancelled orders are excluded from revenue throughout."
-        action={
-          <Segmented
-            label="Period"
-            value={period}
-            onChange={setPeriod}
-            options={(['today', 'week', 'month'] as Period[]).map((p) => ({ value: p, label: PERIOD_LABEL[p] }))}
-          />
-        }
-      />
+      <div className="animate-rise">
+        <PageTitle
+          title="Analytics"
+          subtitle="Cancelled orders are excluded from revenue throughout."
+          action={
+            <Segmented
+              label="Period"
+              value={period}
+              onChange={setPeriod}
+              options={(['today', 'week', 'month'] as Period[]).map((p) => ({ value: p, label: PERIOD_LABEL[p] }))}
+            />
+          }
+        />
+      </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile
-          label={`Orders ${PERIOD_LABEL[period].toLowerCase()}`}
-          value={orderComparison.data ? orderComparison.data.current.toLocaleString() : '—'}
-          change={orderComparison.data ? orderComparison.data.differencePercentage / 100 : null}
-          sub={`vs ${previousLabel(period)}`}
-          variant="primary"
-        />
-        <StatTile
-          label="Revenue"
-          value={revenue.data ? formatMoney(revenue.data.current, currency) : '—'}
-          change={revenue.data ? revenue.data.differencePercentage / 100 : null}
-          sub={`vs ${previousLabel(period)}`}
-          variant="primary"
-        />
-        <StatTile
-          label="Average order"
-          value={formatMoney(report.current.averageOrder, currency)}
-          sub={`${report.current.covers.toLocaleString()} dishes served`}
-          variant="primary"
-        />
-        <StatTile
-          label="Cancelled"
-          value={report.current.cancelled.toLocaleString()}
-          sub={
-            report.current.orders + report.current.cancelled > 0
-              ? `${((report.current.cancelled / (report.current.orders + report.current.cancelled)) * 100).toFixed(1)}% of tickets`
-              : undefined
-          }
-          variant="subtle"
-        />
+        <div className="animate-rise [animation-delay:120ms]">
+          <StatTile
+            label={`Orders ${PERIOD_LABEL[period].toLowerCase()}`}
+            value={orderComparison.data ? orderComparison.data.current.toLocaleString() : '—'}
+            change={orderComparison.data ? orderComparison.data.differencePercentage / 100 : null}
+            sub={`vs ${previousLabel(period)}`}
+            variant="primary"
+          />
+        </div>
+        <div className="animate-rise [animation-delay:160ms]">
+          <StatTile
+            label="Revenue"
+            value={revenue.data ? formatMoney(revenue.data.current, currency) : '—'}
+            change={revenue.data ? revenue.data.differencePercentage / 100 : null}
+            sub={`vs ${previousLabel(period)}`}
+            variant="primary"
+          />
+        </div>
+        <div className="animate-rise [animation-delay:200ms]">
+          <StatTile
+            label="Average order"
+            value={formatMoney(report.current.averageOrder, currency)}
+            sub={`${report.current.covers.toLocaleString()} dishes served`}
+            variant="primary"
+          />
+        </div>
+        <div className="animate-rise [animation-delay:240ms]">
+          <StatTile
+            label="Cancelled"
+            value={report.current.cancelled.toLocaleString()}
+            sub={
+              report.current.orders + report.current.cancelled > 0
+                ? `${((report.current.cancelled / (report.current.orders + report.current.cancelled)) * 100).toFixed(1)}% of tickets`
+                : undefined
+            }
+            variant="subtle"
+          />
+        </div>
       </div>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <Panel title="Revenue, last 30 days" hint="Each bar is one day">
-          <RevenueChart series={series} currency={currency} />
-        </Panel>
-        <Panel title="When the orders land" hint={`Across ${PERIOD_LABEL[period].toLowerCase()}`}>
-          <HourChart hours={hours} />
-        </Panel>
+        <div className="animate-rise [animation-delay:280ms]">
+          <Panel title="Revenue, last 30 days" hint="Each bar is one day">
+            <RevenueChart series={series} currency={currency} />
+          </Panel>
+        </div>
+        <div className="animate-rise [animation-delay:280ms]">
+          <Panel title="When the orders land" hint={`Across ${PERIOD_LABEL[period].toLowerCase()}`}>
+            <HourChart hours={hours} />
+          </Panel>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Most ordered" hint={PERIOD_LABEL[period]} bare>
-          <DishTable
-            rows={mostOrdered.slice(0, 8)}
-            currency={currency}
-            value={(d) => `×${d.units}`}
-            empty="Nothing has sold in this period yet."
-          />
-        </Panel>
+        <div className="animate-rise [animation-delay:360ms]">
+          <Panel title="Most ordered" hint={PERIOD_LABEL[period]} bare>
+            <DishTable
+              rows={mostOrdered.slice(0, 8)}
+              currency={currency}
+              value={(d) => `×${d.units}`}
+              empty="Nothing has sold in this period yet."
+            />
+          </Panel>
+        </div>
 
-        <Panel title="Highest rated" hint="All time, five or more ratings" bare>
-          <DishTable
-            rows={bestRated.slice(0, 8)}
-            currency={currency}
-            value={(d) => `${d.avgRating?.toFixed(2)} ★`}
-            empty="No dish has enough ratings yet."
-          />
-        </Panel>
+        <div className="animate-rise [animation-delay:360ms]">
+          <Panel title="Highest rated" hint="All time, five or more ratings" bare>
+            <DishTable
+              rows={bestRated.slice(0, 8)}
+              currency={currency}
+              value={(d) => `${d.avgRating?.toFixed(2)} ★`}
+              empty="No dish has enough ratings yet."
+            />
+          </Panel>
+        </div>
 
-        <Panel title="Lowest rated" hint="Where the kitchen should look first" bare>
-          <DishTable
-            rows={worstRated.slice(0, 8)}
-            currency={currency}
-            value={(d) => `${d.avgRating?.toFixed(2)} ★`}
-            tone={(d) => ((d.avgRating ?? 5) < 4.2 ? 'bad' : undefined)}
-            empty="No dish has enough ratings yet."
-          />
-        </Panel>
+        <div className="animate-rise [animation-delay:360ms]">
+          <Panel title="Lowest rated" hint="Where the kitchen should look first" bare>
+            <DishTable
+              rows={worstRated.slice(0, 8)}
+              currency={currency}
+              value={(d) => `${d.avgRating?.toFixed(2)} ★`}
+              tone={(d) => ((d.avgRating ?? 5) < 4.2 ? 'bad' : undefined)}
+              empty="No dish has enough ratings yet."
+            />
+          </Panel>
+        </div>
 
-        <Panel title="Would order again" hint="The strongest signal in the product" bare>
-          <DishTable
-            rows={reorder.slice(0, 8)}
-            currency={currency}
-            value={(d) => `${Math.round((d.recommendRate ?? 0) * 100)}%`}
-            empty="Not enough reviews to claim a rate."
-          />
-        </Panel>
+        <div className="animate-rise [animation-delay:360ms]">
+          <Panel title="Would order again" hint="The strongest signal in the product" bare>
+            <DishTable
+              rows={reorder.slice(0, 8)}
+              currency={currency}
+              value={(d) => `${Math.round((d.recommendRate ?? 0) * 100)}%`}
+              empty="Not enough reviews to claim a rate."
+            />
+          </Panel>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile
-          label="Average restaurant rating"
-          value={feedback.restaurantRating ? `${feedback.restaurantRating.toFixed(2)} ★` : '—'}
-          sub={`${feedback.reviewCount.toLocaleString()} reviews`}
-          variant="subtle"
-        />
-        <StatTile
-          label="Average dish rating"
-          value={feedback.averageDishRating ? `${feedback.averageDishRating.toFixed(2)} ★` : '—'}
-          sub="unweighted, per dish"
-          variant="subtle"
-        />
-        <StatTile
-          label="Recommendation rate"
-          value={feedback.recommendRate !== null ? `${Math.round(feedback.recommendRate * 100)}%` : '—'}
-          sub="would order again"
-          variant="subtle"
-        />
-        <StatTile
-          label="Dish decision rate"
-          value={dishDecisionRate !== null ? `${Math.round(dishDecisionRate * 100)}%` : '—'}
-          sub="dish page → added to cart"
-          variant="subtle"
-        />
+        <div className="animate-rise [animation-delay:680ms]">
+          <StatTile
+            label="Average restaurant rating"
+            value={feedback.restaurantRating ? `${feedback.restaurantRating.toFixed(2)} ★` : '—'}
+            sub={`${feedback.reviewCount.toLocaleString()} reviews`}
+            variant="subtle"
+          />
+        </div>
+        <div className="animate-rise [animation-delay:720ms]">
+          <StatTile
+            label="Average dish rating"
+            value={feedback.averageDishRating ? `${feedback.averageDishRating.toFixed(2)} ★` : '—'}
+            sub="unweighted, per dish"
+            variant="subtle"
+          />
+        </div>
+        <div className="animate-rise [animation-delay:760ms]">
+          <StatTile
+            label="Recommendation rate"
+            value={feedback.recommendRate !== null ? `${Math.round(feedback.recommendRate * 100)}%` : '—'}
+            sub="would order again"
+            variant="subtle"
+          />
+        </div>
+        <div className="animate-rise [animation-delay:800ms]">
+          <StatTile
+            label="Dish decision rate"
+            value={dishDecisionRate !== null ? `${Math.round(dishDecisionRate * 100)}%` : '—'}
+            sub="dish page → added to cart"
+            variant="subtle"
+          />
+        </div>
       </div>
 
-      <p className="mt-4 text-[12.5px] leading-relaxed text-ink-4">
+      <p className="animate-rise mt-4 text-[12.5px] leading-relaxed text-ink-4 [animation-delay:840ms]">
         Dish decision rate (§32) is the product metric that matters most: how often opening a dish page ends in that
         dish going into a cart. It is measured from this browser's diner session, so it reads as a demo figure here.
       </p>
@@ -212,7 +242,7 @@ function DishTable({
   return (
     <ol>
       {rows.map((row, index) => (
-        <li key={row.dishId}>
+        <li key={row.dishId} className="animate-rise" style={{ animationDelay: `${460 + Math.min(index, 8) * 40}ms` }}>
           <Row>
             <span className="w-4 shrink-0 text-[12.5px] font-bold tnum text-ink-4">{index + 1}</span>
             <span className="min-w-0 flex-1">

@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import type { ChangeEvent, CSSProperties, ReactNode } from 'react';
+import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react';
+import type { ChangeEvent, CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isPlanError } from '../../api/subscription';
 import { ApiError } from '../../api/store';
@@ -8,7 +8,7 @@ import type { Minor, OrderStatus } from '../../domain/types';
 import { haptic } from '../../platform/haptics';
 import { useToast } from '../../state/ToastContext';
 import { BTN, DISPLAY, cx } from '../ui';
-import { Alert, Check, ChevronRight, X } from '../icons';
+import { Alert, Check, ChevronDown, ChevronRight, X } from '../icons';
 
 /**
  * The dashboard's vocabulary. It shares the diner app's palette and easings —
@@ -337,7 +337,6 @@ export function TextInput({
   maxLength,
   type = 'text',
   autoFocus,
-  list,
   disabled,
 }: {
   value: string;
@@ -347,8 +346,6 @@ export function TextInput({
   maxLength?: number;
   type?: 'text' | 'email' | 'password' | 'tel';
   autoFocus?: boolean;
-  /** Id of a `<datalist>` offering suggestions. */
-  list?: string;
   disabled?: boolean;
 }) {
   return (
@@ -359,7 +356,6 @@ export function TextInput({
       placeholder={placeholder}
       maxLength={maxLength}
       autoFocus={autoFocus}
-      list={list}
       disabled={disabled}
       onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
     />
@@ -394,23 +390,187 @@ export function TextArea({
   );
 }
 
+type SelectPlace = { left: number; width: number; top?: number; bottom?: number };
+
 export function Select<T extends string>({
   value,
   onChange,
   options,
+  disabled,
+  className,
+  placeholder,
+  allowNew,
+  maxLength,
+  autoFocus,
+  'aria-label': ariaLabel,
 }: {
   value: T;
   onChange: (next: T) => void;
   options: { value: T; label: string }[];
+  disabled?: boolean;
+  className?: string;
+  placeholder?: string;
+  /** Lets a typed value that isn't in `options` be picked as-is. */
+  allowNew?: boolean;
+  maxLength?: number;
+  autoFocus?: boolean;
+  'aria-label'?: string;
 }) {
+  const listId = useId();
+  const box = useRef<HTMLInputElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState<string | null>(null);
+  const [active, setActive] = useState(0);
+  const [place, setPlace] = useState<SelectPlace>({ left: 0, width: 0 });
+  const selected = options.find((option) => option.value === value);
+  const shownLabel = selected?.label ?? (allowNew ? value : '');
+  const raw = (query ?? '').trim();
+  const typed = raw.toLowerCase();
+  const matches = typed ? options.filter((option) => option.label.toLowerCase().includes(typed)) : options;
+  const shown =
+    allowNew && raw && !options.some((option) => option.label.toLowerCase() === typed)
+      ? [...matches, { value: raw as T, label: `Use “${raw}”` }]
+      : matches;
+  const cursor = shown.length ? Math.min(active, shown.length - 1) : 0;
+
+  function locate() {
+    const rect = box.current?.getBoundingClientRect();
+    if (!rect) return;
+    const above = window.innerHeight - rect.bottom < 220 && rect.top > 220;
+    setPlace({
+      left: rect.left,
+      width: rect.width,
+      top: above ? undefined : rect.bottom + 6,
+      bottom: above ? window.innerHeight - rect.top + 6 : undefined,
+    });
+  }
+
+  function openAt(index: number) {
+    locate();
+    setActive(index < 0 ? 0 : index);
+    setOpen(true);
+  }
+
+  function pick(next: T) {
+    onChange(next);
+    setQuery(null);
+    setOpen(false);
+  }
+
+  function onKey(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!open) return openAt(options.findIndex((option) => option.value === value));
+      const next = e.key === 'ArrowDown' ? Math.min(shown.length - 1, cursor + 1) : Math.max(0, cursor - 1);
+      setActive(next);
+      menu.current?.children[next]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (open && shown[cursor]) pick(shown[cursor].value);
+      else if (!open) openAt(options.findIndex((option) => option.value === value));
+    } else if (e.key === 'Escape' && open) {
+      e.preventDefault();
+      setQuery(null);
+      setOpen(false);
+    }
+  }
+
+  useLayoutEffect(() => {
+    const list = menu.current;
+    if (!open || !list) return;
+    list.showPopover();
+    const follow = () => locate();
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (box.current?.contains(target) || list.contains(target)) return;
+      setQuery(null);
+      setOpen(false);
+    };
+    window.addEventListener('resize', follow);
+    window.addEventListener('scroll', follow, true);
+    document.addEventListener('pointerdown', outside, true);
+    return () => {
+      window.removeEventListener('resize', follow);
+      window.removeEventListener('scroll', follow, true);
+      document.removeEventListener('pointerdown', outside, true);
+      if (list.matches(':popover-open')) list.hidePopover();
+    };
+  }, [open]);
+
   return (
-    <select className={cx(INPUT_BOX, 'cursor-pointer pr-9')} value={value} onChange={(e) => onChange(e.target.value as T)}>
-      {options.map((o) => (
-        <option key={o.value} value={o.value} className="bg-surface-2">
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <span className={cx('relative block w-full', disabled && 'opacity-50', className)}>
+      <input
+        ref={box}
+        role="combobox"
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={open && shown[cursor] ? `${listId}-${cursor}` : undefined}
+        autoComplete="off"
+        spellCheck={false}
+        disabled={disabled}
+        className={cx(INPUT_BOX, 'cursor-text pr-10 hover:bg-surface-3 disabled:cursor-not-allowed', className)}
+        value={query ?? shownLabel}
+        placeholder={shownLabel || placeholder || 'Choose'}
+        maxLength={maxLength}
+        autoFocus={autoFocus}
+        onMouseDown={() => {
+          if (!open) openAt(options.findIndex((option) => option.value === value));
+        }}
+        onFocus={(e) => {
+          if (open) return;
+          openAt(options.findIndex((option) => option.value === value));
+          const field = e.currentTarget;
+          requestAnimationFrame(() => field.select());
+        }}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setActive(0);
+          if (!open) openAt(0);
+        }}
+        onKeyDown={onKey}
+      />
+      <span className={cx('pointer-events-none absolute inset-y-0 right-3 flex items-center text-ink-4 transition-[color,transform] duration-150', open && 'rotate-180 text-flame-2')}>
+        <ChevronDown size={16} />
+      </span>
+      {open && (
+        <div
+          ref={menu}
+          id={listId}
+          popover="manual"
+          role="listbox"
+          aria-label={ariaLabel}
+          style={{ top: place.top ?? 'auto', bottom: place.bottom ?? 'auto', left: place.left, width: place.width, right: 'auto', height: 'auto', margin: 0 }}
+          className="max-h-64 overflow-y-auto rounded-xl border-0 bg-surface p-1 text-ink shadow-lift ring-1 ring-hairline ring-inset animate-swap"
+        >
+          {shown.length === 0 ? (
+            <p className="px-3 py-2 text-[13.5px] text-ink-3">No matches</p>
+          ) : shown.map((option, index) => (
+            <div
+              key={option.value}
+              id={`${listId}-${index}`}
+              role="option"
+              aria-selected={option.value === value}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseEnter={() => setActive(index)}
+              onClick={(e) => {
+                e.stopPropagation();
+                pick(option.value);
+              }}
+              className={cx('flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-[14px]', index === cursor && 'bg-surface-2')}
+            >
+              <Check size={14} className={option.value === value ? 'shrink-0 text-flame-2' : 'invisible'} />
+              <span className="min-w-0 flex-1 truncate">{option.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </span>
   );
 }
 

@@ -49,18 +49,21 @@ export function Branches() {
 
   return (
     <>
-      <PageTitle title="Branches" subtitle="Each location has its own tables, orders, hours and prices." />
+      <div className="animate-rise">
+        <PageTitle title="Branches" subtitle="Each location has its own tables, orders, hours and prices." />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
-        <Panel title="Locations" bare>
+        <div className="animate-rise [animation-delay:120ms]">
+          <Panel title="Locations" bare>
           {branches.loading && !branches.data ? (
             <Loading />
           ) : (branches.data ?? []).length === 0 ? (
             <Empty emoji="📍" title="No branches yet" message="Add your first location." />
           ) : (
             <ul>
-              {(branches.data ?? []).map((branch) => (
-                <li key={branch.id} className="border-b border-hairline last:border-0">
+              {(branches.data ?? []).map((branch, i) => (
+                <li key={branch.id} className="animate-rise border-b border-hairline last:border-0" style={{ animationDelay: `${260 + Math.min(i, 10) * 40}ms` }}>
                   <Link to={`/admin/branches/${branch.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2/40 sm:px-5">
                     <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-ink-3">
                       <MapPin size={17} />
@@ -79,10 +82,12 @@ export function Branches() {
               ))}
             </ul>
           )}
-        </Panel>
+          </Panel>
+        </div>
 
         {canEdit ? (
-          <Panel title="Add a branch" hint="Fees and hours can be set on the next screen. Staff are assigned on the Staff page.">
+          <div className="animate-rise [animation-delay:190ms]">
+            <Panel title="Add a branch" hint="Fees and hours can be set on the next screen. Staff are assigned on the Staff page.">
             <form
               className="grid gap-4"
               onSubmit={(e) => {
@@ -112,11 +117,14 @@ export function Branches() {
                 {pending === 'new' ? 'Adding…' : 'Add branch'}
               </button>
             </form>
-          </Panel>
+            </Panel>
+          </div>
         ) : (
-          <Panel title="Add a branch" hint="Only an owner can add branches">
-            <p className="text-[12.5px] leading-relaxed text-ink-4">Ask an owner to add a new location.</p>
-          </Panel>
+          <div className="animate-rise [animation-delay:190ms]">
+            <Panel title="Add a branch" hint="Only an owner can add branches">
+              <p className="text-[12.5px] leading-relaxed text-ink-4">Ask an owner to add a new location.</p>
+            </Panel>
+          </div>
         )}
       </div>
     </>

@@ -90,15 +90,17 @@ export function Plan() {
 
   return (
     <>
-      <PageTitle
-        title="Plan"
-        subtitle={canManage ? 'Your subscription and how much of it is used' : 'What this restaurant is on, and how much of it is used'}
-        action={
-          <button type="button" className={ADMIN_GHOST} onClick={() => setComparing(true)}>
-            Compare plans
-          </button>
-        }
-      />
+      <div className="animate-rise">
+        <PageTitle
+          title="Plan"
+          subtitle={canManage ? 'Your subscription and how much of it is used' : 'What this restaurant is on, and how much of it is used'}
+          action={
+            <button type="button" className={ADMIN_GHOST} onClick={() => setComparing(true)}>
+              Compare plans
+            </button>
+          }
+        />
+      </div>
       {comparing && (
         <PlanCompareModal
           plans={plans}
@@ -117,25 +119,35 @@ export function Plan() {
       )}
 
       <div className="grid gap-4">
-        <StatusBand subscription={subscription} canManage={canManage} now={now} />
-        {due && <RenewSection subscription={subscription} now={now} onRenewed={sub.reload} />}
+        <div className="animate-rise [animation-delay:120ms]">
+          <StatusBand subscription={subscription} canManage={canManage} now={now} />
+        </div>
+        {due && <div className="animate-rise [animation-delay:190ms]"><RenewSection subscription={subscription} now={now} onRenewed={sub.reload} /></div>}
 
         <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr] lg:items-start">
-          <UsageSection usage={sub.usage} />
-          <IncludedSection subscription={subscription} />
+          <div className="animate-rise [animation-delay:260ms]">
+            <UsageSection usage={sub.usage} />
+          </div>
+          <div className="animate-rise [animation-delay:260ms]">
+            <IncludedSection subscription={subscription} />
+          </div>
         </div>
 
         {canManage ? (
           <>
-            <ChangePlanSection subscription={subscription} plans={plans} usage={sub.usage} now={now} onChanged={sub.reload} />
+            <div className="animate-rise [animation-delay:330ms]">
+              <ChangePlanSection subscription={subscription} plans={plans} usage={sub.usage} now={now} onChanged={sub.reload} />
+            </div>
           </>
         ) : (
-          <Panel variant="subtle">
-            <p className="text-[13.5px] leading-relaxed text-ink-3">
-              Plan changes and renewal are handled by the owner. This page shows where the restaurant stands, so a trial running out or a limit coming up is
-              no surprise.
-            </p>
-          </Panel>
+          <div className="animate-rise [animation-delay:330ms]">
+            <Panel variant="subtle">
+              <p className="text-[13.5px] leading-relaxed text-ink-3">
+                Plan changes and renewal are handled by the owner. This page shows where the restaurant stands, so a trial running out or a limit coming up is
+                no surprise.
+              </p>
+            </Panel>
+          </div>
         )}
       </div>
     </>
@@ -214,16 +226,16 @@ function UsageSection({ usage }: { usage: Usage | null }) {
       {!usage ? (
         <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">Usage could not be read just now. Reload the page to try again.</p>
       ) : (
-        rows.map(({ kind, label, sub, meter }) => <MeterRow key={kind} kind={kind} label={label} sub={sub} meter={meter} />)
+        rows.map(({ kind, label, sub, meter }, i) => <MeterRow key={kind} kind={kind} label={label} sub={sub} meter={meter} delay={360 + Math.min(i, 10) * 40} />)
       )}
     </Panel>
   );
 }
 
-function MeterRow({ kind, label, sub, meter }: { kind: MeterKind; label: string; sub: string; meter: UsageMeter }) {
+function MeterRow({ kind, label, sub, meter, delay }: { kind: MeterKind; label: string; sub: string; meter: UsageMeter; delay: number }) {
   const note = meterNote(kind, meter);
   return (
-    <div className="border-b border-hairline px-4 py-4 last:border-0 sm:px-5">
+    <div className="animate-rise border-b border-hairline px-4 py-4 last:border-0 sm:px-5" style={{ animationDelay: `${delay}ms` }}>
       <div className="flex items-baseline justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[14px] font-semibold">{label}</div>
@@ -241,7 +253,7 @@ function MeterRow({ kind, label, sub, meter }: { kind: MeterKind; label: string;
           aria-valuenow={Math.min(meter.used, meter.limit)}
           className="mt-3 h-2 overflow-hidden rounded-full bg-surface-3"
         >
-          <div className={cx('h-full origin-left animate-grow-x rounded-full', FILL[meter.level])} style={{ width: `${meterFraction(meter) * 100}%` }} />
+          <div className={cx('h-full origin-left animate-grow-x rounded-full', FILL[meter.level])} style={{ width: `${meterFraction(meter) * 100}%`, animationDelay: `${delay + 100}ms` }} />
         </div>
       )}
 
@@ -281,8 +293,8 @@ function IncludedSection({ subscription }: { subscription: Subscription }) {
   return (
     <Panel title="What's included" hint={`In ${subscription.plan.name}`} bare>
       <ul>
-        {rows.map((row) => (
-          <li key={row.label} className="flex items-start gap-3 border-b border-hairline px-4 py-3.5 last:border-0 sm:px-5">
+        {rows.map((row, i) => (
+          <li key={row.label} className="animate-rise flex items-start gap-3 border-b border-hairline px-4 py-3.5 last:border-0 sm:px-5" style={{ animationDelay: `${360 + Math.min(i, 10) * 40}ms` }}>
             <span className={cx('mt-0.5 shrink-0', row.included ? 'text-mint-ink' : 'text-ink-4')}>{row.included ? <Check size={16} /> : <Lock size={16} />}</span>
             <div className="min-w-0">
               <div className={cx('text-[14px] font-semibold', !row.included && 'text-ink-3')}>{row.label}</div>
@@ -291,7 +303,7 @@ function IncludedSection({ subscription }: { subscription: Subscription }) {
           </li>
         ))}
       </ul>
-      {extras.length > 0 && <p className="border-t border-hairline px-4 py-3 text-[12.5px] leading-snug text-ink-3 sm:px-5">Includes {extras.join(' and ')}, added to the limits shown under Usage.</p>}
+      {extras.length > 0 && <p className="animate-rise border-t border-hairline px-4 py-3 text-[12.5px] leading-snug text-ink-3 sm:px-5" style={{ animationDelay: `${360 + Math.min(rows.length, 10) * 40}ms` }}>Includes {extras.join(' and ')}, added to the limits shown under Usage.</p>}
     </Panel>
   );
 }
@@ -377,7 +389,7 @@ function ChangePlanSection({
           />
         ) : (
           <ul>
-            {plans.data.map((plan) => (
+            {plans.data.map((plan, i) => (
               <PlanRow
                 key={plan.key}
                 plan={plan}
@@ -390,6 +402,7 @@ function ChangePlanSection({
                 onChoose={() => setChoice(plan.key)}
                 onCancel={() => setChoice(null)}
                 onConfirm={() => apply(plan)}
+                delay={430 + Math.min(i, 10) * 40}
               />
             ))}
           </ul>
@@ -413,6 +426,7 @@ function PlanRow({
   onChoose,
   onCancel,
   onConfirm,
+  delay,
 }: {
   plan: PlanData;
   subscription: Subscription;
@@ -424,6 +438,7 @@ function PlanRow({
   onChoose: () => void;
   onCancel: () => void;
   onConfirm: () => void;
+  delay: number;
 }) {
   const current = plan.key === subscription.plan.key;
   const queued = subscription.pendingPlan?.key === plan.key;
@@ -440,7 +455,7 @@ function PlanRow({
     : `Switch to ${plan.name}`;
 
   return (
-    <li className={cx('border-b border-hairline px-4 py-4 last:border-0 sm:px-5', current && 'bg-surface-2/55')}>
+    <li className={cx('animate-rise border-b border-hairline px-4 py-4 last:border-0 sm:px-5', current && 'bg-surface-2/55')} style={{ animationDelay: `${delay}ms` }}>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1 basis-56">
           <div className="flex flex-wrap items-center gap-2">
