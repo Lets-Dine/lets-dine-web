@@ -8,7 +8,7 @@ import { formatMoney, percentOf, symbolFor } from '../../domain/money';
 import { can } from '../../domain/permissions';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
-import { Cash, Check, ChevronLeft, Contact, Qr, Search, X } from '../icons';
+import { Cash, Check, ChevronLeft, Contact, Qr, Receipt, Search, X } from '../icons';
 import { DISPLAY, cx } from '../ui';
 import { QrImage } from './QrCard';
 import { useDiscardBack } from './useDiscardBack';
@@ -82,6 +82,8 @@ interface PendingBillChanges {
   endSession: boolean;
   /** Left out unless the cashier chose: an id names who the bill is for, null takes it off its customer. */
   customerId?: string | null;
+  /** Leave the whole bill owed by the customer instead of taking money now. */
+  credit?: boolean;
 }
 
 /** What's actually being charged, frozen the moment "Take payment" is tapped — so an in-flight QR
@@ -156,7 +158,7 @@ export function PaymentSheet({
   // "Take payment" no longer settles directly — it freezes the bill into `committed` and hands off
   // to a payment-method step. Nothing is charged until cash is confirmed or the QR step resolves.
   const [step, setStep] = useState<PayStep>('bill');
-  const [method, setMethod] = useState<'cash' | 'qr' | null>(null);
+  const [method, setMethod] = useState<'cash' | 'qr' | 'credit' | null>(null);
   const [committed, setCommitted] = useState<CommittedBill | null>(null);
   const [qrPayload, setQrPayload] = useState<string | null>(null);
   const [qrProgress, setQrProgress] = useState(false);
@@ -192,12 +194,13 @@ export function PaymentSheet({
 
   // `onSettle` runs the real mutation and is closed over freshly every render — a ref keeps the
   // QR auto-advance timer below from needing it in its dependency array (same trick as useAsync).
-  const finalize = async (chosenMethod: 'cash' | 'qr') => {
+  const finalize = async (chosenMethod: 'cash' | 'qr' | 'credit') => {
     if (!committed) return;
     setMethod(chosenMethod);
     const ok = await onSettle({
       items: committed.items,
-      method: chosenMethod === 'cash' ? 'CASH' : 'CARD',
+      method: chosenMethod === 'qr' ? 'QR' : 'CASH',
+      credit: chosenMethod === 'credit',
       discount: committed.manualDiscount,
       redeemPoints: committed.redeemPoints,
       endSession: true,
@@ -718,6 +721,20 @@ export function PaymentSheet({
                   {busy && method === 'qr' ? 'Processing…' : 'QR'}
                 </span>
               </button>
+              {/* On credit: nothing is taken now; the bill stays owed by this customer and is settled from Sales. Needs someone to owe it. */}
+              {committed.customerId && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void finalize('credit')}
+                  className="col-span-2 flex items-center justify-center gap-2 rounded-2xl py-4 text-[oklch(0.232_0.019_70)] ring-1 ring-[oklch(0.232_0.019_70)]/25 transition-move active:scale-[0.98] disabled:opacity-40"
+                >
+                  <Receipt size={20} />
+                  <span className="text-[13px] font-bold tracking-wide uppercase">
+                    {busy && method === 'credit' ? 'Recording…' : `On credit — ${committed.customerName ?? 'customer'} owes it`}
+                  </span>
+                </button>
+              )}
               {/* Scan to pay (generated QR with a waiting step), off for now:
               <button
                 type="button"
@@ -787,7 +804,7 @@ export function PaymentSheet({
             <div>
               <h3 className={cx(DISPLAY, 'text-[24px] font-black text-[oklch(0.232_0.019_70)]')}>Payment successful</h3>
               <p className="mt-1 text-[12.5px] text-[oklch(0.463_0.031_74)]">
-                {method === 'cash' ? 'Collected in cash' : 'Paid by QR'} ·{' '}
+                {method === 'cash' ? 'Collected in cash' : method === 'credit' ? 'Left on credit, nothing collected' : 'Paid by QR'} ·{' '}
                 {formatMoney(committed.totals.total, committed.totals.currency)}
               </p>
             </div>
@@ -797,7 +814,8 @@ export function PaymentSheet({
                 type="button"
                 onClick={() =>
                   printReceipt(table, committed.lines, committed.totals, { name: restaurantName, vatPanNumber }, {
-                    method: method === 'cash' ? 'CASH' : 'CARD',
+                    method: method === 'qr' ? 'QR' : 'CASH',
+                    label: method === 'credit' ? 'On credit — unpaid' : undefined,
                     takenBy: staff.name,
                   }, committed.customerName)
                 }

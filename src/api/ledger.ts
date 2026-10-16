@@ -62,7 +62,7 @@ export interface CashClose extends Omit<LedgerSummary, 'needsOpening' | 'periodS
 /** One line of the open period's tape, oldest first. */
 export interface LedgerEntry {
   id: string;
-  kind: 'opening' | 'sale' | 'income' | 'expense' | 'transfer';
+  kind: 'opening' | 'sale' | 'income' | 'expense' | 'transfer' | 'refund';
   at: string;
   amount: Minor;
   method: PaymentMethod;
@@ -75,6 +75,11 @@ export interface LedgerEntry {
   detail: string;
   /** Posted by a delivery settlement, so it can't be removed from here. */
   locked?: boolean;
+  /** The record that caused this line — decided by what posted it, never by its label. */
+  sourceType: 'PAYMENT' | 'EXPENSE' | 'INCOME' | 'SUPPLIER_PAYMENT' | 'REFUND' | 'DELIVERY_SETTLEMENT' | 'TRANSFER' | 'CLOSE';
+  sourceId: string | null;
+  /** Receipt or wallet reference on a collection. */
+  reference: string;
 }
 
 /** No range reads the open period (with its opening line); `from` is exclusive, `to` inclusive — the same edges a close uses. */

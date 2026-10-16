@@ -109,7 +109,7 @@ export function Ledger() {
   // Cash and bank together — what the period took in and paid out, whatever the drawer holds. Transfers only move money between the two.
   const totalIn = s.cashSales + s.cardSales + s.cashIncome + s.cardIncome;
   const totalOut = s.cashExpenses + s.cardExpenses;
-  const flowLines = flow ? (entries.data ?? []).filter((e) => (flow === 'in' ? e.kind === 'sale' || e.kind === 'income' : e.kind === 'expense')) : [];
+  const flowLines = flow ? (entries.data ?? []).filter((e) => (flow === 'in' ? e.kind === 'sale' || e.kind === 'income' : e.kind === 'expense' || e.kind === 'refund')) : [];
 
   const submitExpense = async () => {
     if (panel !== 'INCOME' && panel !== 'EXPENSE' && panel !== 'TRANSFER') return;
@@ -641,12 +641,12 @@ export function TapeLine({
   readOnly?: boolean;
 }) {
   const opening = e.kind === 'opening';
-  const expense = e.kind === 'expense';
+  const expense = e.kind === 'expense' || e.kind === 'refund';
   const transfer = e.kind === 'transfer';
   const removable = !readOnly && (expense || e.kind === 'income' || transfer) && !e.locked;
   // Where the money went — implied for the opening and for a transfer, whose label already says it.
   const via = opening || transfer ? '' : e.method === 'CASH' ? 'Cash' : 'Bank';
-  const detail = [via, opening ? `Drawer ${money(e.cashDelta)} · Bank ${money(e.bankDelta)}` : '', e.detail, e.locked ? 'Delivery settlement' : ''].filter(Boolean).join(' · ');
+  const detail = [via, opening ? `Drawer ${money(e.cashDelta)} · Bank ${money(e.bankDelta)}` : '', e.reference ? `Ref ${e.reference}` : '', e.detail, e.sourceType === 'DELIVERY_SETTLEMENT' ? 'Delivery settlement' : e.sourceType === 'SUPPLIER_PAYMENT' ? 'Supplier payment' : e.kind === 'refund' ? 'Refund' : ''].filter(Boolean).join(' · ');
   const balances = cash !== undefined || bank !== undefined;
   return (
     <div className={cx('grid grid-cols-[3.75rem_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-0.5 px-6 py-3.5 sm:items-baseline', tapeCols(balances))}>
@@ -655,9 +655,14 @@ export function TapeLine({
       </time>
       <div className="min-w-0">
         <div className={opening ? 'font-display text-[16px] font-black' : 'text-[14.5px] font-semibold'}>{e.label}</div>
-        {(detail || removable) && (
+        {(detail || removable || (e.sourceType === 'PAYMENT' && e.sourceId)) && (
           <div className="text-[12.5px] text-docket-inksoft">
             {detail}
+            {e.sourceType === 'PAYMENT' && e.sourceId && (
+              <Link to={`/admin/sales?sale=${e.sourceId}`} className={`${detail ? 'ml-2 ' : ''}font-semibold underline underline-offset-2 hover:text-docket-ink`}>
+                Sale
+              </Link>
+            )}
             {removable && (
               <button type="button" disabled={busy} onClick={onRemove} className={`${detail ? 'ml-2 ' : ''}font-semibold underline underline-offset-2 hover:text-berry disabled:opacity-50`}>
                 Remove

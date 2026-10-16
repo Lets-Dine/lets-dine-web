@@ -75,7 +75,7 @@ export function OrderHistory() {
               <div className="flex-1">
                 <b className="block text-[14.5px] font-bold tracking-tight">Table settled</b>
                 <span className={cx(EYEBROW, 'text-mint/90')}>
-                  Paid {payment.method === 'CASH' ? 'in cash' : 'by card'} · {clockTime(payment.createdAt)}
+                  Paid {payment.method === 'CASH' ? 'in cash' : payment.method === 'QR' ? 'by QR' : 'by card'} · {clockTime(payment.createdAt)}
                 </span>
               </div>
               <span className="text-[17px] font-bold tnum">{formatMoney(payment.total, payment.currency)}</span>

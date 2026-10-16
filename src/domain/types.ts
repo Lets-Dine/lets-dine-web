@@ -297,7 +297,31 @@ export interface BillLine {
   quantity: number;
 }
 
-export type PaymentMethod = 'CASH' | 'CARD';
+/** CARD stands in for anything off-cash that is not a QR scan; CASH is the drawer, everything else the bank. */
+export type PaymentMethod = 'CASH' | 'CARD' | 'QR';
+
+export type PaymentStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
+
+/** One collection against a sale — a split bill has several, a credit sale gains one per settlement. */
+export interface PaymentTender {
+  id: string;
+  amount: Minor;
+  method: PaymentMethod;
+  status: 'PENDING' | 'SUCCEEDED' | 'FAILED';
+  reference: string;
+  paidAt: string;
+  createdByName: string | null;
+}
+
+/** Money handed back against a sale. The sale and its collections are never edited. */
+export interface PaymentRefund {
+  id: string;
+  amount: Minor;
+  method: PaymentMethod;
+  reason: string;
+  createdAt: string;
+  createdByName: string | null;
+}
 
 export interface PaymentItem {
   id: string;
@@ -319,6 +343,11 @@ export interface Payment {
   tax: Minor;
   discount: Minor;
   total: Minor;
+  /** Collected so far; what is still owed is `total - paidAmount`. */
+  paidAmount: Minor;
+  refundedAmount: Minor;
+  paymentStatus: PaymentStatus;
+  dueDate: string | null;
   method: PaymentMethod;
   currency: string;
   createdAt: string;
@@ -326,7 +355,11 @@ export interface Payment {
   createdByName: string | null;
   /** The paying customer, when the settled orders were placed under one. */
   customerName: string | null;
+  customerId?: string | null;
   items: PaymentItem[];
+  /** Every collection taken against this sale, oldest first. */
+  tenders: PaymentTender[];
+  refunds: PaymentRefund[];
 }
 
 export interface Order {

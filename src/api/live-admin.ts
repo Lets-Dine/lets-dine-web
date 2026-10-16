@@ -1,4 +1,4 @@
-import type { BillLine } from '../domain/types';
+import type { BillLine, PaymentRefund, PaymentStatus, PaymentTender } from '../domain/types';
 import type { AddOnDraft, DishDraft, ItemOptions, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
@@ -26,7 +26,7 @@ import type {
   StaffMember,
   StaffRole,
 } from '../domain/types';
-import { ApiError } from './store';
+import { ApiError, randomId } from './store';
 import { apiRequest } from './http';
 import type { Paginated } from './http';
 import { getSocket, joinRoom } from './socket';
@@ -282,7 +282,7 @@ interface ApiPaymentItem {
   quantity: number;
 }
 
-interface ApiPayment {
+export interface ApiPayment {
   id: string;
   restaurantId: string;
   sessionId: string;
@@ -292,13 +292,20 @@ interface ApiPayment {
   tax: number;
   discount: number;
   total: number;
+  paidAmount: number;
+  refundedAmount: number;
+  paymentStatus: PaymentStatus;
+  dueDate: string | null;
   method: PaymentMethod;
   currency: string;
   createdAt: string;
   createdBy: string | null;
   createdByName: string | null;
   customerName?: string | null;
+  customerId?: string | null;
   items: ApiPaymentItem[];
+  tenders: PaymentTender[];
+  refunds: PaymentRefund[];
 }
 
 /* ── Mappers ───────────────────────────────────────────────────── */
@@ -482,7 +489,7 @@ function toOrder(api: ApiOrder): Order {
   };
 }
 
-function toPayment(api: ApiPayment): Payment {
+export function toPayment(api: ApiPayment): Payment {
   return {
     id: api.id,
     restaurantId: api.restaurantId,
@@ -493,6 +500,13 @@ function toPayment(api: ApiPayment): Payment {
     tax: api.tax,
     discount: api.discount,
     total: api.total,
+    paidAmount: api.paidAmount,
+    refundedAmount: api.refundedAmount,
+    paymentStatus: api.paymentStatus,
+    dueDate: api.dueDate,
+    customerId: api.customerId ?? null,
+    tenders: api.tenders,
+    refunds: api.refunds,
     method: api.method,
     currency: api.currency,
     createdAt: api.createdAt,
@@ -1129,6 +1143,9 @@ export async function settleTable(tableId: string): Promise<Order[]> {
   return orders.map(toOrder);
 }
 
+/** Retry keys for bills not yet confirmed, by what the bill is — see `completePayment`. */
+const pendingBillKeys = new Map<string, string>();
+
 /**
  * The till. Snapshots what's still open on this table into a payment record
  * and closes those orders out — optionally ending the visit in the same
@@ -1149,12 +1166,31 @@ export async function completePayment(
   redeemPoints?: number,
   /** Omitted keeps whoever the orders were placed under; an id picks another customer; null takes the bill off its customer. */
   customerId?: string | null,
+  /** Leaves the bill unpaid as a receivable on the customer — needs one. No method is sent, so nothing is collected. */
+  credit = false,
 ): Promise<Payment> {
+  // One key per distinct bill, kept until it lands: a retry after a dropped response (or a double-tap) sends the same key and
+  // gets the first bill back, where a fresh key per call would bill again.
+  const fingerprint = JSON.stringify([sessionId, orderId, items, credit ? 'CREDIT' : method, discount, endSession, redeemPoints, customerId]);
+  const idempotencyKey = pendingBillKeys.get(fingerprint) ?? randomId();
+  pendingBillKeys.set(fingerprint, idempotencyKey);
   const payment = await apiRequest<ApiPayment>('/restaurant/payments', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ sessionId, orderId, items, method, discount, endSession, redeemPoints: redeemPoints || undefined, customerId }),
+    body: JSON.stringify({
+      sessionId,
+      orderId,
+      items,
+      method: credit ? undefined : method,
+      credit: credit || undefined,
+      discount,
+      endSession,
+      redeemPoints: redeemPoints || undefined,
+      customerId,
+      idempotencyKey,
+    }),
   });
+  pendingBillKeys.delete(fingerprint);
   return toPayment(payment);
 }
 
@@ -1162,7 +1198,7 @@ export async function completePayment(
 export async function listPayments(
   offset = 0,
   limit = 20,
-  query: { tableId?: string; from?: string; to?: string } = {},
+  query: { tableId?: string; from?: string; to?: string; paymentStatus?: PaymentStatus; method?: PaymentMethod; customerId?: string } = {},
 ): Promise<{ rows: Payment[]; count: number }> {
   const params = new URLSearchParams({
     offset: String(offset),
@@ -1173,6 +1209,9 @@ export async function listPayments(
   if (query.tableId) params.set('tableId', query.tableId);
   if (query.from) params.set('from', query.from);
   if (query.to) params.set('to', query.to);
+  if (query.paymentStatus) params.set('paymentStatus', query.paymentStatus);
+  if (query.method) params.set('method', query.method);
+  if (query.customerId) params.set('customerId', query.customerId);
   const page = await apiRequest<Paginated<ApiPayment>>(`/restaurant/payments?${params.toString()}`, {
     headers: authHeaders(),
   });

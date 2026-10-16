@@ -1,4 +1,4 @@
-import type { BillLine } from '../domain/types';
+import type { BillLine, PaymentStatus } from '../domain/types';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import type {
   AuditEntry,
@@ -237,9 +237,10 @@ export function completePayment(
   endSession: boolean,
   redeemPoints = 0,
   customerId?: string | null,
+  credit = false,
 ): Promise<Payment> {
   return IS_LIVE_API
-    ? live.completePayment(sessionId, items, method, discount, endSession, undefined, redeemPoints, customerId)
+    ? live.completePayment(sessionId, items, method, discount, endSession, undefined, redeemPoints, customerId, credit)
     : mock.completePayment(actor, sessionId, items, method, discount, endSession);
 }
 
@@ -257,9 +258,10 @@ export function completeOrderPayment(
   discount: number,
   redeemPoints = 0,
   customerId?: string | null,
+  credit = false,
 ): Promise<Payment> {
   return IS_LIVE_API
-    ? live.completePayment(order.sessionId, items, method, discount, false, order.id, redeemPoints, customerId)
+    ? live.completePayment(order.sessionId, items, method, discount, false, order.id, redeemPoints, customerId, credit)
     : mock.completeOrderPayment(actor, order.id, items, method, discount);
 }
 
@@ -267,7 +269,7 @@ export function listPayments(
   actor: StaffMember,
   offset?: number,
   limit?: number,
-  query: { tableId?: string; from?: string; to?: string } = {},
+  query: { tableId?: string; from?: string; to?: string; paymentStatus?: PaymentStatus; method?: PaymentMethod; customerId?: string } = {},
 ): Promise<{ rows: Payment[]; count: number }> {
   return IS_LIVE_API ? live.listPayments(offset, limit, query) : mock.listPayments(actor, offset, limit, query);
 }

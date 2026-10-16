@@ -40,6 +40,8 @@ import { Ledger } from './routes/admin/Ledger';
 import { LedgerHistory } from './routes/admin/LedgerHistory';
 import { PaymentModes } from './routes/admin/PaymentModes';
 import { Payments } from './routes/admin/Payments';
+import { Sales } from './routes/admin/Sales';
+import { Transactions } from './routes/admin/Transactions';
 import { Plan } from './routes/admin/Plan';
 import { Referrals } from './routes/admin/Referrals';
 import { Reviews } from './routes/admin/Reviews';
@@ -177,7 +179,9 @@ export default function App() {
                 <Route path="delivery/riders/:id" element={<CourierDetail kind="rider" />} />
                 <Route path="customers" element={<Customers />} />
                 <Route path="customers/:id" element={<CustomerDetail />} />
+                <Route path="sales" element={<Sales />} />
                 <Route path="payments" element={<Payments />} />
+                <Route path="transactions" element={<Transactions />} />
                 <Route path="payment-modes" element={<PaymentModes />} />
                 <Route path="ledger" element={<Ledger />} />
                 <Route path="ledger/transactions" element={<LedgerHistory />} />

@@ -295,6 +295,7 @@ export function Tables() {
                 changes.endSession,
                 changes.redeemPoints,
                 changes.customerId,
+                changes.credit,
               ),
             changes.endSession ? `${billTable.name} paid up and cleared` : `${billTable.name} paid up`,
           ).then((ok) => {

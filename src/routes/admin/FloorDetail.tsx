@@ -227,7 +227,7 @@ export function FloorDetail() {
           const order = payingOrder;
           return run(
             order.id,
-            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints, changes.customerId),
+            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints, changes.customerId, changes.credit),
             `${order.reference} paid up`,
           ).then((ok) => {
             if (ok) reloadOrders();

@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { fetchEntries } from '../../api/ledger';
+import { fetchCashBook } from '../../api/finance';
 import type { LedgerEntry } from '../../api/ledger';
 import { Empty, INPUT_BOX, Loading, Perforation, DOCKET_CARD, ADMIN_GHOST } from '../../components/admin/kit';
 import { Block, Num } from '../../components/admin/profile';
 import { ChevronLeft } from '../../components/icons';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { formatMoney } from '../../domain/money';
-import type { Minor, PaymentMethod } from '../../domain/types';
+import type { Minor } from '../../domain/types';
+import type { CashBook } from '../../api/finance';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
 import { FlowDialog, Sum, TapeHeader, TapeLine, Total } from './Ledger';
@@ -46,9 +47,10 @@ export function LedgerHistory() {
   const preset = !given ? (PRESETS.find((p) => p.key === params.get('days')) ?? PRESETS[0]) : null;
   const range = given ?? span(addDays(today, -(preset?.days ?? 0)), preset?.key === 'yesterday' ? addDays(today, -1) : today);
   const label = given ? (params.get('label') ?? 'Chosen days') : (preset?.label ?? 'Today');
-  const base = params.get('cash') && params.get('bank') ? { cash: Number(params.get('cash')), bank: Number(params.get('bank')) } : null;
-
-  const lines = useAsync(() => fetchEntries(range), [range.from, range.to]);
+  const book = useAsync(() => fetchCashBook(range), [range.from, range.to]);
+  // The book knows what the drawer and bank held when the window opened, so the tape's running balances never depend on a link carrying them.
+  const base = book.data ? book.data.opening : null;
+  const lines = { data: book.data?.entries, error: book.error, reload: book.reload };
   const [flow, setFlow] = useState<Flow | null>(null);
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
@@ -61,13 +63,13 @@ export function LedgerHistory() {
         acc.push(base ? { entry, cash: (prev?.cash ?? base.cash) + entry.cashDelta, bank: (prev?.bank ?? base.bank) + entry.bankDelta } : { entry });
         return acc;
       }, []),
-    // base is a fresh object each render; its two numbers are the real dependency.
-    [lines.data, base?.cash, base?.bank],
+    [lines.data, base],
   );
 
   const ins = (lines.data ?? []).filter((e) => e.kind === 'sale' || e.kind === 'income');
-  const outs = (lines.data ?? []).filter((e) => e.kind === 'expense');
-  const sum = (list: LedgerEntry[], method?: PaymentMethod) => list.filter((e) => !method || e.method === method).reduce((n, e) => n + e.amount, 0);
+  const outs = (lines.data ?? []).filter((e) => e.kind === 'expense' || e.kind === 'refund');
+  // The bank side is everything that is not cash — card, QR and any other off-cash method.
+  const sum = (list: LedgerEntry[], side?: 'CASH' | 'BANK') => list.filter((e) => !side || (side === 'CASH') === (e.method === 'CASH')).reduce((n, e) => n + e.amount, 0);
   const totalIn = sum(ins);
   const totalOut = sum(outs);
 
@@ -90,7 +92,7 @@ export function LedgerHistory() {
       </Link>
 
       <header>
-        <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(36px,6vw,64px)] leading-[0.98] tracking-[-0.03em]')}>Transactions</h1>
+        <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(36px,6vw,64px)] leading-[0.98] tracking-[-0.03em]')}>Statement</h1>
         <p className="mt-4 min-h-[2.6em] max-w-[36ch] animate-rise text-[clamp(18px,2.4vw,26px)] font-medium leading-[1.3] text-ink-2 [animation-delay:80ms]">
           {loaded ? (
             tape.length === 0 ? (
@@ -120,7 +122,9 @@ export function LedgerHistory() {
       </header>
 
       <div className="mt-8 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <Block title="Totals" hint={label} delay={200}>
+        <Block title="Statement" hint={label} delay={200}>
+          {book.data && <Statement book={book.data} money={money} />}
+          <div className="my-4 border-t border-hairline" />
           <dl className="grid gap-y-4">
             <Total label="In" value={money(totalIn)} active={flow === 'in'} onClick={() => setFlow(flow === 'in' ? null : 'in')} />
             <Total label="Out" value={money(totalOut)} active={flow === 'out'} onClick={() => setFlow(flow === 'out' ? null : 'out')} />
@@ -130,8 +134,8 @@ export function LedgerHistory() {
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
             <Sum label="Cash in" value={money(sum(ins, 'CASH'))} />
             <Sum label="Cash out" value={money(sum(outs, 'CASH'))} />
-            <Sum label="Bank in" value={money(sum(ins, 'CARD'))} />
-            <Sum label="Bank out" value={money(sum(outs, 'CARD'))} />
+            <Sum label="Bank in" value={money(sum(ins, 'BANK'))} />
+            <Sum label="Bank out" value={money(sum(outs, 'BANK'))} />
           </dl>
         </Block>
 
@@ -144,7 +148,7 @@ export function LedgerHistory() {
             <div className={cx(DOCKET_CARD, 'min-h-56')}>
               <TapeHeader balances={Boolean(base)} />
               {tape.length === 0 ? (
-                <p className="px-6 py-8 text-[13.5px] text-docket-inksoft">No sales, expenses or transfers fall in these days. Try a wider range.</p>
+                <p className="px-6 py-8 text-[13.5px] text-docket-inksoft">No money moved in or out in these days. Try a wider range.</p>
               ) : (
                 <ol>
                   {tape.map(({ entry, cash, bank }, i) => (
@@ -161,6 +165,54 @@ export function LedgerHistory() {
       </div>
 
       {flow && <FlowDialog flow={flow} lines={flow === 'in' ? ins : outs} total={flow === 'in' ? totalIn : totalOut} money={money} onClose={() => setFlow(null)} />}
+    </div>
+  );
+}
+
+/**
+ * Opening, what came in, what went out, what moved between the two, and the closing balance — for the drawer and
+ * the bank side by side. Only money that moved is here: an unpaid sale or bill has no collection or payment, so it
+ * never appears. The last line checks the listed entries add up to the closing balance.
+ */
+function Statement({ book, money }: { book: CashBook; money: (v: Minor) => string }) {
+  const { opening, receipts, payments, transfers, adjustment, closing, entries } = book;
+  const cashMoved = receipts.cash - payments.cash - transfers.cashToBank + transfers.bankToCash;
+  const bankMoved = receipts.bank - payments.bank + transfers.cashToBank - transfers.bankToCash;
+  // The entries explain the same movement the totals sum; a gap means a line is missing from one of them.
+  const listedCash = entries.reduce((n, e) => n + e.cashDelta, 0);
+  const listedBank = entries.reduce((n, e) => n + e.bankDelta, 0);
+  const reconciled = opening.cash + listedCash + adjustment.cash === closing.cash && opening.bank + listedBank + adjustment.bank === closing.bank && cashMoved + adjustment.cash === closing.cash - opening.cash && bankMoved + adjustment.bank === closing.bank - opening.bank;
+  // `signed` shows each side's net change with its direction; plain rows are balances or one-way flows.
+  const amount = (v: Minor, sign: string, signed?: boolean) => (signed ? `${v < 0 ? '−' : '+'}${money(Math.abs(v))}` : `${sign}${money(v)}`);
+  const row = (label: string, cash: Minor, bank: Minor, strong?: boolean, sign = '', signed?: boolean) => (
+    <tr className={strong ? 'border-t border-hairline font-semibold' : ''}>
+      <th scope="row" className="py-1 pr-3 text-left font-normal text-docket-inksoft">{label}</th>
+      <td className="py-1 text-right tnum">{amount(cash, sign, signed)}</td>
+      <td className="py-1 pl-3 text-right tnum">{amount(bank, sign, signed)}</td>
+    </tr>
+  );
+  return (
+    <div>
+      <table className="w-full text-[13px]">
+        <thead>
+          <tr className="text-[11px] font-bold tracking-wide text-docket-inksoft uppercase">
+            <th className="text-left font-bold"><span className="sr-only">Line</span></th>
+            <th className="text-right font-bold">Drawer</th>
+            <th className="pl-3 text-right font-bold">Bank</th>
+          </tr>
+        </thead>
+        <tbody>
+          {row('Opening', opening.cash, opening.bank)}
+          {row('Receipts', receipts.cash, receipts.bank, false, '+')}
+          {row('Payments out', payments.cash, payments.bank, false, '−')}
+          {row('Moved between', transfers.bankToCash - transfers.cashToBank, transfers.cashToBank - transfers.bankToCash, false, '', true)}
+          {(adjustment.cash !== 0 || adjustment.bank !== 0) && row('Counted at cash-up', adjustment.cash, adjustment.bank, false, '', true)}
+          {row('Closing', closing.cash, closing.bank, true)}
+        </tbody>
+      </table>
+      <p className={reconciled ? 'mt-2 text-[12px] text-docket-inksoft' : 'mt-2 text-[12px] font-semibold text-berry'} role={reconciled ? undefined : 'alert'}>
+        {reconciled ? 'Opening plus every line below equals the closing balance.' : 'The lines below do not add up to the closing balance — a line may be missing from this window.'}
+      </p>
     </div>
   );
 }

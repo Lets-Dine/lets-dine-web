@@ -9,7 +9,15 @@ import { clockTime, relativeTime } from '../../components/time';
 import { DOCKET_CARD, DocketDaySection, DocketEmpty, LedgerStat, Loading, PageTitle, Perforation, Segmented, Select, dayLabel, groupByDay } from '../../components/admin/kit';
 import { cx } from '../../components/ui';
 import { Cash, Check, ChevronRight, Qr, Receipt, X } from '../../components/icons';
+import { Link } from 'react-router-dom';
+import { Collections, StatusChip, owedOn } from '../../components/admin/SaleSettle';
 import { useDashboard } from './AdminLayout';
+
+/** Every method a sale was collected by — a split bill has two; an unpaid one falls back to the method it was opened with. */
+const methodsOf = (p: Payment): PaymentMethod[] => {
+  const used = [...new Set((p.tenders ?? []).filter((t) => t.status === 'SUCCEEDED').map((t) => t.method))];
+  return used.length ? used : [p.method];
+};
 
 /**
  * The till's own ledger — every settled table, newest first, read straight
@@ -26,6 +34,7 @@ const METHOD_OPTIONS: { value: MethodFilter; label: string }[] = [
   { value: 'all', label: 'All methods' },
   { value: 'CASH', label: 'Cash' },
   { value: 'CARD', label: 'Card' },
+  { value: 'QR', label: 'QR' },
 ];
 
 export function Payments() {
@@ -138,21 +147,28 @@ export function Payments() {
   );
 
   const methodCounts = useMemo(() => {
-    const counts: Record<MethodFilter, number> = { all: byTable.length, CASH: 0, CARD: 0 };
-    for (const p of byTable) counts[p.method] += 1;
+    const counts: Record<MethodFilter, number> = { all: byTable.length, CASH: 0, CARD: 0, QR: 0 };
+    // A split bill counts under every method it was collected by.
+    for (const p of byTable) for (const m of methodsOf(p)) counts[m] += 1;
     return counts;
   }, [byTable]);
 
   const filtered = useMemo(
-    () => (method === 'all' ? byTable : byTable.filter((p) => p.method === method)),
+    () => (method === 'all' ? byTable : byTable.filter((p) => methodsOf(p).includes(method))),
     [byTable, method],
   );
 
   const groups = useMemo(() => groupByDay(filtered, (p) => p.createdAt), [filtered]);
 
-  const collected = useMemo(() => rows.reduce((sum, p) => sum + p.total, 0), [rows]);
+  // Money actually taken (net of refunds), by side of the till — a credit sale that nobody has paid yet is not in it.
+  const collected = useMemo(() => rows.reduce((sum, p) => sum + (p.paidAmount ?? p.total) - (p.refundedAmount ?? 0), 0), [rows]);
+  const owedTotal = useMemo(() => rows.reduce((sum, p) => sum + owedOn(p), 0), [rows]);
+  const byMethod = useMemo(() => {
+    const totals: Record<PaymentMethod, number> = { CASH: 0, CARD: 0, QR: 0 };
+    for (const p of rows) for (const t of p.tenders ?? []) if (t.status === 'SUCCEEDED') totals[t.method] += t.amount;
+    return totals;
+  }, [rows]);
   const discounted = useMemo(() => rows.reduce((sum, p) => sum + p.discount, 0), [rows]);
-  const cashCount = useMemo(() => rows.filter((p) => p.method === 'CASH').length, [rows]);
   const currency = rows[0]?.currency ?? '';
   const filtering = tableId !== 'all' || method !== 'all';
 
@@ -171,7 +187,7 @@ export function Payments() {
   return (
     <>
       <div className="animate-rise">
-        <PageTitle title="Payments" subtitle="Every table settled, with what it was actually charged and how." />
+        <PageTitle title="Payments" subtitle="Money taken against sales — how each bill was paid, in as many collections as it took. Figures follow each sale's date; the Cash book follows the day money moved. Unpaid balances are settled from Sales." />
       </div>
 
       <div className="mb-5 flex animate-rise flex-wrap items-center gap-3 [animation-delay:60ms]">
@@ -211,14 +227,14 @@ export function Payments() {
 
           <Perforation />
           <div className="grid grid-cols-2 divide-x divide-dashed divide-docket-line sm:grid-cols-4">
-            <LedgerStat label="Avg ticket" value={formatMoney(rows.length ? Math.round(collected / rows.length) : 0, currency)} />
-            <LedgerStat label="Cash" value={`${cashCount}`} sub={`of ${rows.length}`} />
-            <LedgerStat label="Card" value={`${rows.length - cashCount}`} sub={`of ${rows.length}`} />
-            <LedgerStat label="Discounts" value={discounted ? formatMoney(discounted, currency) : symbolFor(currency) + '0'} />
+            <LedgerStat label="Cash" value={formatMoney(byMethod.CASH, currency)} />
+            <LedgerStat label="Card" value={formatMoney(byMethod.CARD, currency)} />
+            <LedgerStat label="QR" value={formatMoney(byMethod.QR, currency)} />
+            <LedgerStat label="Still owed" value={owedTotal ? formatMoney(owedTotal, currency) : symbolFor(currency) + '0'} sub={discounted ? `${formatMoney(discounted, currency)} discounted` : undefined} />
           </div>
           <Perforation thick />
           <div className="flex items-baseline justify-between px-6 py-4">
-            <span className="font-display text-[13px] font-bold tracking-[0.1em] uppercase">Total collected</span>
+            <span className="font-display text-[13px] font-bold tracking-[0.1em] uppercase">Collected on these sales, net of refunds</span>
             <span className="font-display text-[30px] leading-none font-black tnum">{formatMoney(collected, currency)}</span>
           </div>
         </div>
@@ -304,7 +320,7 @@ function PaymentStub({ payment, tableName, onOpen, delay }: { payment: Payment; 
       onClick={onOpen}
       className="group flex w-full items-center gap-3.5 px-6 py-4 text-left transition-colors hover:bg-docket-line/35"
     >
-      <MethodStamp method={payment.method} />
+      <MethodStamp method={methodsOf(payment)[0]} />
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2">
           <b className="text-[14px] font-bold">{tableName}</b>
@@ -316,7 +332,11 @@ function PaymentStub({ payment, tableName, onOpen, delay }: { payment: Payment; 
       </span>
       <span className="shrink-0 text-right">
         <div className="font-display text-[16px] font-black tnum">{formatMoney(payment.total, payment.currency)}</div>
-        {payment.discount > 0 ? (
+        {payment.paymentStatus && payment.paymentStatus !== 'PAID' ? (
+          <div className="mt-0.5 text-[10px] font-semibold text-docket-inksoft">
+            {payment.paymentStatus === 'UNPAID' ? 'Unpaid' : `${formatMoney(owedOn(payment), payment.currency)} owed`}
+          </div>
+        ) : payment.discount > 0 ? (
           <div className="mt-0.5 text-[10px] text-docket-inksoft">−{formatMoney(payment.discount, payment.currency)} off</div>
         ) : (
           <div className="mt-0.5 text-[10px] text-docket-inksoft">{relativeTime(payment.createdAt)}</div>
@@ -369,12 +389,13 @@ function PaymentDetail({
         </div>
 
         <div className="flex items-center gap-3 px-6 pt-5">
-          <MethodStamp method={payment.method} size="lg" />
+          <MethodStamp method={methodsOf(payment)[0]} size="lg" />
           <span className="text-[12.5px] leading-snug text-docket-inksoft">
-            Charged via <b className="text-docket-ink">{payment.method === 'CASH' ? 'cash' : 'card'}</b>
+            {(payment.tenders?.length ?? 0) > 1 ? 'Paid in ' + payment.tenders.length + ' collections' : 'Charged via ' + methodsOf(payment).map((m) => m.toLowerCase()).join(' + ')}
             <br />
             Reference <span className="tnum">{payment.id.slice(0, 8).toUpperCase()}</span>
           </span>
+          <StatusChip status={payment.paymentStatus ?? 'PAID'} className="ml-auto" />
         </div>
 
         <div className="mx-6 mt-5 border-t border-dashed border-docket-line" />
@@ -423,9 +444,24 @@ function PaymentDetail({
 
         <div className="mx-6 border-t border-dashed border-docket-line" />
 
-        <div className="flex items-center justify-center gap-1.5 py-4 text-[11px] font-semibold text-docket-inksoft">
-          <Check size={12} className="text-docket-mint" />
-          Settled and closed out
+        <div className="space-y-2 px-6 py-4 text-[13px]">
+          <Collections payment={payment} />
+          {owedOn(payment) > 0 && (
+            <p className="flex items-baseline justify-between font-semibold">
+              <span>Still owed</span>
+              <span className="tnum">{formatMoney(owedOn(payment), payment.currency)}</span>
+            </p>
+          )}
+        </div>
+        <div className="flex items-center justify-center gap-1.5 pb-4 text-[11px] font-semibold text-docket-inksoft">
+          {owedOn(payment) > 0 ? (
+            <Link to={`/admin/sales?sale=${payment.id}`} className="text-flame underline underline-offset-2">Collect the rest on Sales</Link>
+          ) : (
+            <>
+              <Check size={12} className="text-docket-mint" />
+              Settled and closed out
+            </>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 px-6 pb-6">

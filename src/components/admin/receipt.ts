@@ -26,6 +26,8 @@ export interface ReceiptTotals {
 /** Omitted for the pre-payment bill preview — nothing has actually been charged yet. */
 export interface ReceiptPayment {
   method: PaymentMethod;
+  /** How it was really paid when `method` alone would mislead: "Cash + QR" for a split bill, "On credit — unpaid" for a credit sale. */
+  label?: string;
   takenBy: string | null;
 }
 
@@ -62,7 +64,7 @@ export function printReceipt(
   const customer = customerName?.trim();
   const customerRow = customer ? `<div class="row"><span>Customer</span><span>${escapeHtml(customer)}</span></div>` : '';
   const paymentRows = payment
-    ? `<div class="row"><span>Paid by</span><span>${payment.method === 'CASH' ? 'Cash' : 'Card'}</span></div>` +
+    ? `<div class="row"><span>Paid by</span><span>${escapeHtml(payment.label ?? (payment.method === 'CASH' ? 'Cash' : payment.method === 'QR' ? 'QR' : 'Card'))}</span></div>` +
       (payment.takenBy ? `<div class="row"><span>Served by</span><span>${escapeHtml(payment.takenBy)}</span></div>` : '') +
       `<div class="rule"></div>`
     : '';
