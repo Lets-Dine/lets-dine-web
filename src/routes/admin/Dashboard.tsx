@@ -379,7 +379,7 @@ export function Dashboard() {
           const order = payingOrder;
           return run(
             order.id,
-            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints, changes.customerId, changes.credit),
+            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints, changes.customerId, changes.credit, changes.paidNow, changes.dueInDays),
             `${order.reference} paid up`,
           ).then((ok) => {
             if (ok) reloadOrders();

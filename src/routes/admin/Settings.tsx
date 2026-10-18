@@ -113,7 +113,7 @@ export function Settings() {
               <RestaurantMark name={name || restaurant.name} logoUrl={logoUrl} className="size-28 text-[44px]" />
               <fieldset disabled={!canEdit} className="min-w-0 flex-1 disabled:opacity-60">
                 <Field label="Logo" hint="A square image works best. Upload one, or paste a URL below.">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2" data-tour="logo">
                     <ImageUpload target="restaurant-logo" aspect={1} label="Upload logo" onUploaded={setLogoUrl} />
                     {logoUrl && (
                       <button type="button" onClick={() => setLogoUrl('')} className="px-2 text-[13px] font-semibold text-ink-3 hover:text-ink">
@@ -153,7 +153,7 @@ export function Settings() {
           </Panel>
 
           <Panel title="Charges" hint="Applied to every order the moment it is placed" className="animate-rise [animation-delay:300ms]">
-            <fieldset disabled={!canEdit} className="grid gap-4 sm:grid-cols-2 disabled:opacity-60">
+            <fieldset disabled={!canEdit} className="grid gap-4 sm:grid-cols-2 disabled:opacity-60" data-tour="charges">
               <Field label="Service charge" hint="Percent of the subtotal.">
                 <PercentInput value={service} onChange={setService} />
               </Field>
@@ -196,7 +196,7 @@ export function Settings() {
           {canEdit && (
             <div className="flex items-center justify-between gap-3 animate-rise [animation-delay:420ms]">
               <span className="text-[13px] text-ink-4">{dirty ? 'Unsaved changes' : 'Everything saved'}</span>
-              <button type="button" className={ADMIN_PRIMARY} disabled={busy || !dirty} onClick={save}>
+              <button type="button" className={ADMIN_PRIMARY} disabled={busy || !dirty} onClick={save} data-tour="save-settings">
                 {busy ? 'Saving…' : 'Save settings'}
               </button>
             </div>

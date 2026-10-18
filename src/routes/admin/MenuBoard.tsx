@@ -89,7 +89,7 @@ export function MenuBoard() {
         }
         action={
           editable && (
-            <Link to="/admin/menu/new" className={ADMIN_PRIMARY}>
+            <Link to="/admin/menu/new" className={ADMIN_PRIMARY} data-tour="add-dish">
               Add a dish
             </Link>
           )

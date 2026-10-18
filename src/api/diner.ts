@@ -1,5 +1,5 @@
 import type { CreateOrderInput, DeliverySessionResult, FloorSessionResult, ReviewDraft, StartDeliverySessionInput } from './client';
-import type { DiningSession, Dish, Menu, Order, Payment, PublicBranch, Restaurant, Review } from '../domain/types';
+import type { DiningSession, Dish, ServiceKind, Menu, Order, Payment, PublicBranch, Restaurant, Review } from '../domain/types';
 import * as mock from './client';
 import { IS_LIVE_API } from './http';
 import * as live from './live';
@@ -150,4 +150,9 @@ export function isSessionOpen(session: DiningSession): Promise<boolean> {
 export function subscribeToSessionEnd(session: DiningSession, onEnded: () => void): () => void {
   if (!IS_LIVE_API) return () => {};
   return live.subscribeToSessionEnd(session, onEnded);
+}
+
+/** Live backend only — the offline demo has no staff to call, so the buttons are hidden there (`IS_LIVE_API`). */
+export function requestService(session: DiningSession, kind: ServiceKind): Promise<void> {
+  return live.requestService(session.anonymousSessionToken, kind);
 }

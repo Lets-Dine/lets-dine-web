@@ -38,10 +38,61 @@ export const updateIngredient = (id: string, patch: Partial<Pick<Ingredient, 'na
   apiRequest<Ingredient>(`${BASE}/ingredients/${id}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(patch) });
 
 /** `receivedAt` (ISO) is for a delivery entered after the day it arrived; left out, it is now. */
-export const receiveDelivery = (id: string, draft: { quantity: number; supplier: string; cost: Minor; method: PaymentMethod; receivedAt?: string; onCredit?: boolean }) =>
+export const receiveDelivery = (id: string, draft: { quantity: number; supplier: string; cost: Minor; method: PaymentMethod; receivedAt?: string; onCredit?: boolean; expiresOn?: string }) =>
   apiRequest<Ingredient>(`${BASE}/ingredients/${id}/delivery`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(draft) });
 
-/** Takes an amount off stock by hand: for a dish, or (no `dishId`) for waste or a staff meal. `usedAt` (ISO) files it on an earlier day. */
+export type WasteReason = 'SPOILED' | 'EXPIRED' | 'SPILLED' | 'TRIM' | 'RETURNED' | 'OTHER';
+
+/** In the words a cook would use. Staff meals are not waste: they stay under "Use". */
+export const WASTE_REASONS: { value: WasteReason; label: string }[] = [
+  { value: 'SPOILED', label: 'Spoiled' },
+  { value: 'EXPIRED', label: 'Expired' },
+  { value: 'SPILLED', label: 'Spilled or dropped' },
+  { value: 'TRIM', label: 'Prep trim' },
+  { value: 'RETURNED', label: 'Sent back by a diner' },
+  { value: 'OTHER', label: 'Something else' },
+];
+export const wasteLabel = (r: string) => WASTE_REASONS.find((x) => x.value === r)?.label ?? r;
+
+export const logWaste = (id: string, draft: { quantity: number; reason: WasteReason; note?: string }) =>
+  apiRequest<Ingredient>(`${BASE}/ingredients/${id}/waste`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(draft) });
+
+export interface WasteTotals {
+  count: number;
+  /** Cost of the priced entries only. */
+  cost: Minor;
+  /** Entries whose cost could not be worked out, so `cost` is a floor when this is above zero. */
+  unpriced: number;
+}
+
+export interface WasteEntry {
+  id: string;
+  ingredientId: string;
+  ingredientName: string;
+  unit: string;
+  quantity: number;
+  reason: WasteReason;
+  cost: Minor | null;
+  note: string;
+  createdAt: string;
+}
+
+export interface WasteReport extends WasteTotals {
+  from: string;
+  to: string;
+  byReason: ({ reason: WasteReason } & WasteTotals)[];
+  byIngredient: ({ ingredientId: string; name: string; unit: string; quantity: number } & WasteTotals)[];
+  recent: WasteEntry[];
+}
+
+export const fetchWaste = (range: { from?: Date; to?: Date } = {}) => {
+  const params = new URLSearchParams();
+  if (range.from) params.set('from', range.from.toISOString());
+  if (range.to) params.set('to', range.to.toISOString());
+  return apiRequest<WasteReport>(`${BASE}/waste?${params.toString()}`, { headers: authHeaders() });
+};
+
+/** Takes an amount off stock by hand: for a dish, or (no `dishId`) for something like a staff meal. Waste goes through `logWaste`. `usedAt` (ISO) files it on an earlier day. */
 export const consumeStock = (id: string, draft: { quantity: number; dishId?: string; note?: string; usedAt?: string }) =>
   apiRequest<Ingredient>(`${BASE}/ingredients/${id}/consume`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(draft) });
 
@@ -115,7 +166,7 @@ export interface IngredientSummary {
   days: number;
   stockIn: number;
   stockOut: number;
-  lastMovement: { reason: 'DELIVERY' | 'ORDER' | 'MANUAL_USE' | 'ADJUSTMENT' | 'TRANSFER_OUT' | 'TRANSFER_IN' | 'RETURN'; delta: number; note: string; at: string } | null;
+  lastMovement: { reason: 'DELIVERY' | 'ORDER' | 'MANUAL_USE' | 'ADJUSTMENT' | 'TRANSFER_OUT' | 'TRANSFER_IN' | 'RETURN' | 'WASTE'; delta: number; note: string; at: string } | null;
   lastPurchase: { supplier: string | null; cost: Minor | null; quantity: number; at: string } | null;
 }
 
@@ -148,6 +199,19 @@ export interface BuyListItem {
   /** Minor units at the last purchase's price; null when unknown. */
   estimatedCost: Minor | null;
 }
+
+/** Stock still on the shelf with a best-before day, past it or within `days`. `expiresOn` is YYYY-MM-DD. */
+export interface ExpiringLot {
+  lotId: string;
+  ingredientId: string;
+  name: string;
+  unit: string;
+  remaining: number;
+  expiresOn: string;
+  value: Minor | null;
+}
+
+export const fetchExpiring = (days: number) => apiRequest<ExpiringLot[]>(`${BASE}/expiring?days=${days}`, { headers: authHeaders() });
 
 export const fetchBuyList = (days: number) => apiRequest<BuyListItem[]>(`${BASE}/buy-list?days=${days}`, { headers: authHeaders() });
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ComponentProps, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createDish,
@@ -14,6 +14,8 @@ import type { DishDraft } from '../../api/admin';
 import { suggestPhotos } from '../../api/dishPhotos';
 import type { LibraryPhoto } from '../../api/dishPhotos';
 import { useAsync } from '../../state/useAsync';
+import { fetchDishMargins } from '../../api/dishMargins';
+import { IS_LIVE_API } from '../../api/http';
 import { INVENTORY_ENABLED } from '../../api/inventory';
 import { AutoConsumeChoice, AutoConsumeLockedNote } from '../../components/admin/AutoConsumeChoice';
 import { planAllowsAutoStock } from '../../domain/subscription';
@@ -30,27 +32,39 @@ import {
   ADMIN_GHOST,
   ADMIN_PRIMARY,
   ADMIN_TINY,
-  CollapsiblePanel as KitCollapsiblePanel,
   Confirm,
   Field,
   Metric,
   MoneyInput,
-  Panel as KitPanel,
   Select,
   TextArea,
   TextInput,
   Toggle,
   useCommand,
 } from '../../components/admin/kit';
-import { Check, ChevronLeft, Plus, X } from '../../components/icons';
-import { FloatingBar, Num, TiltCard, useAway, useCountUp } from '../../components/admin/profile';
+import { Check, ChevronLeft, ChevronRight, Plus, X } from '../../components/icons';
+import { Block, FloatingBar, Num, TiltCard, useAway, useCountUp } from '../../components/admin/profile';
 import { DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
-/** The form's panels, in the profile pages' softer, rounder material. */
-const SOFT = 'rounded-3xl bg-surface text-ink animate-rise';
-const Panel = (p: ComponentProps<typeof KitPanel>) => <KitPanel {...p} className={cx(SOFT, p.className)} />;
-const CollapsiblePanel = (p: ComponentProps<typeof KitCollapsiblePanel>) => <KitCollapsiblePanel {...p} className={cx(SOFT, p.className)} />;
+/** The form's panels: the customer profile's `Block` material, so both pages share one type and section scale. */
+const Panel = ({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) => (
+  <Block title={title} hint={hint}>
+    {children}
+  </Block>
+);
+const CollapsiblePanel = ({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) => (
+  <details className="group animate-rise rounded-3xl bg-surface px-5 py-5 ring-1 ring-hairline ring-inset sm:px-6">
+    <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+      <h2 className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 text-[17px] font-semibold tracking-tight">
+        {title}
+        {hint && <span className="text-[12.5px] font-normal text-ink-3">{hint}</span>}
+      </h2>
+      <ChevronRight size={14} className="shrink-0 text-ink-4 transition-transform duration-150 group-open:rotate-90" />
+    </summary>
+    <div className="mt-4">{children}</div>
+  </details>
+);
 
 /** The dish as a diner will meet it: a card that previews what is typed, and the headline numbers beside it. */
 function DishHero({
@@ -186,6 +200,8 @@ export function DishEditor() {
   const act = (key: string, action: () => Promise<unknown>, message: string) => void run(key, action, message).then(reloadMenu);
 
   const existing = dishId === 'new' ? null : menu.dishes.find((d) => d.id === dishId);
+  // What the recipe costs at today's purchase prices — only the owner's view of costs, so a role without it just gets no hint.
+  const recipeCost = useAsync(() => (IS_LIVE_API && existing && allows('inventory:view') ? fetchDishMargins().then((m) => m.rows.find((r) => r.dishId === existing.id)?.recipeCost ?? null) : Promise.resolve(null)), [existing?.id]).data;
   const isNew = dishId === 'new';
 
   const [draft, setDraft] = useState<DishDraft>(() => ({
@@ -236,8 +252,8 @@ export function DishEditor() {
 
   if (!isNew && !existing)
     return (
-      <Panel>
-        <p className="py-8 text-center text-[14px] text-ink-3">
+      <Panel title="Dish not found">
+        <p className="py-4 text-center text-[14px] text-ink-3">
           That dish is no longer on the menu.{' '}
           <Link to="/admin/menu" className="font-semibold text-flame-1">
             Back to the menu
@@ -308,8 +324,8 @@ export function DishEditor() {
         onSave={save}
       />
 
-      <div className="mt-8 grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
-        <div className="grid gap-2">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.3fr_1fr] lg:items-start">
+        <div className="grid gap-6">
           <Panel title="Details">
             <div className="grid gap-4">
               <Field label="Name">
@@ -335,7 +351,7 @@ export function DishEditor() {
                   />
                 </Field>
                 {variantCount === 0 && (
-                  <Field label="Price" hint={allows('menu:price') ? 'Changing this is written to the audit log.' : undefined}>
+                  <Field label="Price" hint={[recipeCost != null && draft.price > 0 ? `Costs about ${formatMoney(recipeCost, menu.restaurant.currency)} to make — ${Math.round(((draft.price - recipeCost) / draft.price) * 100)}% margin at this price.` : null, allows('menu:price') ? 'Changing this is written to the audit log.' : null].filter(Boolean).join(' ') || undefined}>
                     <MoneyInput value={draft.price} onChange={(v) => patch('price', v)} currency={menu.restaurant.currency} />
                   </Field>
                 )}
@@ -707,7 +723,7 @@ export function DishEditor() {
           )}
         </div>
 
-        <div className="grid gap-4">
+        <div className="grid gap-6">
           <Panel title="On the menu">
             <Toggle
               checked={draft.isAvailable}

@@ -1,4 +1,4 @@
-import type { BillLine, PaymentRefund, PaymentStatus, PaymentTender } from '../domain/types';
+import type { BillLine, PaymentRefund, PaymentStatus, PaymentTender, ServiceKind, ServiceRequest } from '../domain/types';
 import type { AddOnDraft, DishDraft, ItemOptions, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
@@ -1168,10 +1168,14 @@ export async function completePayment(
   customerId?: string | null,
   /** Leaves the bill unpaid as a receivable on the customer — needs one. No method is sent, so nothing is collected. */
   credit = false,
+  /** With `credit`: money taken now by `method`, the rest left owed. Held to the bill's total server-side. */
+  paidNow = 0,
+  /** With `credit`: days until the rest is due. Omitted, the bill counts as due the day it was made. */
+  dueInDays?: number,
 ): Promise<Payment> {
   // One key per distinct bill, kept until it lands: a retry after a dropped response (or a double-tap) sends the same key and
   // gets the first bill back, where a fresh key per call would bill again.
-  const fingerprint = JSON.stringify([sessionId, orderId, items, credit ? 'CREDIT' : method, discount, endSession, redeemPoints, customerId]);
+  const fingerprint = JSON.stringify([sessionId, orderId, items, credit ? 'CREDIT' : method, paidNow, discount, endSession, redeemPoints, customerId]);
   const idempotencyKey = pendingBillKeys.get(fingerprint) ?? randomId();
   pendingBillKeys.set(fingerprint, idempotencyKey);
   const payment = await apiRequest<ApiPayment>('/restaurant/payments', {
@@ -1183,6 +1187,8 @@ export async function completePayment(
       items,
       method: credit ? undefined : method,
       credit: credit || undefined,
+      dueDate: credit && dueInDays ? new Date(Date.now() + dueInDays * 86_400_000).toISOString() : undefined,
+      tenders: credit && paidNow > 0 ? [{ method, amount: paidNow }] : undefined,
       discount,
       endSession,
       redeemPoints: redeemPoints || undefined,
@@ -1345,6 +1351,34 @@ export function subscribeToTables(onUpdated: (table: DiningTable) => void, onRes
   return () => {
     socket.off('table.updated', handleUpdated);
     leaveRoom();
+  };
+}
+
+/* ── Waiter / bill requests ──────────────────────────────────── */
+
+/** Every open visit on this branch that is waiting on a waiter or the bill. */
+export function listServiceRequests(): Promise<ServiceRequest[]> {
+  return apiRequest<ServiceRequest[]>('/restaurant/service-requests', { headers: authHeaders() });
+}
+
+/** "On my way" / "bill brought" — drops that one ask; the visit stays listed if it still has the other. */
+export async function clearServiceRequest(sessionId: string, kind: ServiceKind): Promise<ServiceRequest> {
+  return apiRequest<ServiceRequest>(`/restaurant/service-requests/${encodeURIComponent(sessionId)}/${kind}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+}
+
+/** Rides the pass's own room (`subscribe:queue`), so it needs no join of its own — only the listener. */
+export function subscribeToServiceRequests(onChange: (request: ServiceRequest) => void, onResync: () => void): () => void {
+  const socket = getSocket();
+  // The queue room's own ack fires on every (re)join, so a reconnect refetches what it missed.
+  const handleOk = (ack: { scope?: string }) => ack?.scope === 'queue' && onResync();
+  socket.on('service.requested', onChange);
+  socket.on('subscribe:ok', handleOk);
+  return () => {
+    socket.off('service.requested', onChange);
+    socket.off('subscribe:ok', handleOk);
   };
 }
 

@@ -24,6 +24,9 @@ export const IS_LIVE_API = API_BASE_URL.length > 0;
  */
 export const AUTH_EXPIRED_EVENT = 'lets-dine:auth-expired';
 
+/** Fired after any write succeeds, so anything derived from server data (the setup guide) can re-read it. */
+export const DATA_CHANGED_EVENT = 'lets-dine:data-changed';
+
 /** `{ data, message }` on success — the envelope every endpoint answers with. */
 interface SuccessEnvelope<T> {
   data: T;
@@ -73,6 +76,10 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
       error?.key,
       error?.details,
     );
+  }
+
+  if (init.method && init.method !== 'GET' && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
   }
 
   return (body as SuccessEnvelope<T>).data;

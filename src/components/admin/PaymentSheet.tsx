@@ -84,6 +84,10 @@ interface PendingBillChanges {
   customerId?: string | null;
   /** Leave the whole bill owed by the customer instead of taking money now. */
   credit?: boolean;
+  /** With `credit`: taken now by `method`; the rest stays owed. */
+  paidNow?: number;
+  /** With `credit`: days until the rest is due; left out, it counts from the bill date. */
+  dueInDays?: number;
 }
 
 /** What's actually being charged, frozen the moment "Take payment" is tapped — so an in-flight QR
@@ -104,7 +108,7 @@ function lineKey(line: { dishId: string; variantId: string | null; addOnIds: str
   return `${line.dishId}|${line.variantId ?? ''}|${[...line.addOnIds].sort().join(',')}`;
 }
 
-type PayStep = 'bill' | 'method' | 'qr' | 'done';
+type PayStep = 'bill' | 'method' | 'credit' | 'qr' | 'done';
 
 export function PaymentSheet({
   table,
@@ -162,6 +166,11 @@ export function PaymentSheet({
   const [committed, setCommitted] = useState<CommittedBill | null>(null);
   const [qrPayload, setQrPayload] = useState<string | null>(null);
   const [qrProgress, setQrProgress] = useState(false);
+  // Credit with part paid up front: the amount (minor units), its text, and how it was taken.
+  const [paidNow, setPaidNow] = useState(0);
+  const [paidNowText, setPaidNowText] = useState('');
+  const [paidNowQr, setPaidNowQr] = useState(false);
+  const [dueInDays, setDueInDays] = useState<number | null>(14);
 
   // The customer the server will spend points for: the most recent order that has one (it reads the session's orders newest first).
   const orderCustomerId = [...orders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).find((o) => o.customerId)?.customerId ?? null;
@@ -190,6 +199,10 @@ export function PaymentSheet({
     setCommitted(null);
     setQrPayload(null);
     setQrProgress(false);
+    setPaidNow(0);
+    setPaidNowText('');
+    setPaidNowQr(false);
+    setDueInDays(14);
   }, [table?.id]);
 
   // `onSettle` runs the real mutation and is closed over freshly every render — a ref keeps the
@@ -199,8 +212,10 @@ export function PaymentSheet({
     setMethod(chosenMethod);
     const ok = await onSettle({
       items: committed.items,
-      method: chosenMethod === 'qr' ? 'QR' : 'CASH',
+      method: chosenMethod === 'qr' || (chosenMethod === 'credit' && paidNowQr) ? 'QR' : 'CASH',
       credit: chosenMethod === 'credit',
+      dueInDays: chosenMethod === 'credit' && dueInDays ? dueInDays : undefined,
+      paidNow: chosenMethod === 'credit' ? Math.min(paidNow, committed.totals.total - 1) : undefined,
       discount: committed.manualDiscount,
       redeemPoints: committed.redeemPoints,
       endSession: true,
@@ -208,7 +223,7 @@ export function PaymentSheet({
     });
     // A refusal may mean the balance moved: read it again so the next try starts from what is true.
     if (!ok) loyalty.reload();
-    setStep(ok ? 'done' : 'method');
+    setStep(ok ? 'done' : chosenMethod === 'credit' ? 'credit' : 'method');
   };
   const finalizeRef = useRef(finalize);
   finalizeRef.current = finalize;
@@ -228,6 +243,9 @@ export function PaymentSheet({
 
   if (!table) return null;
 
+  // Who would owe a credit: the cashier's pick if made, else the orders' own customer.
+  const owedBy = committed ? (committed.customerId === undefined ? customerId : committed.customerId) : null;
+  const owedByName = customerName ?? committed?.customerName ?? null;
   const currency = orders[0]?.currency ?? '';
   // Adds always land on the table's single most recent order, whatever its status — matches the backend.
   const latestOrder = [...orders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
@@ -690,7 +708,7 @@ export function PaymentSheet({
 
             <div className="flex flex-col items-center gap-1 py-1 text-center">
               <span className="text-[10px] tracking-[0.14em] text-[oklch(0.463_0.031_74)] uppercase">
-                {table.name} · amount due
+                {table.name} · total due
               </span>
               <span className={cx(DISPLAY, 'text-[34px] leading-none font-black tnum text-[oklch(0.232_0.019_70)]')}>
                 {formatMoney(committed.totals.total, committed.totals.currency)}
@@ -706,7 +724,7 @@ export function PaymentSheet({
               >
                 <Cash size={26} />
                 <span className="text-[13px] font-bold tracking-wide uppercase">
-                  {busy && method === 'cash' ? 'Processing…' : 'Cash'}
+                  {busy && method === 'cash' ? 'Processing…' : 'Paid in cash'}
                 </span>
               </button>
               {/* QR: the guest paid by scanning the restaurant's own QR; staff just record it, and it settles as a card payment. */}
@@ -718,23 +736,20 @@ export function PaymentSheet({
               >
                 <Qr size={26} />
                 <span className="text-[13px] font-bold tracking-wide uppercase">
-                  {busy && method === 'qr' ? 'Processing…' : 'QR'}
+                  {busy && method === 'qr' ? 'Processing…' : 'Paid by QR'}
                 </span>
               </button>
-              {/* On credit: nothing is taken now; the bill stays owed by this customer and is settled from Sales. Needs someone to owe it. */}
-              {committed.customerId && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void finalize('credit')}
-                  className="col-span-2 flex items-center justify-center gap-2 rounded-2xl py-4 text-[oklch(0.232_0.019_70)] ring-1 ring-[oklch(0.232_0.019_70)]/25 transition-move active:scale-[0.98] disabled:opacity-40"
-                >
-                  <Receipt size={20} />
-                  <span className="text-[13px] font-bold tracking-wide uppercase">
-                    {busy && method === 'credit' ? 'Recording…' : `On credit — ${committed.customerName ?? 'customer'} owes it`}
-                  </span>
-                </button>
-              )}
+              {/* Credit has its own step: the cashier either settles now (above) or leaves some of it owed (next screen). */}
+              <button
+                type="button"
+                disabled={busy || !owedBy}
+                onClick={() => setStep('credit')}
+                className="col-span-2 flex items-center justify-center gap-2 rounded-2xl py-4 text-[oklch(0.232_0.019_70)] ring-1 ring-[oklch(0.232_0.019_70)]/25 transition-move active:scale-[0.98] disabled:opacity-40"
+              >
+                <Receipt size={20} />
+                <span className="text-[13px] font-bold tracking-wide uppercase">Pay later / on credit</span>
+              </button>
+              {!owedBy && <p className="col-span-2 -mt-1 text-center text-[11.5px] text-[oklch(0.463_0.031_74)]">Credit needs a customer — go back and add one to the bill.</p>}
               {/* Scan to pay (generated QR with a waiting step), off for now:
               <button
                 type="button"
@@ -750,6 +765,110 @@ export function PaymentSheet({
                 <span className="text-[13px] font-bold tracking-wide uppercase">Scan to pay</span>
               </button>
               */}
+            </div>
+          </div>
+        )}
+
+        {step === 'credit' && committed && owedBy && (
+          <div className="flex flex-col gap-5 py-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setStep('method')}
+              className="flex w-fit items-center gap-1 text-[11px] font-bold tracking-wide text-[oklch(0.463_0.031_74)] uppercase active:translate-y-px disabled:opacity-40"
+            >
+              <ChevronLeft size={14} /> Back to payment methods
+            </button>
+
+            <div className="flex flex-col items-center gap-1 py-1 text-center">
+              <span className="text-[10px] tracking-[0.14em] text-[oklch(0.463_0.031_74)] uppercase">{owedByName ?? 'Customer'} · on credit</span>
+              <span className={cx(DISPLAY, 'text-[34px] leading-none font-black tnum text-[oklch(0.232_0.019_70)]')}>
+                {formatMoney(committed.totals.total, committed.totals.currency)}
+              </span>
+              <span className="mt-1 text-[12px] text-[oklch(0.463_0.031_74)]">How much are they paying today? Leave it empty to owe all of it.</span>
+            </div>
+
+            <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Amount paid now</span>
+                <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[13px] font-semibold text-[oklch(0.463_0.031_74)]">{symbolFor(committed.totals.currency)}</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={paidNowText}
+                  placeholder="Paid now, e.g. 500"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/[^0-9.]/g, '');
+                    const cents = Math.max(0, Math.round((Number.parseFloat(next) || 0) * 100));
+                    // Paying the whole bill is not credit; hold it just under.
+                    const capped = Math.min(cents, committed.totals.total - 1);
+                    setPaidNow(capped);
+                    setPaidNowText(capped < cents ? (capped / 100).toFixed(2) : next);
+                  }}
+                  className="w-full rounded-full bg-[oklch(0.879_0.033_85)] py-3 pr-3 pl-9 text-[14px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none placeholder:font-normal placeholder:text-[oklch(0.463_0.031_74)]/70 disabled:opacity-40"
+                />
+              </label>
+              <div role="radiogroup" aria-label="Paid now by" className="flex shrink-0 rounded-full bg-[oklch(0.879_0.033_85)] p-1">
+                {(['Cash', 'QR'] as const).map((m) => {
+                  const on = (m === 'QR') === paidNowQr;
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      disabled={busy}
+                      onClick={() => setPaidNowQr(m === 'QR')}
+                      className={cx('rounded-full px-3.5 py-2 text-[12px] font-bold disabled:opacity-40', on ? 'bg-[oklch(0.232_0.019_70)] text-[oklch(0.943_0.024_85)]' : 'text-[oklch(0.463_0.031_74)]')}
+                    >
+                      {m}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div role="radiogroup" aria-label="Rest is due" className="flex flex-wrap items-center gap-2">
+              <span className="text-[12px] font-semibold text-[oklch(0.463_0.031_74)]">Rest is due</span>
+              {([7, 14, 30, null] as const).map((d) => {
+                const on = dueInDays === d;
+                return (
+                  <button
+                    key={String(d)}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    disabled={busy}
+                    onClick={() => setDueInDays(d)}
+                    className={cx('rounded-full px-3.5 py-2 text-[12px] font-bold disabled:opacity-40', on ? 'bg-[oklch(0.232_0.019_70)] text-[oklch(0.943_0.024_85)]' : 'bg-[oklch(0.879_0.033_85)] text-[oklch(0.463_0.031_74)]')}
+                  >
+                    {d === null ? 'No date' : `In ${d} days`}
+                  </button>
+                );
+              })}
+            </div>
+            <dl className="space-y-1 text-[12px] text-[oklch(0.463_0.031_74)]">
+              <div className="flex items-baseline justify-between">
+                <dt>Paid now{paidNow > 0 ? ` by ${paidNowQr ? 'QR' : 'cash'}` : ''}</dt>
+                <dd className="tnum font-bold text-[oklch(0.232_0.019_70)]">{formatMoney(paidNow, committed.totals.currency)}</dd>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <dt>On credit</dt>
+                <dd className="tnum font-bold text-[oklch(0.539_0.163_36)]">{formatMoney(committed.totals.total - paidNow, committed.totals.currency)}</dd>
+              </div>
+            </dl>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void finalize('credit')}
+              className="flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[oklch(0.232_0.019_70)] ring-1 ring-[oklch(0.232_0.019_70)]/30 transition-move active:scale-[0.98] disabled:opacity-40"
+            >
+              <Receipt size={18} />
+              <span className="text-[13px] font-bold tracking-wide">
+                {busy && method === 'credit' ? 'Recording…' : paidNow > 0 ? `Take ${formatMoney(paidNow, committed.totals.currency)}, put the rest on credit` : 'Put all of it on credit'}
+              </span>
+            </button>
             </div>
           </div>
         )}
@@ -804,7 +923,7 @@ export function PaymentSheet({
             <div>
               <h3 className={cx(DISPLAY, 'text-[24px] font-black text-[oklch(0.232_0.019_70)]')}>Payment successful</h3>
               <p className="mt-1 text-[12.5px] text-[oklch(0.463_0.031_74)]">
-                {method === 'cash' ? 'Collected in cash' : method === 'credit' ? 'Left on credit, nothing collected' : 'Paid by QR'} ·{' '}
+                {method === 'cash' ? 'Collected in cash' : method === 'credit' ? (paidNow > 0 ? `${formatMoney(paidNow, committed.totals.currency)} collected, rest on credit` : 'Left on credit, nothing collected') : 'Paid by QR'} ·{' '}
                 {formatMoney(committed.totals.total, committed.totals.currency)}
               </p>
             </div>
@@ -815,7 +934,7 @@ export function PaymentSheet({
                 onClick={() =>
                   printReceipt(table, committed.lines, committed.totals, { name: restaurantName, vatPanNumber }, {
                     method: method === 'qr' ? 'QR' : 'CASH',
-                    label: method === 'credit' ? 'On credit — unpaid' : undefined,
+                    label: method === 'credit' ? (paidNow > 0 ? 'Part paid — rest on credit' : 'On credit — unpaid') : undefined,
                     takenBy: staff.name,
                   }, committed.customerName)
                 }

@@ -1,5 +1,5 @@
 import { addCustomer, listCustomers as sampleCustomers, toListItem } from '../data/customers';
-import type { NewCustomer } from '../data/customers';
+import type { NewCustomer, PendingOrder } from '../data/customers';
 import type { CustomerListItem, CustomerSegment } from '../domain/types';
 import { IS_LIVE_API, apiRequest } from './http';
 import type { Paginated } from './http';
@@ -119,3 +119,43 @@ export async function fetchLoyaltyProgram(): Promise<LoyaltyProgram> {
 export async function saveLoyaltyProgram(program: LoyaltyProgram): Promise<LoyaltyProgram> {
   return apiRequest<LoyaltyProgram>('/restaurant/loyalty/program', { method: 'PUT', headers: authHeaders(), body: JSON.stringify(program) });
 }
+
+/** What the restaurant knows about one customer beyond the list row. Live backend only; name and phone are the diner's own and are not editable. */
+export interface CustomerProfile {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  /** `YYYY-MM-DD`, or empty. */
+  birthday: string;
+  tags: string[];
+  notes: string;
+  offersOk: boolean;
+  /** Their most-ordered dishes, worked out from their orders. */
+  favourites: string[];
+}
+
+/** The customer's newest order the kitchen has not finished with, or null. */
+export async function fetchPendingOrder(customerId: string): Promise<PendingOrder | null> {
+  const params = new URLSearchParams({ customerId, limit: '1' });
+  for (const s of ['PENDING', 'ACCEPTED', 'PREPARING', 'READY']) params.append('status', s);
+  const page = await apiRequest<Paginated<{ id: string; status: PendingOrder['status']; tableName: string | null; total: number; createdAt: string; items: { dishNameSnapshot: string; quantity: number; status: string }[] }>>(
+    `/restaurant/orders?${params.toString()}`,
+    { headers: authHeaders() },
+  );
+  const o = page.rows[0];
+  if (!o) return null;
+  return {
+    id: o.id,
+    table: o.tableName ?? 'Delivery',
+    status: o.status,
+    minsAgo: Math.max(0, Math.round((Date.now() - Date.parse(o.createdAt)) / 60_000)),
+    total: o.total,
+    items: o.items.filter((i) => i.status !== 'CANCELLED').map((i) => `${i.dishNameSnapshot} ×${i.quantity}`),
+  };
+}
+
+export const fetchCustomerProfile = (id: string) => apiRequest<CustomerProfile>(`/restaurant/customers/${encodeURIComponent(id)}`, { headers: authHeaders() });
+
+export const updateCustomerProfile = (id: string, patch: Partial<Pick<CustomerProfile, 'email' | 'birthday' | 'tags' | 'notes' | 'offersOk'>>) =>
+  apiRequest<CustomerProfile>(`/restaurant/customers/${encodeURIComponent(id)}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(patch) });

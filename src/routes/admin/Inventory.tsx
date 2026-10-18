@@ -7,22 +7,25 @@ import {
   consumeStock,
   fetchIngredientSummary,
   fetchIngredientUsage,
+  fetchExpiring,
   fetchIngredients,
   fetchPurchases,
+  logWaste,
   fetchReturnableLots,
   formatQty,
+  WASTE_REASONS,
   receiveDelivery,
   returnStock,
   stockState,
   transferStock,
   updateIngredient,
 } from '../../api/inventory';
-import type { Ingredient, IngredientSummary, StockState } from '../../api/inventory';
+import type { Ingredient, IngredientSummary, StockState, WasteReason } from '../../api/inventory';
 import { ADMIN_GHOST, ADMIN_PRIMARY, Confirm, Field, INPUT_BOX, MoneyInput, PageTitle, Panel, Segmented, Select, TextInput, useCommand } from '../../components/admin/kit';
 import { Num } from '../../components/admin/profile';
 import { QtyField } from '../../components/admin/QtyField';
 import { useDiscardBack } from '../../components/admin/useDiscardBack';
-import { Bell, Box, ChevronLeft, ChevronRight, History, Minus, Plus, Search, Send, Sliders, X } from '../../components/icons';
+import { Alert, Bell, Box, ChevronLeft, ChevronRight, History, Minus, Plus, Search, Send, Sliders, X } from '../../components/icons';
 import { DISPLAY, cx } from '../../components/ui';
 import { formatMoney } from '../../domain/money';
 import { fetchSuppliers, priceLabel } from '../../api/suppliers';
@@ -61,7 +64,7 @@ const STATE_COPY: Record<StockState, { label: string; pill: string; bar: string;
   },
 };
 
-type Tool = 'receive' | 'consume' | 'recount' | 'transfer' | 'return' | 'edit';
+type Tool = 'receive' | 'consume' | 'waste' | 'recount' | 'transfer' | 'return' | 'edit';
 
 /** The four things you can do to an ingredient, each said in the words a cook would use. */
 const TOOLS: Record<Tool, { short: string; title: string; blurb: string; Icon: typeof Box; detail: string }> = {
@@ -75,9 +78,16 @@ const TOOLS: Record<Tool, { short: string; title: string; blurb: string; Icon: t
   consume: {
     short: 'Use',
     title: 'Use stock',
-    blurb: 'Take some off for a dish, waste or a staff meal',
+    blurb: 'Take some off for a dish or a staff meal',
     Icon: Minus,
-    detail: 'Take an amount off stock by hand, for a dish or for something else like waste or a staff meal. It shows in the consumption list.',
+    detail: 'Take an amount off stock by hand, for a dish or for something else like a staff meal. For spoiled or thrown-away stock use Waste instead. It shows in the consumption list.',
+  },
+  waste: {
+    short: 'Waste',
+    title: 'Throw away',
+    blurb: 'Spoiled, expired or spilled',
+    Icon: Alert,
+    detail: 'Throw some away and say why. It is priced from the delivery it came from and shows in the waste report.',
   },
   recount: {
     short: 'Recount',
@@ -131,6 +141,8 @@ function describeMovement(m: NonNullable<IngredientSummary['lastMovement']>, nam
       return `${amount} of ${name} was used for a dish.`;
     case 'MANUAL_USE':
       return `${amount} of ${name} was taken off by hand.`;
+    case 'WASTE':
+      return `${amount} of ${name} was thrown away.`;
     case 'TRANSFER_IN':
       return `${amount} of ${name} arrived from another branch.`;
     case 'RETURN':
@@ -421,6 +433,7 @@ export function Inventory() {
   const list = useAsync(fetchIngredients, []);
   // Suggestions for the delivery form's supplier box; it stays a free-text field if this can't load.
   const suppliers = useAsync(() => fetchSuppliers().catch(() => []), []);
+  const expiring = useAsync(() => fetchExpiring(3).catch(() => []), []);
   const canManage = allows('inventory:manage');
   const currency = menu.restaurant.currency;
   // Other branches this person can send stock to; none means no "Send to branch" action.
@@ -451,6 +464,7 @@ export function Inventory() {
         setOpen(null);
         list.reload();
         suppliers.reload();
+        expiring.reload();
       }
       return ok;
     });
@@ -526,6 +540,32 @@ export function Inventory() {
             )}
           </div>
 
+          {(expiring.data?.length ?? 0) > 0 && (
+            <Panel title="Use or bin soon" className="mb-4">
+              <ul className="divide-y divide-hairline">
+                {expiring.data?.map((l) => {
+                  const gone = l.expiresOn < localDay();
+                  const label = gone ? 'Expired' : l.expiresOn === localDay() ? 'Expires today' : `Expires ${dayOnly.format(new Date(`${l.expiresOn}T12:00:00`))}`;
+                  return (
+                    <li key={l.lotId} className="flex items-baseline justify-between gap-3 py-2 text-[13.5px]">
+                      <span className="min-w-0 truncate">
+                        <span className="font-semibold">{l.name}</span> · {formatQty(l.remaining, l.unit)}
+                      </span>
+                      <span className="flex shrink-0 items-baseline gap-3">
+                        <span className={gone ? 'font-semibold text-berry-ink' : 'text-ink-3'}>{label}</span>
+                        {canManage && (
+                          <button type="button" className="font-semibold underline" onClick={() => setOpen({ id: l.ingredientId, tool: 'waste' })}>
+                            Throw away
+                          </button>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Panel>
+          )}
+
           {visible.length === 0 ? (
             <Panel>
               <p className="py-4 text-center text-[13.5px] text-ink-3">No ingredient matches “{query.trim()}”.</p>
@@ -560,6 +600,7 @@ export function Inventory() {
           dishes={menu.dishes.filter((d) => !d.isArchived).map((d) => ({ id: d.id, name: d.name }))}
           onReceive={(d) => act(openIng, () => receiveDelivery(openIng.id, d), `${openIng.name} restocked`)}
           onConsume={(d) => act(openIng, () => consumeStock(openIng.id, d), `${openIng.name} used`)}
+          onWaste={(d) => act(openIng, () => logWaste(openIng.id, d), `${openIng.name} thrown away`)}
           onRecount={(qty) => act(openIng, () => adjustStock(openIng.id, qty, ''), `${openIng.name} corrected`)}
           onTransfer={(toBranchId, qty, where) => act(openIng, () => transferStock(openIng.id, toBranchId, qty), `${openIng.name} sent to ${where}`)}
           onReturn={(d, supplier) => act(openIng, () => returnStock(openIng.id, d), `${openIng.name} sent back to ${supplier}`)}
@@ -803,6 +844,7 @@ function IngredientSheet({
   onClose,
   onReceive,
   onConsume,
+  onWaste,
   onRecount,
   onTransfer,
   onReturn,
@@ -817,8 +859,9 @@ function IngredientSheet({
   dishes: { id: string; name: string }[];
   busy: boolean;
   onClose: () => void;
-  onReceive: (d: { quantity: number; supplier: string; cost: Minor; method: PaymentMethod; receivedAt?: string; onCredit?: boolean }) => void;
+  onReceive: (d: { quantity: number; supplier: string; cost: Minor; method: PaymentMethod; receivedAt?: string; onCredit?: boolean; expiresOn?: string }) => void;
   onConsume: (d: { quantity: number; dishId?: string; note?: string; usedAt?: string }) => void;
+  onWaste: (d: { quantity: number; reason: WasteReason; note?: string }) => void;
   onRecount: (quantity: number) => void;
   onTransfer: (toBranchId: string, quantity: number, branchName: string) => void;
   onReturn: (d: { lotId: string; quantity: number; refund: Minor; method: PaymentMethod; note: string }, supplier: string) => Promise<boolean>;
@@ -845,15 +888,18 @@ function IngredientSheet({
   const [priceKey, setPriceKey] = useState(0);
   const today = localDay();
   const [arrivedOn, setArrivedOn] = useState(today);
+  const [expiresOn, setExpiresOn] = useState('');
   const [usedOn, setUsedOn] = useState(today);
   const [usedFor, setUsedFor] = useState('');
   const [reason, setReason] = useState('');
+  const [wasteWhy, setWasteWhy] = useState<WasteReason>('SPOILED');
+  const [wasteNote, setWasteNote] = useState('');
   const summary = useAsync(() => fetchIngredientSummary(ing.id).catch(() => null), [ing.id]);
   const state = stockState(ing);
   const copy = STATE_COPY[state];
   // Counted in kg or L on the jar, so the forms start in kg or L too.
   const big = ing.unit !== 'pcs' && Math.max(ing.quantity, ing.parLevel) >= 1000;
-  const tools = (Object.keys(TOOLS) as Tool[]).filter((t) => (t !== 'transfer' || (branches.length > 0 && ing.quantity > 0)) && (t !== 'consume' || ing.quantity > 0) && (t !== 'return' || ing.quantity > 0));
+  const tools = (Object.keys(TOOLS) as Tool[]).filter((t) => (t !== 'transfer' || (branches.length > 0 && ing.quantity > 0)) && (t !== 'consume' || ing.quantity > 0) && (t !== 'waste' || ing.quantity > 0) && (t !== 'return' || ing.quantity > 0));
 
   // Each form's quantity field starts empty, so the remembered number has to as well.
   const go = (next: 'home' | Tool) => {
@@ -983,6 +1029,7 @@ function IngredientSheet({
                           cost,
                           method,
                           onCredit: onCredit && cost > 0 && supplier.trim() !== '',
+                          expiresOn: expiresOn || undefined,
                           // Today means now; an earlier day is filed at midday, so it lands inside that day.
                           receivedAt: arrivedOn && arrivedOn < today ? new Date(`${arrivedOn}T12:00:00`).toISOString() : undefined,
                         });
@@ -991,6 +1038,9 @@ function IngredientSheet({
                     <div className="grid gap-x-3 gap-y-3.5 sm:grid-cols-2">
                       <Field label="How much arrived">
                         <QtyField unit={ing.unit} onChange={setQty} big={big} />
+                      </Field>
+                      <Field label="Best before (optional)">
+                        <input type="date" value={expiresOn} min={arrivedOn} onChange={(e) => setExpiresOn(e.target.value)} className={cx(INPUT_BOX, 'tnum')} />
                       </Field>
                       <Field label="Date received">
                         <input type="date" value={arrivedOn} max={today} onChange={(e) => setArrivedOn(e.target.value || today)} className={cx(INPUT_BOX, 'tnum')} />
@@ -1086,7 +1136,7 @@ function IngredientSheet({
                       </Field>
                       {!usedFor && (
                         <Field label="What for">
-                          <TextInput value={reason} onChange={setReason} maxLength={200} placeholder="Spoiled, staff meal…" />
+                          <TextInput value={reason} onChange={setReason} maxLength={200} placeholder="Staff meal, tasting…" />
                         </Field>
                       )}
                     </div>
@@ -1100,6 +1150,40 @@ function IngredientSheet({
                     <div className={SHEET_FOOT}>
                       <button type="submit" disabled={busy || !qty || qty > ing.quantity} className={FOOT_PRIMARY}>
                         {qty ? `Use ${formatQty(qty, ing.unit)}` : 'Use stock'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {view === 'waste' && (
+                  <form
+                    className="grid gap-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (qty && qty <= ing.quantity) onWaste({ quantity: qty, reason: wasteWhy, note: wasteNote.trim() });
+                    }}
+                  >
+                    <div className="grid gap-x-3 gap-y-3.5 sm:grid-cols-2">
+                      <Field label="How much was thrown away">
+                        <QtyField unit={ing.unit} onChange={setQty} big={big} />
+                      </Field>
+                      <Field label="Why">
+                        <Select value={wasteWhy} onChange={(v) => setWasteWhy(v as WasteReason)} options={WASTE_REASONS} />
+                      </Field>
+                      <Field label="Note (optional)" className="sm:col-span-2">
+                        <TextInput value={wasteNote} onChange={setWasteNote} maxLength={200} placeholder="Left out overnight, dropped tray…" />
+                      </Field>
+                    </div>
+                    {qty ? (
+                      <Outcome tone={qty > ing.quantity ? 'warn' : 'info'}>
+                        {qty > ing.quantity
+                          ? `You only have ${formatQty(ing.quantity, ing.unit)}. Throw away less.`
+                          : `${ing.name} goes from ${formatQty(ing.quantity, ing.unit)} to ${formatQty(ing.quantity - qty, ing.unit)}. It is priced from the delivery it came from and shows in the waste report.`}
+                      </Outcome>
+                    ) : null}
+                    <div className={SHEET_FOOT}>
+                      <button type="submit" disabled={busy || !qty || qty > ing.quantity} className={FOOT_PRIMARY}>
+                        {qty ? `Throw away ${formatQty(qty, ing.unit)}` : 'Throw away'}
                       </button>
                     </div>
                   </form>

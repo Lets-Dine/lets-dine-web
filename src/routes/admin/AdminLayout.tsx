@@ -8,6 +8,7 @@ import type { Permission } from '../../domain/permissions';
 import type { Menu, Order } from '../../domain/types';
 import { needsAttention } from '../../domain/subscription';
 import { useAuth, useStaff } from '../../state/AuthContext';
+import { SetupGuide } from '../../components/admin/SetupGuide';
 import { SubscriptionProvider, useSubscription } from '../../state/SubscriptionContext';
 import { AdminThemeToggle } from '../../state/AdminTheme';
 import { usePageTitle } from '../../state/usePageTitle';
@@ -15,10 +16,11 @@ import { BranchSwitcher } from '../../components/admin/BranchSwitcher';
 import { FEEDBACK_ENABLED } from '../../api/feedback';
 import { FeedbackDialog } from '../../components/admin/FeedbackDialog';
 import { Loading } from '../../components/admin/kit';
+import { ServiceRequests } from '../../components/admin/ServiceRequests';
 import { RestaurantCard } from '../../components/admin/RestaurantCard';
 import { LockedScreen, PlanChip, SubscriptionBanner } from '../../components/admin/SubscriptionBits';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Bike, Box, Building, Cash, ChevronRight, Contact, Eye, Folder, Grid, Handshake, History, Layers, MapPin, Megaphone, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
+import { Alert, Bike, Box, Building, Cash, ChevronRight, Contact, Eye, Folder, Grid, Handshake, History, Layers, MapPin, Megaphone, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
 import { playNewOrderSound } from '../../platform/sound';
 
 /**
@@ -76,10 +78,13 @@ const NAV: NavItem[] = [
   { to: '/admin/floors', label: 'Floor', icon: Layers, permission: 'tables:view', group: 'Table & spaces' },
   { to: '/admin/inventory', label: 'Stock', icon: Box, permission: 'inventory:view', end: true, liveOnly: true, group: 'Inventory' },
   { to: '/admin/inventory/buy-list', label: 'Buy list', icon: Receipt, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
+  { to: '/admin/waste', label: 'Waste', icon: Alert, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
+  { to: '/admin/dish-margins', label: 'Dish margins', icon: Cash, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/suppliers', label: 'Suppliers', icon: Handshake, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/inventory/watchlist', label: 'Watchlist', icon: Eye, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/delivery', label: 'Delivery', icon: Bike, permission: 'settings:view', group: '' },
   { to: '/admin/sales', label: 'Sales', icon: Receipt, permission: 'payments:view', liveOnly: true, group: 'Finance' },
+  { to: '/admin/receivables', label: 'Receivables', icon: Contact, permission: 'payments:view', liveOnly: true, group: 'Finance' },
   { to: '/admin/payments', label: 'Payments', icon: Cash, permission: 'payments:view', group: 'Finance' },
   { to: '/admin/transactions', label: 'Transactions', icon: History, permission: 'ledger:view', liveOnly: true, group: 'Finance' },
   { to: '/admin/ledger', label: 'Cash book', icon: Cash, permission: 'ledger:view', end: true, liveOnly: true, group: 'Finance' },
@@ -369,6 +374,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
               </p>
             ) : dashboard ? (
               <DashboardContext.Provider value={dashboard}>
+                <ServiceRequests />
                 <Outlet />
               </DashboardContext.Provider>
             ) : (
@@ -378,6 +384,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
         </div>
       </div>
       {feedbackOpen && <FeedbackDialog onClose={() => setFeedbackOpen(false)} />}
+      {!locked && <SetupGuide />}
     </div>
   );
 }

@@ -528,3 +528,13 @@ export interface CustomerListItem {
   /** Whether they paid in each of the last ten weeks, oldest first. */
   visitWeeks: boolean[];
 }
+
+/** A seated diner waiting on a waiter or the bill — one row per open visit, cleared by staff. */
+export interface ServiceRequest {
+  sessionId: string;
+  /** The table's name, or the floor's for a floor visit. */
+  label: string;
+  waiterCalledAt: string | null;
+  billRequestedAt: string | null;
+}
+export type ServiceKind = 'waiter' | 'bill';

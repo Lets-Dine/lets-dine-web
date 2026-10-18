@@ -1,18 +1,26 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { fetchCustomer, fetchCustomerLoyalty } from '../../api/customers';
+import { completeOrderPayment } from '../../api/staff';
+import { listPayments } from '../../api/live-admin';
+import { fetchCustomer, fetchCustomerLoyalty, fetchCustomerProfile, fetchPendingOrder, updateCustomerProfile } from '../../api/customers';
 import { DIETARY_TAGS, getCustomer, profileOf, removeCustomer, settleTab, since, tabBalance, updateCustomer } from '../../data/customers';
 import type { Customer, NewCustomer, PendingOrder } from '../../data/customers';
-import type { CustomerListItem } from '../../domain/types';
+import type { CustomerProfile } from '../../api/customers';
+import type { CustomerListItem, Payment } from '../../domain/types';
 import { formatMoney } from '../../domain/money';
 import { IS_LIVE_API } from '../../api/http';
-import { useAuth } from '../../state/AuthContext';
+import { floorBillSubject } from '../../domain/orderStatus';
+import { useAuth, useStaff } from '../../state/AuthContext';
+import { useNow } from '../../state/useNow';
 import { useAsync } from '../../state/useAsync';
 import { useToast } from '../../state/ToastContext';
-import { ADMIN_GHOST, ADMIN_PRIMARY, Confirm, Empty, Loading, TextArea, TextInput, Toggle, Field } from '../../components/admin/kit';
+import { ADMIN_GHOST, ADMIN_PRIMARY, Confirm, Empty, Loading, TextArea, TextInput, Toggle, Field, useCommand } from '../../components/admin/kit';
 import { SegmentPill, hueOf } from '../../components/admin/CustomerSheet';
+import { SaleActions, StatusChip, owedOn } from '../../components/admin/SaleSettle';
 import { LoyaltyPanel } from '../../components/admin/Loyalty';
+import { useOrderSheet } from '../../components/admin/OrderSheet';
+import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { Alert, Check, ChevronLeft, Contact, Copy, Plate, Send, Sliders } from '../../components/icons';
 import { Block, FloatingBar, Num, TiltCard, reduced, useAway, useCountUp } from '../../components/admin/profile';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
@@ -22,25 +30,62 @@ import { useDashboard } from './AdminLayout';
 const KITCHEN_FLAGS = ['Nut allergy', 'No onion/garlic'];
 const WEEK = 7 * 86_400_000;
 
+/** On the live backend the page shows only what the server holds — never the sample profile. */
+const liveProfile = (p: CustomerProfile): Customer => ({ ...p, visitDaysAgo: [], spend: 0, joinedDaysAgo: 0, tab: [], pending: null });
+
+/** Credit sales this customer still owes on, oldest first — a sale left on credit, or part-paid, stays here until it is cleared. */
+async function fetchOwed(customerId: string): Promise<Payment[]> {
+  const pages = await Promise.all((['UNPAID', 'PARTIALLY_PAID'] as const).map((paymentStatus) => listPayments(0, 50, { customerId, paymentStatus })));
+  return pages.flatMap((p) => p.rows).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
 export function CustomerDetail() {
   const { id = '' } = useParams();
   const found = useAsync(() => fetchCustomer(id), [id]);
+  const prof = useAsync(() => (IS_LIVE_API ? fetchCustomerProfile(id) : Promise.resolve(null)), [id]);
 
   if (found.error && !found.loading) return <Empty emoji="⚠️" title="Couldn't load this customer" message={found.error.message} action={<button type="button" className={ADMIN_GHOST} onClick={found.reload}>Try again</button>} />;
-  if (found.loading && found.data?.id !== id) return <Loading label="Opening their file…" />;
+  if ((found.loading && found.data?.id !== id) || (IS_LIVE_API && prof.loading && prof.data?.id !== id)) return <Loading label="Opening their file…" />;
   if (!found.data) return <Empty emoji="🔍" title="Customer not found" message="They may have been removed, or the link is out of date." action={<Link to="/admin/customers" className={ADMIN_GHOST}>Back to customers</Link>} />;
-  return <Page key={found.data.id} item={found.data} />;
+  if (IS_LIVE_API && !prof.data) return <Empty emoji="⚠️" title="Couldn't load this customer" message={prof.error?.message ?? ''} action={<button type="button" className={ADMIN_GHOST} onClick={prof.reload}>Try again</button>} />;
+  return <Page key={found.data.id} item={found.data} profile={prof.data} reloadProfile={prof.reload} />;
 }
 
-function Page({ item: base }: { item: CustomerListItem }) {
+function Page({ item: base, profile, reloadProfile }: { item: CustomerListItem; profile: CustomerProfile | null; reloadProfile: () => void }) {
   const { allows } = useAuth();
-  const { menu } = useDashboard();
+  const { menu, orders, reloadOrders, applyOrder } = useDashboard();
+  const staff = useStaff();
   const push = useToast();
   const navigate = useNavigate();
   const currency = menu.restaurant.currency;
   const canEdit = allows('customers:edit');
-  const stored = getCustomer(base.id);
-  const detail = stored ?? profileOf(base.id);
+  const stored = IS_LIVE_API ? undefined : getCustomer(base.id);
+  const detail = profile ? liveProfile(profile) : (stored ?? profileOf(base.id));
+  const pendingState = useAsync(() => (IS_LIVE_API ? fetchPendingOrder(base.id) : Promise.resolve(null)), [base.id]);
+  const pendingOrder = pendingState.data;
+  const dues = useAsync(() => (IS_LIVE_API ? fetchOwed(base.id) : Promise.resolve([] as Payment[])), [base.id]);
+
+  // Manage the order here, on the same page: the sheet and the payment step are the ones the Orders screen uses.
+  const now = useNow(15_000);
+  const { pending: payBusy, run: payRun } = useCommand();
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const payingOrder = orders.find((o) => o.id === payingId) ?? null;
+  const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
+  const refreshAfter = () => {
+    reloadOrders();
+    pendingState.reload();
+    dues.reload();
+  };
+  const orderSheet = useOrderSheet({
+    orders,
+    now,
+    onApply: (o) => {
+      applyOrder(o);
+      pendingState.reload();
+    },
+    onResync: refreshAfter,
+    onTakePayment: (o) => setPayingId(o.id),
+  });
   // Edits live in the profile; the list row (live API) only supplies what the profile hasn't overridden.
   const item: CustomerListItem = { ...base, name: detail.name || base.name, phone: detail.phone || base.phone };
   const [editing, setEditing] = useState(false);
@@ -48,7 +93,7 @@ function Page({ item: base }: { item: CustomerListItem }) {
   const [saved, setSaved] = useState(detail.notes);
   const dirty = notes !== saved;
   const [, rerender] = useState(0);
-  const owed = tabBalance(detail);
+  const owed = IS_LIVE_API ? (dues.data ?? []).reduce((sum, p) => sum + owedOn(p), 0) : tabBalance(detail);
 
   const hue = hueOf(item.name);
   const first = item.name.split(/\s+/)[0];
@@ -144,7 +189,7 @@ function Page({ item: base }: { item: CustomerListItem }) {
         </div>
       </section>
 
-      {detail.pending && <PendingBanner order={detail.pending} currency={currency} />}
+      {(pendingOrder ?? detail.pending) && <PendingBanner order={(pendingOrder ?? detail.pending)!} currency={currency} onOpen={IS_LIVE_API && orders.some((o) => o.id === pendingOrder?.id) ? () => orderSheet.open(orders.find((o) => o.id === pendingOrder?.id)!) : undefined} />}
 
       {/* At the table: what a waiter needs in the three seconds before they walk over. */}
       <section aria-label={`At the table with ${first}`} className="mt-12 animate-rise overflow-hidden rounded-[28px] bg-surface-2 ring-1 ring-hairline-strong ring-inset [animation-delay:240ms]">
@@ -170,13 +215,17 @@ function Page({ item: base }: { item: CustomerListItem }) {
         </div>
       </section>
 
-      <p className="mt-10 rounded-xl bg-surface-2/60 px-4 py-3 text-[13px] leading-relaxed text-ink-3 ring-1 ring-hairline ring-inset">
+      {!IS_LIVE_API && <p className="mt-10 rounded-xl bg-surface-2/60 px-4 py-3 text-[13px] leading-relaxed text-ink-3 ring-1 ring-hairline ring-inset">
         Favourites, notes, tags and contact details will appear here once customer profiles are connected.
-      </p>
+      </p>}
 
       <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
         <div className="grid content-start gap-6">
-          {<TabBlock customer={detail} sample={!stored} currency={currency} canSettle={allows('customers:edit')} onSettled={() => rerender((n) => n + 1)} />}
+          {IS_LIVE_API ? (
+            <LiveTab sales={dues.data} loading={dues.loading} error={dues.error?.message} currency={currency} onChanged={dues.reload} />
+          ) : (
+            <TabBlock customer={detail} sample={!stored} currency={currency} canSettle={allows('customers:edit')} onSettled={() => rerender((n) => n + 1)} />
+          )}
 
           <Rhythm weeks={item.visitWeeks} active={weeksActive} run={run} />
 
@@ -218,9 +267,21 @@ function Page({ item: base }: { item: CustomerListItem }) {
                     type="button"
                     className={cx(ADMIN_PRIMARY, 'mt-2 h-9')}
                     onClick={() => {
-                      updateCustomer(detail.id, { notes });
-                      setSaved(notes);
-                      push('Note saved');
+                      const done = () => {
+                        setSaved(notes);
+                        push('Note saved');
+                      };
+                      if (!profile) {
+                        updateCustomer(detail.id, { notes });
+                        done();
+                        return;
+                      }
+                      updateCustomerProfile(detail.id, { notes })
+                        .then(() => {
+                          reloadProfile();
+                          done();
+                        })
+                        .catch((e: Error) => push(e.message));
                     }}
                   >
                     Save note
@@ -237,12 +298,25 @@ function Page({ item: base }: { item: CustomerListItem }) {
               <EditForm
                 key="edit"
                 detail={{ ...detail, name: item.name, phone: item.phone }}
+                lockIdentity={!!profile}
                 onCancel={() => setEditing(false)}
                 onSave={(patch) => {
-                  updateCustomer(item.id, patch);
-                  setEditing(false);
-                  rerender((n) => n + 1);
-                  push('Details saved');
+                  const done = () => {
+                    setEditing(false);
+                    push('Details saved');
+                  };
+                  if (!profile) {
+                    updateCustomer(item.id, patch);
+                    rerender((n) => n + 1);
+                    done();
+                    return;
+                  }
+                  updateCustomerProfile(item.id, { email: patch.email, birthday: patch.birthday, tags: patch.tags, offersOk: patch.offersOk })
+                    .then(() => {
+                      reloadProfile();
+                      done();
+                    })
+                    .catch((e: Error) => push(e.message));
                 }}
               />
             ) : (
@@ -283,6 +357,34 @@ function Page({ item: base }: { item: CustomerListItem }) {
           )}
         </div>
       </div>
+
+      {orderSheet.sheet}
+
+      <PaymentSheet
+        table={payingOrder ? floorBillSubject(payingOrder) : null}
+        orders={payingOrder ? [payingOrder] : []}
+        dishes={menuDishes}
+        restaurantName={menu.restaurant.name}
+        vatPanNumber={menu.restaurant.vatPanNumber}
+        serviceChargeRate={menu.restaurant.serviceChargeRate}
+        taxRate={menu.restaurant.taxRate}
+        pending={payBusy}
+        onClose={() => setPayingId(null)}
+        onSettle={(changes) => {
+          if (!payingOrder) return Promise.resolve(false);
+          const order = payingOrder;
+          return payRun(
+            order.id,
+            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints, changes.customerId, changes.credit, changes.paidNow, changes.dueInDays),
+            `${order.reference} paid up`,
+          ).then((ok) => {
+            if (ok) refreshAfter();
+            return ok;
+          });
+        }}
+        onEndSession={() => setPayingId(null)}
+        onShowQr={() => setPayingId(null)}
+      />
     </div>
   );
 }
@@ -394,7 +496,7 @@ const STEPS: { status: PendingOrder['status']; label: string }[] = [
 ];
 
 /** An order of theirs is in the kitchen right now — the first thing staff should see. */
-function PendingBanner({ order, currency }: { order: PendingOrder; currency: string }) {
+function PendingBanner({ order, currency, onOpen }: { order: PendingOrder; currency: string; onOpen?: () => void }) {
   const at = Math.max(0, STEPS.findIndex((x) => x.status === order.status));
   return (
     <section aria-label="Order in progress" className="mt-8 animate-rise rounded-[28px] bg-flame-2/12 p-5 ring-1 ring-flame-2/40 ring-inset [animation-delay:200ms] sm:p-6">
@@ -410,9 +512,15 @@ function PendingBanner({ order, currency }: { order: PendingOrder; currency: str
         </div>
         <div className="flex items-center gap-4">
           <span className={cx(DISPLAY, 'text-[26px] tnum')}>{formatMoney(order.total, currency)}</span>
-          <Link to="/admin/orders" className={cx(ADMIN_GHOST, 'h-10')}>
-            Open orders
-          </Link>
+          {onOpen ? (
+            <button type="button" className={cx(ADMIN_GHOST, 'h-10')} onClick={onOpen}>
+              Manage order
+            </button>
+          ) : (
+            <Link to="/admin/orders" className={cx(ADMIN_GHOST, 'h-10')}>
+              Open orders
+            </Link>
+          )}
         </div>
       </div>
       <ol className="mt-5 grid grid-cols-4 gap-2" aria-label={`Status: ${STEPS[at].label}`}>
@@ -424,6 +532,50 @@ function PendingBanner({ order, currency }: { order: PendingOrder; currency: str
         ))}
       </ol>
     </section>
+  );
+}
+
+/** What they owe, sale by sale: every bill left on credit that is not yet cleared, each with its own way to take money against it. */
+function LiveTab({ sales, loading, error, currency, onChanged }: { sales: Payment[] | null; loading: boolean; error?: string; currency: string; onChanged: () => void }) {
+  const balance = (sales ?? []).reduce((sum, p) => sum + owedOn(p), 0);
+  const shown = useCountUp(balance, 900);
+  return (
+    <Block title="On account" delay={280} id="tab">
+      {error && !sales ? (
+        <p className="text-[14px] text-berry-ink" role="alert">Couldn't load their account: {error}</p>
+      ) : !sales && loading ? (
+        <p className="text-[14px] text-ink-3">Loading their account…</p>
+      ) : (
+        <>
+          <p className={cx(DISPLAY, 'text-[clamp(36px,5vw,52px)] leading-none tnum', balance > 0 ? 'text-berry-ink' : 'text-mint-ink')}>{balance > 0 ? formatMoney(shown, currency) : 'Settled up'}</p>
+          <p className="mt-2 text-[13.5px] text-ink-3">{balance > 0 ? `Across ${sales?.length} unpaid bill${sales?.length === 1 ? '' : 's'}` : 'Nothing owed right now.'}</p>
+          {sales && sales.length > 0 && (
+            <ul className="mt-5 border-t border-hairline">
+              {sales.map((p) => (
+                <li key={p.id} className="border-b border-hairline py-3.5 last:border-0">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <span className="min-w-0">
+                      <span className="block truncate text-[14.5px] font-medium">{p.items.map((i) => `${i.dishNameSnapshot} ×${i.quantity}`).join(', ') || 'Bill'}</span>
+                      <span className="text-[12.5px] text-ink-3">{new Date(p.createdAt).toLocaleDateString()} · bill {formatMoney(p.total, currency)} · paid {formatMoney(p.paidAmount, currency)}{p.dueDate ? ` · due ${new Date(p.dueDate).toLocaleDateString()}` : ''}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2.5">
+                      <StatusChip status={p.paymentStatus} />
+                      <span className="text-[15px] font-semibold text-berry-ink tnum">{formatMoney(owedOn(p), currency)}</span>
+                    </span>
+                  </div>
+                  <details className="group mt-2">
+                    <summary className="cursor-pointer text-[13px] font-semibold text-flame-1 marker:content-none">Record payment</summary>
+                    <div className="mt-3 rounded-2xl bg-surface-2 p-4 ring-1 ring-hairline ring-inset">
+                      <SaleActions payment={p} onChanged={onChanged} />
+                    </div>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </Block>
   );
 }
 
@@ -557,7 +709,7 @@ function TabBlock({ customer, sample, currency, canSettle, onSettled }: { custom
 const dateInput = 'w-full rounded-xl bg-surface-2 px-3.5 py-2.5 text-[14.5px] text-ink outline-none ring-1 ring-hairline ring-inset focus:ring-[1.5px] focus:ring-flame-2/40 [color-scheme:dark] tnum';
 
 /** Edits everything about the person that isn't visit history. Inline, so the page stays in view while you change it. */
-function EditForm({ detail, onSave, onCancel }: { detail: Customer; onSave: (patch: Partial<NewCustomer>) => void; onCancel: () => void }) {
+function EditForm({ detail, lockIdentity, onSave, onCancel }: { detail: Customer; lockIdentity: boolean; onSave: (patch: Partial<NewCustomer>) => void; onCancel: () => void }) {
   const [name, setName] = useState(detail.name);
   const [phone, setPhone] = useState(detail.phone);
   const [email, setEmail] = useState(detail.email);
@@ -575,12 +727,16 @@ function EditForm({ detail, onSave, onCancel }: { detail: Customer; onSave: (pat
         if (ok) onSave({ name: name.trim(), phone: phone.trim(), email: email.trim(), birthday, tags, offersOk });
       }}
     >
-      <Field label="Name">
-        <TextInput value={name} onChange={setName} maxLength={120} autoFocus />
-      </Field>
-      <Field label="Phone">
-        <TextInput value={phone} onChange={(v) => setPhone(v.replace(/[^\d\s+]/g, ''))} maxLength={16} className="tnum" />
-      </Field>
+      {!lockIdentity && (
+        <>
+          <Field label="Name">
+            <TextInput value={name} onChange={setName} maxLength={120} autoFocus />
+          </Field>
+          <Field label="Phone">
+            <TextInput value={phone} onChange={(v) => setPhone(v.replace(/[^\d\s+]/g, ''))} maxLength={16} className="tnum" />
+          </Field>
+        </>
+      )}
       <Field label="Email">
         <TextInput value={email} onChange={setEmail} type="email" maxLength={180} placeholder="Optional" />
       </Field>

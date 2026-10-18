@@ -228,6 +228,7 @@ export function Tables() {
           {editable && (
             <Panel title="Add a table">
               <form
+                data-tour="add-table"
                 className="grid gap-4"
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -296,6 +297,8 @@ export function Tables() {
                 changes.redeemPoints,
                 changes.customerId,
                 changes.credit,
+                changes.paidNow,
+                changes.dueInDays,
               ),
             changes.endSession ? `${billTable.name} paid up and cleared` : `${billTable.name} paid up`,
           ).then((ok) => {
@@ -421,6 +424,7 @@ function TableCard({
             <button
               type="button"
               className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-ink-4 uppercase ring-1 ring-hairline ring-inset transition-colors hover:text-flame-1 hover:ring-flame-2/40"
+              data-tour="table-qr"
               onClick={on.onShowQr}
             >
               QR

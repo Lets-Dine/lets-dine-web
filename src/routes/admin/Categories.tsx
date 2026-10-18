@@ -140,6 +140,7 @@ export function Categories() {
           </div>
           <Perforation />
           <form
+            data-tour="add-category"
             className="grid gap-4 px-6 py-4"
             onSubmit={(e) => {
               e.preventDefault();

@@ -728,3 +728,63 @@ html[data-page='landing'] .night {
     box-shadow: inset 0 0 0 1px var(--color-hairline-strong);
   }
 }
+
+/* driver.js walkthrough, themed to the admin surfaces. driver.css loads after this file, so every rule here
+   doubles up on a class to win on specificity rather than on order. */
+.driver-popover.driver-popover {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-deep);
+  outline: 1px solid var(--color-hairline-strong);
+}
+.driver-popover .driver-popover-title { font-weight: 600; color: var(--color-ink); }
+.driver-popover .driver-popover-description,
+.driver-popover .driver-popover-progress-text { color: var(--color-ink-3); }
+.driver-popover .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: var(--color-surface); }
+.driver-popover .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: var(--color-surface); }
+.driver-popover .driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: var(--color-surface); }
+.driver-popover .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: var(--color-surface); }
+.driver-popover .driver-popover-footer button {
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: 999px;
+  text-shadow: none;
+}
+.driver-popover .driver-popover-footer button:not(.driver-popover-next-btn):not(.driver-popover-done-btn):hover,
+.driver-popover .driver-popover-footer button:not(.driver-popover-next-btn):not(.driver-popover-done-btn):focus-visible { background: var(--color-surface-3, var(--color-surface-2)); }
+.driver-popover .driver-popover-footer button:hover,
+.driver-popover .driver-popover-footer button:focus-visible { filter: brightness(1.15); }
+.driver-popover .driver-popover-footer .driver-popover-next-btn:hover,
+.driver-popover .driver-popover-footer .driver-popover-next-btn:focus-visible,
+.driver-popover .driver-popover-footer .driver-popover-done-btn:hover,
+.driver-popover .driver-popover-footer .driver-popover-done-btn:focus-visible { background: var(--flame); color: #fff; }
+.driver-popover .driver-popover-close-btn { color: var(--color-ink-3); }
+.driver-popover .driver-popover-close-btn:hover,
+.driver-popover .driver-popover-close-btn:focus-visible { color: var(--color-ink); }
+.driver-popover .driver-popover-footer .driver-popover-next-btn,
+.driver-popover .driver-popover-footer .driver-popover-done-btn { background: var(--flame); color: #fff; border-color: transparent; }
+
+/* A step can open a dialog (the logo crop). Lift the walkthrough out of its way while one is open. */
+body.driver-active:has([role='dialog']:not(.driver-popover)) * { pointer-events: auto; }
+/* The popover is itself role=dialog (driver.js 1.10), hence the :not. !important: driver sets display inline on every render. */
+body.driver-active:has([role='dialog']:not(.driver-popover)) .driver-overlay,
+body.driver-active:has([role='dialog']:not(.driver-popover)) .driver-popover { display: none !important; }
+
+/* Motion: the popover eases in, and the spotlit control breathes a halo so the eye lands on it. The halo is a
+   filter, not a box-shadow, so it never replaces the control's own ring or shadow. */
+@keyframes tour-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes tour-halo {
+  0%, 100% { filter: drop-shadow(0 0 0 rgb(255 110 50 / 0.5)); }
+  50% { filter: drop-shadow(0 0 7px rgb(255 110 50 / 0.7)); }
+}
+.driver-fade .driver-popover.driver-popover { animation: tour-in 260ms var(--ease-out-quart) both; }
+.driver-active-element:not(:disabled) { animation: tour-halo 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .driver-fade .driver-popover.driver-popover { animation: none; }
+  .driver-active-element:not(:disabled) { animation: none; }
+}

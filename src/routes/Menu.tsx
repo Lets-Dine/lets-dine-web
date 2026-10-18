@@ -14,6 +14,7 @@ import { RatingPill } from '../components/Rating';
 import { RestaurantMark } from '../components/RestaurantMark';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, EYEBROW, GLASS, ICON_BTN, RAIL, SHELL, WIDE, cx } from '../components/ui';
 import { Clock, Plate, Plus, Receipt, Search, X } from '../components/icons';
+import { CallStaff } from '../components/CallStaff';
 import { useRestaurant } from './RestaurantLayout';
 import { EmptyState } from './Shell';
 
@@ -184,6 +185,7 @@ export function Menu() {
               {menu.restaurant.description}
             </p>
             {/* Joining by code only makes sense at a shared table — nobody joins a delivery order. */}
+            <CallStaff session={session} />
             {table && <SessionCode label="Group session" token={session.anonymousSessionToken} />}
           </div>
         </div>

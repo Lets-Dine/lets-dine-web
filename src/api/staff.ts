@@ -1,4 +1,4 @@
-import type { BillLine, PaymentStatus } from '../domain/types';
+import type { BillLine, PaymentStatus, ServiceKind, ServiceRequest } from '../domain/types';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import type {
   AuditEntry,
@@ -238,9 +238,11 @@ export function completePayment(
   redeemPoints = 0,
   customerId?: string | null,
   credit = false,
+  paidNow = 0,
+  dueInDays?: number,
 ): Promise<Payment> {
   return IS_LIVE_API
-    ? live.completePayment(sessionId, items, method, discount, endSession, undefined, redeemPoints, customerId, credit)
+    ? live.completePayment(sessionId, items, method, discount, endSession, undefined, redeemPoints, customerId, credit, paidNow, dueInDays)
     : mock.completePayment(actor, sessionId, items, method, discount, endSession);
 }
 
@@ -259,9 +261,11 @@ export function completeOrderPayment(
   redeemPoints = 0,
   customerId?: string | null,
   credit = false,
+  paidNow = 0,
+  dueInDays?: number,
 ): Promise<Payment> {
   return IS_LIVE_API
-    ? live.completePayment(order.sessionId, items, method, discount, false, order.id, redeemPoints, customerId, credit)
+    ? live.completePayment(order.sessionId, items, method, discount, false, order.id, redeemPoints, customerId, credit, paidNow, dueInDays)
     : mock.completeOrderPayment(actor, order.id, items, method, discount);
 }
 
@@ -306,6 +310,13 @@ export function deliverOrder(actor: StaffMember, orderId: string): Promise<Order
 export function subscribeToQueue(onCreated: (order: Order) => void, onUpdated: (order: Order) => void, onResync: () => void): () => void {
   if (!IS_LIVE_API) return () => {};
   return live.subscribeToQueue(onCreated, onUpdated, onResync);
+}
+
+/** Live only — the offline demo has no diner-side buttons to raise these. */
+export const listServiceRequests = (): Promise<ServiceRequest[]> => (IS_LIVE_API ? live.listServiceRequests() : Promise.resolve([]));
+export const clearServiceRequest = (sessionId: string, kind: ServiceKind) => live.clearServiceRequest(sessionId, kind);
+export function subscribeToServiceRequests(onChange: (request: ServiceRequest) => void, onResync: () => void): () => void {
+  return IS_LIVE_API ? live.subscribeToServiceRequests(onChange, onResync) : () => {};
 }
 
 /** No-op in mock mode — `Tables.tsx` falls back to its own polling interval when this does nothing. */

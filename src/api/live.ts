@@ -1,6 +1,6 @@
 import type { CreateOrderInput, DeliverySessionResult, StartDeliverySessionInput } from './client';
 import type { ReviewDraft } from './client';
-import type { AddOn, CartLine, Customer, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Floor, Menu, MenuCategory, Order, Payment, PaymentMethod, PublicBranch, Restaurant, Review } from '../domain/types';
+import type { AddOn, CartLine, Customer, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Floor, Menu, MenuCategory, Order, Payment, PaymentMethod, PublicBranch, Restaurant, Review, ServiceKind } from '../domain/types';
 import { apiRequest } from './http';
 import type { Paginated } from './http';
 import { getSocket, joinRoom } from './socket';
@@ -883,6 +883,14 @@ export async function getSessionPayment(sessionToken: string): Promise<Payment |
     headers: { [SESSION_TOKEN_HEADER]: sessionToken },
   });
   return payment ? toPayment(payment) : null;
+}
+
+/** A seated diner asking for a waiter or the bill. Staff see it on the pass at once; asking again just re-stamps it. */
+export async function requestService(sessionToken: string, kind: ServiceKind): Promise<void> {
+  await apiRequest(`/public/sessions/current/${kind === 'waiter' ? 'call-waiter' : 'request-bill'}`, {
+    method: 'POST',
+    headers: { [SESSION_TOKEN_HEADER]: sessionToken },
+  });
 }
 
 /**

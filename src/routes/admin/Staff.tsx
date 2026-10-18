@@ -150,6 +150,7 @@ export function Staff() {
         {canEdit ? (
           <Panel title="Add a staff member" className="animate-rise [animation-delay:180ms]">
             <form
+              data-tour="add-staff"
               className="grid gap-4"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -174,9 +175,11 @@ export function Staff() {
                   />
                 </Field>
               )}
-              <Field label="Role" hint={ROLE_SCOPE[role]}>
-                <Select value={role} onChange={setRole} options={ROLE_OPTIONS} />
-              </Field>
+              <div data-tour="staff-role">
+                <Field label="Role" hint={ROLE_SCOPE[role]}>
+                  <Select value={role} onChange={setRole} options={ROLE_OPTIONS} />
+                </Field>
+              </div>
               {pickBranches && role !== 'OWNER' && (
                 <Field label="Branches" hint="Where they work. They only see and handle these branches.">
                   <BranchChecklist branches={branchList} value={chosenBranches} onChange={setBranchIds} />
