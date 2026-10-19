@@ -43,6 +43,7 @@ import { Payments } from './routes/admin/Payments';
 import { Sales } from './routes/admin/Sales';
 import { Receivables } from './routes/admin/Receivables';
 import { DishMargins } from './routes/admin/DishMargins';
+import { DishPerformance } from './routes/admin/DishPerformance';
 import { Waste } from './routes/admin/Waste';
 import { Transactions } from './routes/admin/Transactions';
 import { Plan } from './routes/admin/Plan';
@@ -185,6 +186,7 @@ export default function App() {
                 <Route path="sales" element={<Sales />} />
                 <Route path="receivables" element={<Receivables />} />
                 <Route path="dish-margins" element={<DishMargins />} />
+                <Route path="dish-performance" element={<DishPerformance />} />
                 <Route path="waste" element={<Waste />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="transactions" element={<Transactions />} />

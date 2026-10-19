@@ -20,7 +20,7 @@ import { ServiceRequests } from '../../components/admin/ServiceRequests';
 import { RestaurantCard } from '../../components/admin/RestaurantCard';
 import { LockedScreen, PlanChip, SubscriptionBanner } from '../../components/admin/SubscriptionBits';
 import { DISPLAY, GLASS, cx } from '../../components/ui';
-import { Alert, Bike, Box, Building, Cash, ChevronRight, Contact, Eye, Folder, Grid, Handshake, History, Layers, MapPin, Megaphone, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, Users } from '../../components/icons';
+import { Alert, Bike, Box, Building, Cash, ChevronRight, Contact, Eye, Folder, Grid, Handshake, History, Layers, MapPin, Megaphone, Plate, Qr, Receipt, Sliders, Sparkle, Table, Ticket, TrendUp, Users } from '../../components/icons';
 import { playNewOrderSound } from '../../platform/sound';
 
 /**
@@ -72,6 +72,7 @@ const NAV: NavItem[] = [
   { to: '/admin', label: 'Dashboard', icon: Grid, permission: 'orders:view', end: true, group: '' },
   { to: '/admin/orders', label: 'Orders', icon: Receipt, permission: 'orders:view', group: '' },
   { to: '/admin/menu', label: 'Dish', icon: Plate, permission: 'menu:view', group: 'Menu' },
+  { to: '/admin/dish-performance', label: 'Performance', icon: TrendUp, permission: 'analytics:view', liveOnly: true, group: 'Menu' },
   { to: '/admin/add-ons', label: 'Add-ons', icon: Sparkle, permission: 'menu:edit', group: 'Menu' },
   { to: '/admin/categories', label: 'Category', icon: Folder, permission: 'menu:edit', group: 'Menu' },
   { to: '/admin/tables', label: 'Table', icon: Table, permission: 'tables:view', group: 'Table & spaces' },
