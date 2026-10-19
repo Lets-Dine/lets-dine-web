@@ -1,3 +1,4 @@
+import { shortDate, stampText } from '../../components/time';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listCustomers } from '../../api/customers';
@@ -169,9 +170,9 @@ export function Transactions() {
                       {t.description}
                     </b>
                     <span className="block truncate text-[12px] text-ink-3 tnum">
-                      {new Date(t.transactionDate).toLocaleDateString()}
+                      {stampText(t.transactionDate)}
                       {t.counterparty ? ` · ${t.counterparty.name}` : ''}
-                      {t.dueDate ? ` · due ${new Date(t.dueDate).toLocaleDateString()}` : ''}
+                      {t.dueDate ? ` · due ${shortDate(t.dueDate)}` : ''}
                       {' · '}
                       <Link to={link.to} className="font-semibold text-flame underline underline-offset-2">{link.label}</Link>
                     </span>

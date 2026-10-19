@@ -403,6 +403,9 @@ export interface Order {
   reviewedDishIds: string[];
   /** Snapshotted at order time — only meaningful for a delivery order. */
   deliveryAddress: string | null;
+  /** Where the diner's device was when they shared it at checkout; `deliveryAddress` is then its label. Both set or both null. */
+  deliveryLatitude: number | null;
+  deliveryLongitude: number | null;
   deliveryPhone: string | null;
   deliveryCustomerName: string | null;
   deliveryNote: string | null;

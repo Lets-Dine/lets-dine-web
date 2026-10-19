@@ -14,3 +14,14 @@ export function relativeTime(iso: string): string {
 export function clockTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
+
+/** "14 Oct" — and the year once it isn't this one, so an old date can't be mistaken for a recent one. */
+export function shortDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(d.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }) });
+}
+
+/** The cash book's stamp on one line: the clock time, with the date before it when the moment isn't from today. */
+export function stampText(iso: string): string {
+  return new Date(iso).toDateString() === new Date().toDateString() ? clockTime(iso) : `${shortDate(iso)} · ${clockTime(iso)}`;
+}

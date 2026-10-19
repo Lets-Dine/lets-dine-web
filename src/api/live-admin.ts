@@ -265,6 +265,8 @@ interface ApiOrder {
   completedAt: string | null;
   reviewedDishIds: string[];
   deliveryAddress?: string | null;
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
   deliveryPhone?: string | null;
   deliveryCustomerName?: string | null;
   deliveryNote?: string | null;
@@ -479,6 +481,8 @@ function toOrder(api: ApiOrder): Order {
     completedAt: api.completedAt,
     reviewedDishIds: api.reviewedDishIds,
     deliveryAddress: api.deliveryAddress ?? null,
+    deliveryLatitude: api.deliveryLatitude ?? null,
+    deliveryLongitude: api.deliveryLongitude ?? null,
     deliveryPhone: api.deliveryPhone ?? null,
     deliveryCustomerName: api.deliveryCustomerName ?? null,
     deliveryNote: api.deliveryNote ?? null,

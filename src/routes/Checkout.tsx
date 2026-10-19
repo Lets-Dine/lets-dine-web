@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { createOrder } from '../api/diner';
@@ -9,9 +9,14 @@ import { haptic } from '../platform/haptics';
 import { BTN, BTN_FLAME, BTN_SIZE, DISPLAY, EYEBROW, GLASS, INPUT, SHELL, cx } from '../components/ui';
 import { requestNotifyPermission } from '../platform/notify';
 import { useCart } from '../state/CartContext';
+import { useDeliveryPlace } from '../state/useDeliveryPlace';
 import { usePageTitle } from '../state/usePageTitle';
 import { useSessionOrders } from '../state/SessionOrdersContext';
 import { useToast } from '../state/ToastContext';
+import { MapPin } from '../components/icons';
+import { placeName } from '../domain/location';
+import { PinMap } from '../components/PinMap';
+import type { LatLng } from '../domain/location';
 import { BillLines, PAGE, SPLIT, addOnLabels, lineUnitPrice, useBill, variantLabel } from './Cart';
 import { useRestaurant } from './RestaurantLayout';
 import { TopBar } from './Shell';
@@ -35,8 +40,21 @@ export function Checkout() {
   const navigate = useNavigate();
   const toast = useToast();
 
-  const [address, setAddress] = useState(customer?.defaultAddress ?? '');
+  // The last delivery's address and pin live on this device, like the diner's own name and phone.
+  const [lastPlace, rememberPlace] = useDeliveryPlace();
+  const [address, setAddress] = useState(lastPlace?.address ?? customer?.defaultAddress ?? '');
   const [note, setNote] = useState(customer?.defaultNote ?? '');
+  const [pin, setPin] = useState<LatLng | null>(lastPlace?.pin ?? null);
+  // The pin as it was offered, so the note under the field can tell a remembered one from a fresh one.
+  const [offeredPin] = useState(pin);
+  const [locating, setLocating] = useState<'gps' | 'name' | null>(null);
+  // What the box held when we filled it ourselves — so a second tap may replace it, but never what the diner typed.
+  const autoFilled = useRef('');
+  const addressRef = useRef(address);
+  useEffect(() => {
+    addressRef.current = address;
+  }, [address]);
+  const [locateError, setLocateError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +75,48 @@ export function Checkout() {
   const identityReady = !isDineIn || Boolean(lockedOrder) || (Boolean(dinerIdentity) && !editingIdentity);
   const placeReady = !isFloor || floorPlace.trim().length > 0;
   const canSubmit = !submitting && !sessionEnded && (!isDelivery || address.trim().length > 0) && identityReady && placeReady;
+
+  // The exact spot is saved at once; the place name is a label looked up after, and optional. Only the
+  // newest lookup may write the box, so dragging the pin around never lands an old name.
+  const lookup = useRef(0);
+  const adopt = async (here: LatLng) => {
+    const mine = ++lookup.current;
+    setPin(here);
+    setLocating('name');
+    const name = await placeName(here);
+    if (mine !== lookup.current) return;
+    // Decided here rather than inside a state updater: updaters can run twice, and this one writes a ref.
+    const typed = addressRef.current.trim() !== '' && addressRef.current !== autoFilled.current;
+    if (!typed) {
+      autoFilled.current = name ?? 'Pinned location';
+      setAddress(autoFilled.current);
+    }
+    setLocating(null);
+  };
+
+  const locate = () => {
+    if (!navigator.geolocation) {
+      setLocateError("This device can't share its location. Type the address instead.");
+      return;
+    }
+    setLocating('gps');
+    setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        haptic.select();
+        void adopt({ lat: coords.latitude, lng: coords.longitude });
+      },
+      (err) => {
+        setLocating(null);
+        setLocateError(
+          err.code === err.PERMISSION_DENIED
+            ? 'Location is blocked for this site. Allow it in your browser settings, or type the address.'
+            : "Couldn't find your location. Try again, or type the address.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+    );
+  };
 
   const saveIdentity = (event: FormEvent) => {
     event.preventDefault();
@@ -83,10 +143,12 @@ export function Checkout() {
         // connection can never produce two orders.
         idempotencyKey: cart.idempotencyKey,
         deliveryAddress: isDelivery ? address.trim() : undefined,
+        deliveryLocation: isDelivery && pin ? pin : undefined,
         deliveryNote: isDelivery ? note.trim() || undefined : undefined,
         customer: isDineIn && !lockedOrder && dinerIdentity ? dinerIdentity : undefined,
         floorVisitorName: isFloor ? floorPlace.trim() : undefined,
       });
+      if (isDelivery) rememberPlace({ address: address.trim(), pin });
       track('order_placed', { orderId: order.id, total: order.total, items: cart.count });
       setPlaced(true);
       cart.clear();
@@ -126,17 +188,58 @@ export function Checkout() {
                     {menu.restaurant.name} · {customer?.phone} · delivery
                   </span>
                 </div>
-                <label className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
-                  Delivery address
-                  <input
-                    className={cx(INPUT, 'h-12')}
-                    value={address}
-                    onChange={(event) => setAddress(event.target.value)}
-                    placeholder="Street, area, landmark"
-                    autoComplete="street-address"
-                    required
-                  />
-                </label>
+                <div className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
+                  <label htmlFor="delivery-address">Delivery address</label>
+                  <div className="relative">
+                    <input
+                      id="delivery-address"
+                      className={cx(INPUT, 'h-12 pr-14')}
+                      value={address}
+                      onChange={(event) => setAddress(event.target.value)}
+                      placeholder="Street, area, landmark"
+                      autoComplete="street-address"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={locate}
+                      disabled={locating !== null}
+                      aria-label={pin ? 'Update my location' : 'Use my current location'}
+                      title={pin ? 'Update my location' : 'Use my current location'}
+                      className={cx(
+                        'absolute right-1.5 top-1/2 grid size-9 -translate-y-1/2 cursor-pointer place-items-center rounded-full ring-1 ring-inset transition-move active:scale-90 disabled:cursor-progress disabled:opacity-70',
+                        pin ? 'bg-flame-2/15 text-flame-1 ring-flame-2/40' : 'bg-surface-3 text-ink-2 ring-hairline',
+                      )}
+                    >
+                      <MapPin size={17} className={cx(locating && 'motion-safe:animate-pulse')} />
+                    </button>
+                  </div>
+                </div>
+                <div className="-mt-1 flex flex-col gap-1.5">
+                  <p role={locateError ? 'alert' : 'status'} className={cx('text-[12.5px] leading-snug empty:hidden', locateError ? 'text-berry-ink' : 'text-ink-3')}>
+                    {locateError ??
+                      (locating === 'gps'
+                        ? 'Finding you…'
+                        : locating === 'name'
+                          ? 'Naming the place…'
+                          : pin
+                            ? pin === offeredPin
+                              ? 'Using the location from your last order. Move the pin if you are somewhere else.'
+                              : 'Your exact location is saved, so the rider gets a map pin. Add a landmark or floor in the box if it helps.'
+                            : '')}
+                  </p>
+                  {pin && (
+                    <figure className="mt-1 animate-rise overflow-hidden rounded-2xl ring-1 ring-hairline-strong ring-inset">
+                      <PinMap value={pin} onChange={(next) => void adopt(next)} />
+                      <figcaption className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-surface-2 px-3.5 py-2.5 text-[13px] text-ink-2">
+                        <span>Drag the pin, or tap the map, to put it on your door.</span>
+                        <button type="button" onClick={() => { lookup.current++; setLocating(null); setPin(null); }} className="cursor-pointer font-semibold text-ink-3 underline-offset-2 hover:text-ink hover:underline">
+                          Remove pin
+                        </button>
+                      </figcaption>
+                    </figure>
+                  )}
+                </div>
                 <label className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
                   Note for the rider <span className="font-normal text-ink-4">(optional)</span>
                   <input

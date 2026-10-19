@@ -118,7 +118,7 @@ export function DishRow({ dish, href, ctx, onQuickAdd }: Props) {
   return (
     <article
       className={cx(
-        'flex items-start gap-3.5 border-b border-hairline py-4 last:border-b-0',
+        'flex items-start gap-3.5 border-b border-hairline py-4',
         'md:rounded-2xl md:border-0 md:bg-surface md:p-4 md:shadow-warm md:ring-1 md:ring-hairline md:ring-inset',
         'md:transition-[background-color,box-shadow,transform] md:duration-200 md:ease-out-quart',
         'md:hover:-translate-y-0.5 md:hover:bg-surface-2 md:hover:shadow-warm-lg',
@@ -164,7 +164,9 @@ export function DishRow({ dish, href, ctx, onQuickAdd }: Props) {
 }
 
 /** Tall card for the merchandising rails. Scrolls on phones, grids on laptops. */
-export function DishTile({ dish, href, ctx, onQuickAdd, rank }: Props & { rank?: number }) {
+/** `dealt` is the tile's place in the first rail: its rank numeral lands after the tile arrives. */
+export function DishTile({ dish, href, ctx, onQuickAdd, rank, dealt }: Props & { rank?: number; dealt?: number }) {
+  const turn = dealt === undefined ? 0 : 360 + Math.min(dealt, 7) * 70;
   const badges = badgesFor(dish, ctx);
   const varianted = hasActiveVariant(dish);
   return (
@@ -184,7 +186,7 @@ export function DishTile({ dish, href, ctx, onQuickAdd, rank }: Props & { rank?:
           aria-hidden
         />
         {rank !== undefined && (
-          <span className="absolute left-2.5 top-2 font-display text-3xl font-bold leading-none text-white/95 drop-shadow-[0_2px_12px_rgb(0_0_0_/_0.7)] tnum">
+          <span style={dealt === undefined ? undefined : { animationDelay: `${turn + 260}ms` }} className={cx('absolute left-2.5 top-2 font-display text-3xl font-bold leading-none text-white/95 drop-shadow-[0_2px_12px_rgb(0_0_0_/_0.7)] tnum', dealt !== undefined && 'animate-pop')}>
             {rank}
           </span>
         )}

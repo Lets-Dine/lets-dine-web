@@ -8,6 +8,7 @@ import { cx } from '../ui';
 import { Bike, ChevronRight } from '../icons';
 import { CourierTag } from './delivery';
 import { ADMIN_TINY, StatusPill } from './kit';
+import { MapLink } from './MapLink';
 import { FocusRibbon, ItemRow, Progress } from './OrderLines';
 import { useOrderMoves } from './OrderMoves';
 
@@ -116,10 +117,13 @@ export function PassCard({
               )}
             </div>
             {isDelivery && (
+              <>
               <div className="mt-0.5 truncate text-[13px] text-ink-3">
                 <span className="font-semibold text-ink-2">{order.deliveryCustomerName || 'Guest'}</span>
                 {(order.deliveryAddress || order.deliveryPhone) && <> · {order.deliveryAddress || order.deliveryPhone}</>}
               </div>
+              <MapLink order={order} className="mt-0.5" />
+              </>
             )}
             {!isDelivery && order.customerName && (
               <div className="mt-0.5 truncate text-[13px] font-semibold text-ink-2">{order.customerName}</div>

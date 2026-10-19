@@ -1,6 +1,7 @@
 import { TABLE } from '../data/menu';
 import { SEED_REVIEWS } from '../data/reviews';
 import { ACCEPT_DELAY_SECONDS, ITEM_TIMELINE_SECONDS } from '../domain/config';
+import type { LatLng } from '../domain/location';
 import { percentOf, recomputeTotals, sumLines } from '../domain/money';
 import { canCancelItem, deriveOrderStatusForType, reviewEligibility, statusIndex } from '../domain/orderStatus';
 import type {
@@ -444,6 +445,8 @@ export interface CreateOrderInput {
   idempotencyKey: string;
   /** Delivery only — editable per order, prefilled from the customer's saved defaults. */
   deliveryAddress?: string;
+  /** Delivery only — the exact spot, when the diner shared their device's location. */
+  deliveryLocation?: LatLng;
   deliveryNote?: string;
   /** Dine-in only (table or floor, §16b) — identity captured at checkout, upserted into a `Customer` by phone. */
   customer?: { phone: string; name: string };
@@ -456,6 +459,7 @@ export async function createOrder({
   lines,
   idempotencyKey,
   deliveryAddress,
+  deliveryLocation,
   deliveryNote,
   customer: dinerIdentity,
   floorVisitorName: floorPlace,
@@ -592,6 +596,8 @@ export async function createOrder({
     completedAt: null,
     reviewedDishIds: [],
     deliveryAddress: isDelivery ? deliveryAddress?.trim() || customer?.defaultAddress || null : null,
+    deliveryLatitude: isDelivery ? (deliveryLocation?.lat ?? null) : null,
+    deliveryLongitude: isDelivery ? (deliveryLocation?.lng ?? null) : null,
     deliveryPhone: isDelivery ? (customer?.phone ?? null) : null,
     deliveryCustomerName: isDelivery ? (customer?.name ?? null) : null,
     deliveryNote: isDelivery ? deliveryNote?.trim() || null : null,

@@ -20,6 +20,7 @@ import { useAsync } from '../../state/useAsync';
 import { DISPLAY, cx } from '../ui';
 import { Bike, Handshake, X } from '../icons';
 import { ADMIN_GHOST, Field, MoneyInput, PercentInput, Segmented, Select, TextInput, Toggle, useCommand } from './kit';
+import { MapLink } from './MapLink';
 import { FOOT_PRIMARY, SHEET_FOOT, Sheet } from './Sheet';
 
 /* ── Identity ──────────────────────────────────────────────────────── */
@@ -446,6 +447,7 @@ export function DispatchSheet({
       {(close) => (
         <>
           <SheetHeader title={`Send out ${order.reference}`} intro={`${order.deliveryCustomerName || 'Guest'} · ${order.deliveryAddress || 'No address on file'}`} onClose={() => close()} />
+          <MapLink order={order} className="px-5 pt-2" />
           <form
             className="grid flex-1 grid-cols-[minmax(0,1fr)] content-start gap-4 overflow-y-auto px-5 pt-5"
             onSubmit={(e) => {
@@ -655,6 +657,7 @@ export function SettleOrderSheet({
             intro={`${order.deliveryCustomerName || 'Guest'} · ${order.deliveryAddress || 'No address on file'}`}
             onClose={() => close()}
           />
+          <MapLink order={order} className="px-5 pt-2" />
           <form
             className="grid flex-1 grid-cols-[minmax(0,1fr)] content-start gap-5 overflow-y-auto px-5 pt-5"
             onSubmit={(e) => {

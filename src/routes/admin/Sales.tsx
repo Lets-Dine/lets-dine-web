@@ -1,3 +1,4 @@
+import { shortDate, stampText } from '../../components/time';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { listCustomers } from '../../api/customers';
@@ -174,7 +175,7 @@ export function Sales() {
                 >
                   <span className="min-w-0">
                     <b className="block truncate text-[14.5px]">{tableName(p.tableId)}{p.customerName ? ` · ${p.customerName}` : ''}</b>
-                    <span className="block text-[12px] text-ink-3 tnum">{new Date(p.createdAt).toLocaleString()} · #{p.id.slice(0, 8).toUpperCase()}</span>
+                    <span className="block text-[12px] text-ink-3 tnum">{stampText(p.createdAt)} · #{p.id.slice(0, 8).toUpperCase()}</span>
                   </span>
                   <span className="hidden truncate text-[13px] text-ink-3 sm:block">{p.items.map((i) => `${i.quantity}× ${i.dishNameSnapshot}`).join(', ')}</span>
                   <span className="text-right text-[14px] font-semibold tnum">{money(p.total)}</span>
@@ -203,7 +204,7 @@ export function Sales() {
                         <Line label="Collected" value={money(p.paidAmount)} />
                         {p.refundedAmount > 0 && <Line label="Refunded" value={`−${money(p.refundedAmount)}`} />}
                         <Line label="Still owed" value={money(owedOn(p))} strong />
-                        {p.dueDate && owedOn(p) > 0 && <Line label="Due" value={new Date(p.dueDate).toLocaleDateString()} />}
+                        {p.dueDate && owedOn(p) > 0 && <Line label="Due" value={shortDate(p.dueDate)} />}
                       </dl>
                       <p className="flex flex-wrap gap-3 text-[13px] font-semibold">
                         {p.tableId && <Link className="text-flame underline underline-offset-2" to={`/admin/tables/${p.tableId}`}>Open the table</Link>}

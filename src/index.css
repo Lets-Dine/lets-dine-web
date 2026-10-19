@@ -115,7 +115,24 @@
   --animate-swap: swap 240ms var(--ease-out-quart) both;
   --animate-card-in: card-in 1000ms var(--ease-out-quart) backwards;
   --animate-flash: flash 1300ms var(--ease-out-quart) both;
+  --animate-cover: focus-in 1100ms var(--ease-out-quart) both, drift 28s ease-in-out 1100ms infinite alternate;
+  --animate-deal: deal 560ms var(--ease-out-quart) both;
 
+  /* The cover comes into focus as the page opens — blur is bounded to this one image, once. */
+  @keyframes focus-in {
+    from { opacity: 0.3; transform: scale(1.14); filter: blur(14px); }
+    to { opacity: 1; transform: scale(1.04); filter: blur(0); }
+  }
+  /* After it lands the cover keeps breathing, barely: the room feels occupied. */
+  @keyframes drift {
+    from { transform: scale(1.04) translate3d(0, 0, 0); }
+    to { transform: scale(1.09) translate3d(-1.2%, -1%, 0); }
+  }
+  /* A card dealt onto the table: arrives from below with a slight lean that settles flat. */
+  @keyframes deal {
+    from { opacity: 0; transform: translate3d(0, 26px, 0) rotate(2.2deg) scale(0.95); }
+    to { opacity: 1; transform: none; }
+  }
   @keyframes card-in {
     from { opacity: 0; transform: translate3d(0, 24px, 0) rotateX(24deg) rotateY(-28deg) scale(0.94); }
     to { opacity: 1; transform: rotateX(0) rotateY(0); }
@@ -469,6 +486,8 @@ html[data-page='landing'].lenis-stopped {
   .animate-pop,
   .animate-dock-in,
   .animate-settle,
+  .animate-cover,
+  .animate-deal,
   .animate-grow-x {
     animation: fade-in-only 180ms linear both !important;
     animation-delay: 0ms !important;
@@ -788,3 +807,28 @@ body.driver-active:has([role='dialog']:not(.driver-popover)) .driver-popover { d
   .driver-fade .driver-popover.driver-popover { animation: none; }
   .driver-active-element:not(:disabled) { animation: none; }
 }
+
+/* Scroll reveal (see components/Reveal): hidden only once armed, so a failed script never hides content. */
+[data-reveal] {
+  transition: opacity 800ms var(--ease-out-quart), transform 900ms var(--ease-out-quart), filter 800ms var(--ease-out-quart);
+}
+[data-reveal='hidden'] {
+  opacity: 0;
+  transform: translate3d(0, 40px, 0) scale(0.97);
+  filter: blur(6px);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] { transition: opacity 180ms linear; transition-delay: 0ms !important; }
+  [data-reveal='hidden'] { transform: none; filter: none; }
+}
+
+/* The checkout pin map, themed to the diner's warm dark surfaces. OpenStreetMap's tiles are light, so the tile
+   pane alone is inverted and warmed; the pin, controls and attribution are drawn from the palette instead. */
+.pin-map.leaflet-container { background: var(--color-surface-2); font-family: inherit; }
+.pin-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) sepia(0.3) saturate(1.1) brightness(0.9) contrast(0.92); }
+.pin-map .leaflet-bar { border: 0; box-shadow: var(--shadow-lift); }
+.pin-map .leaflet-bar a,
+.pin-map .leaflet-bar a:hover { background-color: var(--color-surface-3); color: var(--color-ink); border-bottom-color: var(--color-hairline); }
+.pin-map .leaflet-bar a:hover { background-color: var(--color-surface-2); }
+.pin-map .leaflet-control-attribution { background: rgb(26 21 18 / 0.78); color: var(--color-ink-3); }
+.pin-map .leaflet-control-attribution a { color: var(--color-flame-1); }

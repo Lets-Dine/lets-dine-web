@@ -1,3 +1,4 @@
+import { MapLink } from './MapLink';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { formatMoney } from '../../domain/money';
@@ -130,6 +131,7 @@ export function OrderSheet({
             <Section delay={300} title={isDelivery ? 'Deliver to' : 'Guest'}>
               <dl className="grid gap-2.5 text-[14px]">
                 <Line k={isDelivery ? 'Address' : 'Seat'} v={where} />
+                {isDelivery && <Line k="Map" v={<MapLink order={order} />} />}
                 {guest && <Line k="Name" v={guest} />}
                 {phone && (
                   <Line

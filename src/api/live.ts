@@ -246,6 +246,8 @@ interface ApiOrder {
   completedAt: string | null;
   reviewedDishIds: string[];
   deliveryAddress?: string | null;
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
   deliveryPhone?: string | null;
   deliveryCustomerName?: string | null;
   deliveryNote?: string | null;
@@ -425,6 +427,8 @@ function toOrder(api: ApiOrder): Order {
     completedAt: api.completedAt,
     reviewedDishIds: api.reviewedDishIds,
     deliveryAddress: api.deliveryAddress ?? null,
+    deliveryLatitude: api.deliveryLatitude ?? null,
+    deliveryLongitude: api.deliveryLongitude ?? null,
     deliveryPhone: api.deliveryPhone ?? null,
     customerName: api.customerName ?? null,
     customerPhone: api.customerPhone ?? null,
@@ -805,6 +809,7 @@ export async function createOrder({
   lines,
   idempotencyKey,
   deliveryAddress,
+  deliveryLocation,
   deliveryNote,
   customer,
   floorVisitorName,
@@ -824,6 +829,8 @@ export async function createOrder({
         addOnIds: line.addOnIds,
       })),
       deliveryAddress: deliveryAddress || undefined,
+      deliveryLatitude: deliveryLocation?.lat,
+      deliveryLongitude: deliveryLocation?.lng,
       deliveryNote: deliveryNote || undefined,
       customer: customer ? { phone: customer.phone.trim(), name: customer.name.trim() } : undefined,
       floorVisitorName: floorVisitorName?.trim() || undefined,

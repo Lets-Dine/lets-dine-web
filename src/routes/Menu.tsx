@@ -9,6 +9,7 @@ import { useCart } from '../state/CartContext';
 import { usePageTitle } from '../state/usePageTitle';
 import { DishRow, DishTile } from '../components/DishCard';
 import { QuickAddSheet } from '../components/QuickAddSheet';
+import { Reveal } from '../components/Reveal';
 import { SessionCode } from '../components/Bits';
 import { RatingPill } from '../components/Rating';
 import { RestaurantMark } from '../components/RestaurantMark';
@@ -144,10 +145,10 @@ export function Menu() {
       <header className="relative">
         <div className="relative h-67 overflow-hidden md:h-90 lg:h-[420px]">
           {menu.restaurant.coverImageUrl ? (
-            <img src={menu.restaurant.coverImageUrl} alt="" className="size-full animate-settle object-cover" />
+            <img src={menu.restaurant.coverImageUrl} alt="" className={cx('size-full animate-cover object-cover', scrolled && '[animation-play-state:running,paused]')} />
           ) : (
             <div
-              className="size-full animate-settle bg-surface bg-[radial-gradient(circle_at_50%_-10%,rgb(255_138_61/0.35),transparent_68%)]"
+              className={cx('size-full animate-cover bg-surface bg-[radial-gradient(circle_at_50%_-10%,rgb(255_138_61/0.35),transparent_68%)]', scrolled && '[animation-play-state:running,paused]')}
               aria-hidden
             />
           )}
@@ -166,22 +167,22 @@ export function Menu() {
           <Clock size={19} />
         </Link>
 
-        <div className={cx(WIDE, 'relative -mt-26 animate-rise-slow pb-4 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:pb-10')}>
+        <div className={cx(WIDE, 'relative -mt-26 pb-4 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:pb-10')}>
           <div className="flex flex-col gap-2.5 lg:max-w-3xl">
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-bg/60 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.09em] text-ink-2 ring-1 ring-hairline-strong ring-inset backdrop-blur-md">
-              <span className="size-1.5 rounded-full bg-mint shadow-[0_0_0_3px_rgb(78_203_143/0.2)]" aria-hidden />
+            <span style={{ animationDelay: '140ms' }} className="inline-flex w-fit animate-rise items-center gap-1.5 rounded-full bg-bg/60 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.09em] text-ink-2 ring-1 ring-hairline-strong ring-inset backdrop-blur-md">
+              <span className="size-1.5 rounded-full bg-mint shadow-[0_0_0_3px_rgb(78_203_143/0.2)] motion-safe:animate-breathe-slow" aria-hidden />
               {identityLabel}
             </span>
-            {menu.restaurant.logoUrl && <RestaurantMark name={menu.restaurant.name} logoUrl={menu.restaurant.logoUrl} className="size-14 shadow-lg shadow-black/40 lg:size-16" />}
-            <h1 className={cx(DISPLAY, 'text-[clamp(30px,9vw,38px)] lg:text-5xl')}>{menu.restaurant.name}</h1>
-            <div className="flex flex-wrap items-center gap-2">
+            {menu.restaurant.logoUrl && <RestaurantMark name={menu.restaurant.name} logoUrl={menu.restaurant.logoUrl} className="animate-pop size-14 shadow-lg shadow-black/40 lg:size-16" />}
+            <h1 style={{ animationDelay: '220ms' }} className={cx(DISPLAY, 'animate-rise-slow text-[clamp(30px,9vw,38px)] lg:text-5xl')}>{menu.restaurant.name}</h1>
+            <div style={{ animationDelay: '320ms' }} className="flex animate-rise flex-wrap items-center gap-2">
               <RatingPill rating={menu.restaurant.avgRating} count={menu.restaurant.ratingCount} size="md" />
               <span className="text-ink-4" aria-hidden>
                 ·
               </span>
               <span className="text-[13.5px] text-ink-3">{menu.restaurant.tagline}</span>
             </div>
-            <p className="max-w-[46ch] text-[13.5px] leading-relaxed text-ink-3 lg:text-[15px]">
+            <p style={{ animationDelay: '400ms' }} className="max-w-[46ch] animate-rise text-[13.5px] leading-relaxed text-ink-3 lg:text-[15px]">
               {menu.restaurant.description}
             </p>
             {/* Joining by code only makes sense at a shared table — nobody joins a delivery order. */}
@@ -305,7 +306,7 @@ export function Menu() {
 
       {/* ── Search results ──────────────────────────────────────── */}
       {results && (
-        <section className={cx(WIDE, 'pt-5')}>
+        <section className={cx(WIDE, 'animate-swap pt-5')}>
           <p className={cx(EYEBROW, 'mb-2')}>
             {results.length} {results.length === 1 ? 'dish' : 'dishes'} for “{query.trim()}”
           </p>
@@ -316,7 +317,7 @@ export function Menu() {
               message="Try a category like “momo”, or an ingredient like “chicken”."
             />
           ) : (
-            <div className="md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-3">
+            <div className="md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-3 [&>article:last-child]:border-b-0">
               {results.map((d) => (
                 <DishRow key={d.id} dish={d} href={href(d)} ctx={ctx} onQuickAdd={openQuickAdd} />
               ))}
@@ -328,7 +329,7 @@ export function Menu() {
       {!results && (
         <>
           {/* ── Merchandising rails ─────────────────────────────── */}
-          {sections.map((section) => {
+          {sections.map((section, si) => {
             const isFlagship = section.key === 'loved';
             return (
               <section className={cx(WIDE, 'relative pt-7')} key={section.key}>
@@ -338,6 +339,7 @@ export function Menu() {
                     aria-hidden
                   />
                 )}
+                <Reveal>
                 <div className="mb-3.5 flex flex-col gap-0.5">
                   {isFlagship && <p className={cx(EYEBROW, 'text-flame-1')}>Ranked by diners who ate here</p>}
                   <h2
@@ -351,6 +353,7 @@ export function Menu() {
                   </h2>
                   <p className="text-[12.5px] text-ink-4 lg:text-[13.5px]">{section.subtitle}</p>
                 </div>
+                </Reveal>
                 <div
                   className={cx(
                     RAIL,
@@ -358,9 +361,15 @@ export function Menu() {
                     'lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:px-0',
                   )}
                 >
-                  {section.dishes.map((d, i) => (
-                    <DishTile key={d.id} dish={d} href={href(d)} ctx={ctx} rank={isFlagship ? i + 1 : undefined} onQuickAdd={openQuickAdd} />
-                  ))}
+                  {section.dishes.map((d, i) => {
+                    const tile = <DishTile key={d.id} dish={d} href={href(d)} ctx={ctx} rank={isFlagship ? i + 1 : undefined} dealt={si === 0 ? i : undefined} onQuickAdd={openQuickAdd} />;
+                    // Tiles on screen at load are dealt in; everything else reveals as it is reached, vertically or by swiping.
+                    return (
+                      <Reveal key={d.id} delay={(i % 4) * 90} intro="animate-deal" introDelay={360 + Math.min(i, 7) * 70} className="w-42 shrink-0 snap-start lg:w-full">
+                        {tile}
+                      </Reveal>
+                    );
+                  })}
                 </div>
               </section>
             );
@@ -389,8 +398,8 @@ export function Menu() {
                       <span
                         aria-hidden
                         className={cx(
-                          'h-4.5 w-0.5 shrink-0 rounded-full transition-colors duration-150',
-                          activeCategory === c.id ? 'bg-flame-2' : 'bg-transparent',
+                          'h-4.5 w-0.5 shrink-0 rounded-full bg-flame-2 transition-[scale] duration-300 ease-out-quart',
+                          activeCategory === c.id ? 'scale-y-100' : 'scale-y-0',
                         )}
                       />
                       <span aria-hidden>{c.emoji}</span>
@@ -418,6 +427,7 @@ export function Menu() {
                       else sectionRefs.current.delete(category.id);
                     }}
                   >
+                    <Reveal>
                     <h2 className={cx(DISPLAY, 'flex items-center gap-2.5 pb-1 pt-5.5 text-[28px] lg:text-2xl')}>
                       <span aria-hidden>{category.emoji}</span>
                       {category.name}
@@ -425,9 +435,12 @@ export function Menu() {
                         {dishes.length}
                       </span>
                     </h2>
+                    </Reveal>
                     <div className="md:grid md:grid-cols-2 md:gap-3 lg:mt-2">
                       {dishes.map((d) => (
-                        <DishRow key={d.id} dish={d} href={href(d)} ctx={ctx} onQuickAdd={openQuickAdd} />
+                        <Reveal key={d.id} className="last:[&>article]:border-b-0">
+                          <DishRow dish={d} href={href(d)} ctx={ctx} onQuickAdd={openQuickAdd} />
+                        </Reveal>
                       ))}
                     </div>
                   </section>

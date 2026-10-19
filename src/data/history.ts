@@ -186,6 +186,8 @@ function buildDay(daysAgo: number, dayStart: number): Order[] {
       completedAt: cancelled ? null : completedAt.toISOString(),
       reviewedDishIds: [],
       deliveryAddress: null,
+      deliveryLatitude: null,
+      deliveryLongitude: null,
       deliveryPhone: null,
       deliveryCustomerName: null,
       deliveryNote: null,
