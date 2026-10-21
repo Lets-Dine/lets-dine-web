@@ -400,15 +400,13 @@
 /** Full-width bars: sticky headers and bottom action bars. */
 @utility glass {
   background-color: color-mix(in srgb, var(--color-bg) 72%, transparent);
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  @apply backdrop-blur-[22px] backdrop-saturate-[1.6];
 }
 
 /** Small floating controls over photography — thinner glass, less blur. */
 @utility glass-chip {
   background-color: color-mix(in srgb, var(--color-bg) 58%, transparent);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  @apply backdrop-blur-[16px] backdrop-saturate-[1.6];
 }
 
 /* ── Accessibility preferences ────────────────────────────────────

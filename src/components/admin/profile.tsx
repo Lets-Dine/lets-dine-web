@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent, ReactNode, RefObject } from 'react';
-import { cx } from '../ui';
+import { DISPLAY, cx } from '../ui';
 
 /**
  * The shared language of the profile pages (a customer, a courier): a tilting identity card, a floating
@@ -118,3 +118,41 @@ export function Block({ title, hint, delay = 0, id, action, children }: { title:
     </section>
   );
 }
+
+/** One step of a sum; the operator sits in its own column so the arithmetic can be followed down the page. */
+export function Step({ op, label, note, value, bar, share, delay }: { op?: '+' | '−'; label: string; note?: string; value: string; bar?: number; share?: string; delay: number }) {
+  return (
+    <li style={{ animationDelay: `${delay}ms` }} className="grid animate-rise grid-cols-[1.25rem_minmax(0,1fr)_auto] items-baseline gap-x-2 border-b border-hairline py-3.5 last:border-0">
+      <span aria-hidden className="text-center text-[15px] text-ink-4">{op ?? ''}</span>
+      <span className="min-w-0">
+        <span className="block text-[14.5px] font-medium">
+          {op && <span className="sr-only">{op === '+' ? 'plus ' : 'minus '}</span>}
+          {label}
+        </span>
+        {note && <span className="block text-[12.5px] text-ink-3">{note}</span>}
+        {bar !== undefined && (
+          <span aria-hidden className="mt-2 block h-1.5 max-w-xs overflow-hidden rounded-full bg-ink/8">
+            <span className="block h-full origin-left animate-grow-x rounded-full bg-gold" style={{ width: `${Math.max(bar * 100, 3)}%`, animationDelay: `${delay + 200}ms` }} />
+          </span>
+        )}
+      </span>
+      <span className="text-right">
+        <span className="block text-[15px] font-semibold tnum">{value}</span>
+        {share && <span className="block text-[12px] text-ink-4 tnum">{share}</span>}
+      </span>
+    </li>
+  );
+}
+
+export function Result({ label, value, note, tone, big, delay }: { label: string; value: string; note?: string; tone?: 'good' | 'bad'; big?: boolean; delay: number }) {
+  return (
+    <div style={{ animationDelay: `${delay}ms` }} className="mt-1 flex animate-rise items-baseline justify-between gap-4 border-t border-hairline-strong pt-4">
+      <span className="min-w-0">
+        <span className="block text-[15px] font-semibold">= {label}</span>
+        {note && <span className="block text-[12.5px] text-ink-3">{note}</span>}
+      </span>
+      <span className={cx(DISPLAY, 'shrink-0 leading-none tnum', big ? 'text-[clamp(30px,4vw,40px)]' : 'text-[clamp(24px,3vw,30px)]', tone === 'bad' && 'text-berry-ink', tone === 'good' && 'text-mint-ink')}>{value}</span>
+    </div>
+  );
+}
+

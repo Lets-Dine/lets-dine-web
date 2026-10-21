@@ -88,3 +88,92 @@ export const refundPayment = (paymentId: string, body: { amount: Minor; method: 
   apiRequest<ApiPayment>(`/restaurant/payments/${encodeURIComponent(paymentId)}/refunds`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(toPayment);
 
 export type { Payment };
+
+export interface ProfitLoss {
+  range: { from: string; to: string };
+  /** Sales net of tax, less refunds. */
+  revenue: Minor;
+  sales: Minor;
+  refunds: Minor;
+  /** Collected on the bills; passes through to the tax office, never revenue. */
+  tax: Minor;
+  /** What left the shelves: opening stock + purchases − stock sent away − closing stock. */
+  cogs: Minor;
+  stockOpening: Minor;
+  stockPurchases: Minor;
+  stockOut: Minor;
+  stockClosing: Minor;
+  /** Ingredients with stock or purchases and no price on record. */
+  unpricedItems: number;
+  /** Already inside `cogs`. */
+  waste: Minor;
+  wasteUnpricedCount: number;
+  grossProfit: Minor;
+  expenses: { category: string; amount: Minor }[];
+  operatingExpenses: Minor;
+  netProfit: Minor;
+  netMargin: number | null;
+}
+
+/** One branch, `from` inclusive and `to` exclusive (ISO instants). */
+export const fetchProfitLoss = (range: { from: string; to: string; branchId: string }) =>
+  apiRequest<ProfitLoss>(`/restaurant/analytics/profit-loss?${qs(range)}`, { headers: authHeaders() });
+
+export interface PaymentsSummary {
+  count: number;
+  sold: Minor;
+  collected: Minor;
+  refunded: Minor;
+  owed: Minor;
+}
+
+/** Totals over every sale the filters match — the Sales page's figures, not a sum of the page it has loaded. */
+export const fetchPaymentsSummary = (query: { from?: string; to?: string; paymentStatus?: PaymentStatus; method?: PaymentMethod; customerId?: string }) =>
+  apiRequest<PaymentsSummary>(`/restaurant/payments/summary?${qs(query)}`, { headers: authHeaders() });
+
+export type Recurrence = 'WEEKLY' | 'MONTHLY';
+
+/** A cost that comes round on a schedule. It never posts itself: each due date waits to be posted or skipped. */
+export interface RecurringExpense {
+  id: string;
+  category: string;
+  amount: Minor;
+  method: PaymentMethod;
+  note: string;
+  frequency: Recurrence;
+  /** Monthly: day of the month 1–31. Weekly: 0 Sunday – 6 Saturday. */
+  dueDay: number;
+  /** `YYYY-MM-DD` days throughout. */
+  startsOn: string;
+  isActive: boolean;
+  /** Dates up to today still waiting, oldest first. */
+  due: string[];
+  next: string | null;
+}
+
+export interface RecurringDraft {
+  category: string;
+  amount: Minor;
+  method: PaymentMethod;
+  note: string;
+  frequency: Recurrence;
+  dueDay: number;
+  startsOn?: string;
+}
+
+const RECURRING = '/restaurant/recurring-expenses';
+
+export const fetchRecurringExpenses = () => apiRequest<RecurringExpense[]>(RECURRING, { headers: authHeaders() });
+
+export const addRecurringExpense = (draft: RecurringDraft) =>
+  apiRequest<RecurringExpense>(RECURRING, { method: 'POST', headers: authHeaders(), body: JSON.stringify(draft) });
+
+/** Changes apply from the next due date; what was already posted or skipped stays as it was. */
+export const updateRecurringExpense = (id: string, patch: Partial<Omit<RecurringDraft, 'startsOn'>> & { isActive?: boolean }) =>
+  apiRequest<RecurringExpense>(`${RECURRING}/${id}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(patch) });
+
+export const deleteRecurringExpense = (id: string) => apiRequest<null>(`${RECURRING}/${id}`, { method: 'DELETE', headers: authHeaders() });
+
+/** Handles the oldest waiting date: `post` writes it to the cash book now, `skip` moves past it, `skip-all` clears every date waiting. */
+export const settleRecurringExpense = (id: string, dueOn: string, action: 'post' | 'skip' | 'skip-all') =>
+  apiRequest<RecurringExpense>(`${RECURRING}/${id}/settle`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ dueOn, action }) });

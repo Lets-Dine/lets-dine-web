@@ -1,4 +1,4 @@
-import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { ChangeEvent, CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isPlanError } from '../../api/subscription';
@@ -476,6 +476,16 @@ export function Select<T extends string>({
     }
   }
 
+  // Not the `autoFocus` attribute: the browser focuses during mount, before `box` is attached, so `onFocus` would
+  // open the menu with nothing to measure and it would sit at zero width. Focusing after mount opens it in place.
+  useEffect(() => {
+    if (!autoFocus) return;
+    box.current?.focus();
+    // A field inside a section that is still rising in has moved by the time the entrance ends; measure again.
+    const settle = setTimeout(() => box.current && document.activeElement === box.current && locate(), 520);
+    return () => clearTimeout(settle);
+  }, [autoFocus]);
+
   useLayoutEffect(() => {
     const list = menu.current;
     if (!open || !list) return;
@@ -515,7 +525,6 @@ export function Select<T extends string>({
         value={query ?? shownLabel}
         placeholder={shownLabel || placeholder || 'Choose'}
         maxLength={maxLength}
-        autoFocus={autoFocus}
         onMouseDown={() => {
           if (!open) openAt(options.findIndex((option) => option.value === value));
         }}

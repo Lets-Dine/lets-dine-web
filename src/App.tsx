@@ -45,6 +45,8 @@ import { Receivables } from './routes/admin/Receivables';
 import { DishMargins } from './routes/admin/DishMargins';
 import { DishPerformance } from './routes/admin/DishPerformance';
 import { Waste } from './routes/admin/Waste';
+import { Recurring } from './routes/admin/Recurring';
+import { ProfitLossPage } from './routes/admin/ProfitLoss';
 import { Transactions } from './routes/admin/Transactions';
 import { Plan } from './routes/admin/Plan';
 import { Referrals } from './routes/admin/Referrals';
@@ -86,6 +88,7 @@ function Navigation() {
   const navigationType = useNavigationType();
   const positions = useRef(new Map<string, number>());
   const first = useRef(true);
+  const lastPath = useRef(location.pathname);
 
   useEffect(() => {
     const key = location.key;
@@ -99,6 +102,12 @@ function Navigation() {
   }, [location.key]);
 
   useEffect(() => {
+    // A same-page replace (opening a row writes `?sale=…`, a filter writes its query) is not a new screen:
+    // the reader stays where they are, and focus stays where it was.
+    const samePage = navigationType === 'REPLACE' && lastPath.current === location.pathname;
+    lastPath.current = location.pathname;
+    if (samePage) return;
+
     const saved = positions.current.get(location.key);
     window.scrollTo({ top: navigationType === 'POP' && saved !== undefined ? saved : 0, behavior: 'instant' });
 
@@ -113,7 +122,7 @@ function Navigation() {
       // main.setAttribute('tabindex', '-1');
       main.focus({ preventScroll: true });
     }
-  }, [location.key, navigationType]);
+  }, [location.key, location.pathname, navigationType]);
 
   return null;
 }
@@ -203,6 +212,8 @@ export default function App() {
                 <Route path="inventory/quality" element={<Navigate to="/admin/inventory/watchlist" replace />} />
                 <Route path="reviews" element={<Reviews />} />
                 <Route path="analytics" element={<Analytics />} />
+                <Route path="profit-loss" element={<ProfitLossPage />} />
+                <Route path="recurring" element={<Recurring />} />
                 <Route path="branches" element={<Branches />} />
                 <Route path="branches/:branchId" element={<BranchDetail />} />
                 <Route path="staff" element={<Staff />} />

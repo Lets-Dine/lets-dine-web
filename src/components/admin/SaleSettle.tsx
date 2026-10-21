@@ -5,7 +5,7 @@ import { formatMoney } from '../../domain/money';
 import { can } from '../../domain/permissions';
 import type { Payment, PaymentMethod, PaymentStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
-import { cx } from '../ui';
+import { CHIP, CHIP_OFF, CHIP_ON, cx } from '../ui';
 import { ADMIN_GHOST, ADMIN_PRIMARY, Field, MoneyInput, Segmented, TextInput, useCommand } from './kit';
 
 export const STATUS_LABEL: Record<PaymentStatus, string> = { UNPAID: 'Unpaid', PARTIALLY_PAID: 'Part paid', PAID: 'Paid' };
@@ -166,21 +166,37 @@ export function RefundForm({ payment, onDone }: { payment: Payment; onDone: (nex
   );
 }
 
-/** Collect and refund for one sale, offered only to roles that may do each. */
+/**
+ * Collect and refund for one sale, offered only to roles that may do each. Collecting opens by default only
+ * while something is owed — that is why a person opens an unpaid sale. A refund is never open until asked for,
+ * so an ordinary paid sale reads as a record, not as a refund screen.
+ */
 export function SaleActions({ payment, onChanged }: { payment: Payment; onChanged: (next: Payment) => void }) {
   const staff = useStaff();
   const owed = owedOn(payment);
   const canRefund = can(staff.role, 'ledger:manage') && payment.paidAmount - payment.refundedAmount > 0;
   const canCollect = can(staff.role, 'orders:advance') && owed > 0;
-  const [mode, setMode] = useState<'collect' | 'refund'>(canCollect ? 'collect' : 'refund');
+  const [mode, setMode] = useState<'collect' | 'refund' | null>(canCollect ? 'collect' : null);
   if (!canCollect && !canRefund) return null;
-  const active = mode === 'refund' && canRefund ? 'refund' : canCollect ? 'collect' : 'refund';
+  const pick = (next: 'collect' | 'refund') => setMode((cur) => (cur === next ? null : next));
+  const actions = [
+    ...(canCollect ? [{ value: 'collect' as const, label: 'Record payment' }] : []),
+    ...(canRefund ? [{ value: 'refund' as const, label: 'Refund' }] : []),
+  ];
   return (
     <div className="grid gap-3">
-      {canCollect && canRefund && (
-        <Segmented label="Action" value={active} onChange={setMode} options={[{ value: 'collect', label: 'Record payment' }, { value: 'refund', label: 'Refund' }]} />
+      {/* A lone collect action needs no switch: the form is simply there. */}
+      {!(actions.length === 1 && actions[0].value === 'collect') && (
+        <div role="group" aria-label="Action" className="flex flex-wrap gap-2">
+          {actions.map((a) => (
+            <button key={a.value} type="button" aria-pressed={mode === a.value} className={cx(CHIP, mode === a.value ? CHIP_ON : CHIP_OFF)} onClick={() => pick(a.value)}>
+              {a.label}
+            </button>
+          ))}
+        </div>
       )}
-      {active === 'collect' ? <SettleForm payment={payment} onDone={onChanged} /> : <RefundForm payment={payment} onDone={onChanged} />}
+      {mode === 'collect' && canCollect && <SettleForm payment={payment} onDone={onChanged} />}
+      {mode === 'refund' && canRefund && <RefundForm payment={payment} onDone={onChanged} />}
     </div>
   );
 }

@@ -90,6 +90,8 @@ const NAV: NavItem[] = [
   { to: '/admin/transactions', label: 'Transactions', icon: History, permission: 'ledger:view', liveOnly: true, group: 'Finance' },
   { to: '/admin/ledger', label: 'Cash book', icon: Cash, permission: 'ledger:view', end: true, liveOnly: true, group: 'Finance' },
   { to: '/admin/ledger/transactions', label: 'Statement', icon: History, permission: 'ledger:view', liveOnly: true, group: 'Finance' },
+  { to: '/admin/recurring', label: 'Recurring', icon: History, permission: 'ledger:view', liveOnly: true, group: 'Finance' },
+  { to: '/admin/profit-loss', label: 'Profit & loss', icon: TrendUp, permission: 'analytics:view', liveOnly: true, group: 'Finance' },
   { to: '/admin/customers', label: 'Customers', icon: Contact, permission: 'customers:view', group: '' },
   { to: '/admin/referrals', label: 'Referrals', icon: Megaphone, permission: 'billing:manage', liveOnly: true, group: '' },
   // { to: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'reviews:view', group: 'Insights' },
