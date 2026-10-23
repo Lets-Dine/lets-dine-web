@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { allOrders } from '../../api/admin';
+// Store orders only: the 90-day history `allOrders` adds never falls inside today, and today is all this page reads.
+import { listQueue as storeOrders } from '../../api/admin';
 import {
   BRANCHES_ENABLED,
   completeOrderPayment,
@@ -13,7 +14,7 @@ import {
   isFeatureLocked,
 } from '../../api/staff';
 import { funnel } from '../../domain/analytics';
-import { byUrgencyThenAge, floorBillSubject, focusMap, newestOrderPerTable } from '../../domain/orderStatus';
+import { byUrgencyThenAge, floorBillSubject, focusMap } from '../../domain/orderStatus';
 import type { TrendPeriod } from '../../domain/adminMetrics';
 import { feedbackSummary, periodReport } from '../../domain/adminMetrics';
 import { formatMoney } from '../../domain/money';
@@ -24,7 +25,7 @@ import { useNow } from '../../state/useNow';
 import { Empty, Loading, PageTitle, Panel, Row, Segmented, StatTile, useCommand } from '../../components/admin/kit';
 import { LowStockPanel } from '../../components/admin/LowStockPanel';
 import { useOrderSheet } from '../../components/admin/OrderSheet';
-import { PassCard } from '../../components/admin/PassCard';
+import { PassCardV2 } from '../../components/admin/PassCardV2';
 import { RevenueTrendChart } from '../../components/admin/RevenueTrendChart';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { DISPLAY, cx } from '../../components/ui';
@@ -62,16 +63,27 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
 export function Dashboard() {
   const staff = useStaff();
   const { menu, orders: queue, reloadOrders, applyOrder } = useDashboard();
-  const history = useAsync(() => allOrders(staff), [staff]);
+  const history = useAsync(() => storeOrders(staff), [staff]);
   // Today's numbers are the branch being worked in, so the tiles agree with the pass beneath them.
   const revenue = useAsync(() => fetchRevenueComparison(staff, 'today', staff.branchId), [staff]);
-  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('week');
-  const trend = useAsync(() => fetchRevenueTrend(staff, trendPeriod, staff.branchId), [staff, trendPeriod]);
   const orderComparison = useAsync(() => fetchOrderComparison(staff, 'today', staff.branchId), [staff]);
-  const topDishes = useAsync(() => fetchTopSellingDishes(staff, new Date().toISOString(), undefined, staff.branchId), [staff]);
+  // Below the fold: these wait (still showing their loading state) until scrolled near.
+  const [lowerNear, lowerRef] = useNearViewport();
+  const [branchesNear, branchesRef] = useNearViewport();
+  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('week');
+  const trend = useAsync(() => (lowerNear ? fetchRevenueTrend(staff, trendPeriod, staff.branchId) : notYet()), [staff, trendPeriod, lowerNear]);
+  // Pinned to page load, so a late fetch asks for exactly what an immediate one would have.
+  const [loadedAt] = useState(() => new Date().toISOString());
+  const topDishes = useAsync(
+    () => (lowerNear ? fetchTopSellingDishes(staff, loadedAt, undefined, staff.branchId) : notYet()),
+    [staff, loadedAt, lowerNear],
+  );
   // The comparison across locations only means something with more than one to compare.
   const compareBranches = BRANCHES_ENABLED && (staff.branches?.length ?? 0) > 1;
-  const branchPerformance = useAsync(() => (compareBranches ? fetchBranchPerformance() : Promise.resolve([])), [staff, compareBranches]);
+  const branchPerformance = useAsync(
+    () => (!compareBranches ? Promise.resolve([]) : branchesNear ? fetchBranchPerformance() : notYet()),
+    [staff, compareBranches, branchesNear],
+  );
   // A plan without analytics answers these with FEATURE_LOCKED. That is the plan talking, not something broken.
   const analyticsLocked = isFeatureLocked(revenue.error) || isFeatureLocked(orderComparison.error);
   const trendLocked = isFeatureLocked(trend.error);
@@ -99,7 +111,6 @@ export function Dashboard() {
   /** The same clocks the full pass runs on — one sweep per tick, read by every lane and card. */
   const flags = useMemo(() => focusMap(working, now), [working, now]);
   const orderSheet = useOrderSheet({ orders: queue, flags, now, onApply: applyOrder, onResync: reloadOrders, onTakePayment: (o) => setPayingId(o.id) });
-  const newestPerTable = useMemo(() => newestOrderPerTable(queue), [queue]);
 
   const inLane = useMemo(
     () => (value: Lane, order: Order) => {
@@ -205,13 +216,11 @@ export function Dashboard() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {shown.map((order, i) => (
-                <PassCard
+                <PassCardV2
                   key={order.id}
                   order={order}
                   index={i}
                   focus={flags.get(order.id) ?? null}
-                  menu={menu}
-                  canAdd={order.tableId !== null && newestPerTable.get(order.tableId) === order.id}
                   now={now}
                   onApply={applyOrder}
                   onResync={reloadOrders}
@@ -265,6 +274,7 @@ export function Dashboard() {
       <LowStockPanel />
 
       {compareBranches && (
+        <div ref={branchesRef}>
         <Panel title="Branches" hint="Last 30 days, by revenue" bare className="mb-4 animate-rise [animation-delay:300ms]">
           {branchPerformance.loading && !branchPerformance.data ? (
             <Loading label="Comparing branches…" />
@@ -292,9 +302,10 @@ export function Dashboard() {
             ))
           )}
         </Panel>
+        </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div ref={lowerRef} className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <Panel title="Selling today" hint="By dishes served" bare className="animate-rise [animation-delay:340ms]">
           {topDishes.loading ? (
             <Loading label="Counting today…" />
@@ -394,6 +405,22 @@ export function Dashboard() {
 }
 
 const rise = (ms: number) => ({ animationDelay: `${ms}ms` });
+
+/** Never settles, so `useAsync` stays in its loading state until the real request replaces it. */
+const notYet = (): Promise<never> => new Promise<never>(() => {});
+
+/** Latches true once the element comes within 400px of the viewport (or at once where IntersectionObserver is missing). */
+function useNearViewport() {
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  const [near, setNear] = useState(() => typeof IntersectionObserver === 'undefined');
+  useEffect(() => {
+    if (near || !el) return;
+    const io = new IntersectionObserver(([e]) => e.isIntersecting && setNear(true), { rootMargin: '400px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [el, near]);
+  return [near, setEl] as const;
+}
 
 function Rise({ ms, children }: { ms: number; children: ReactNode }) {
   return (

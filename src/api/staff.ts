@@ -81,6 +81,10 @@ export function signOut(): void {
   live.signOut();
 }
 
+export function adminRestaurant(actor: StaffMember): Promise<Restaurant> {
+  return IS_LIVE_API ? live.adminRestaurant() : mock.adminMenu(actor).then((m) => m.restaurant);
+}
+
 export function adminMenu(actor: StaffMember): Promise<Menu> {
   return IS_LIVE_API ? live.adminMenu() : mock.adminMenu(actor);
 }

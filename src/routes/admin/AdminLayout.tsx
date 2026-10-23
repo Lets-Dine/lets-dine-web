@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import type { ComponentType } from 'react';
-import { BRANCHES_ENABLED, adminMenu, isSuspension, listQueue, subscribeToQueue, subscribeToTables } from '../../api/staff';
+import { BRANCHES_ENABLED, adminMenu, adminRestaurant, isSuspension, listQueue, subscribeToQueue, subscribeToTables } from '../../api/staff';
 import { IS_LIVE_API } from '../../api/http';
 import { ROLE_LABEL } from '../../domain/permissions';
 import type { Permission } from '../../domain/permissions';
@@ -112,6 +112,38 @@ const GROUP_ICON: Record<string, NavItem['icon']> = { Menu: Plate, 'Table & spac
 /** How often the queue re-reads itself. A pass cannot wait a minute for a ticket. */
 const POLL_MS = 8000;
 
+/**
+ * Pages that read nothing from the menu but the restaurant itself (name, currency, logo). Everything else gets the
+ * dishes, categories and add-ons too, so a page missing from this list is merely a little slower, never wrong.
+ * Matched as a prefix, so an entry also covers its detail pages — /admin/customers stays off because its detail page reads dishes.
+ */
+const RESTAURANT_ONLY = [
+  '/admin/payments',
+  '/admin/sales',
+  '/admin/delivery',
+  '/admin/dish-margins',
+  '/admin/inventory/watchlist',
+  '/admin/settings',
+  '/admin/ledger',
+  '/admin/profit-loss',
+  '/admin/receivables',
+  '/admin/recurring',
+  '/admin/suppliers',
+  '/admin/transactions',
+  '/admin/waste',
+  '/admin/inventory/count',
+  '/admin/inventory/buy-list',
+  '/admin/staff',
+  '/admin/audit',
+  '/admin/plan',
+  '/admin/referrals',
+  '/admin/payment-modes',
+  '/admin/branches',
+];
+function routeNeedsCatalog(pathname: string): boolean {
+  return !RESTAURANT_ONLY.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 /** Only Dashboard, Orders, Tables and Floors (including one table's or floor's own detail page) render anything from the queue — no reason for the rest to poll or hold a socket open for it. */
 function routeNeedsOrders(pathname: string): boolean {
   return (
@@ -143,6 +175,15 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const location = useLocation();
   const needsOrders = routeNeedsOrders(location.pathname);
   const [menu, setMenu] = useState<Menu | null>(null);
+  // The catalog (dishes, categories, add-ons) is read the first time a page wants it, then kept for the session.
+  const needsCatalog = routeNeedsCatalog(location.pathname);
+  const [catalogSeen, setCatalogSeen] = useState(false);
+  const catalogWanted = catalogSeen || needsCatalog;
+  const [catalogReady, setCatalogReady] = useState(false);
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  useEffect(() => {
+    if (needsCatalog) setCatalogSeen(true);
+  }, [needsCatalog]);
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -169,11 +210,25 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     [markLocked],
   );
 
+  // Latest request wins: a restaurant-only read still in flight when a catalog page opens must not land over the full menu.
+  const menuReq = useRef(0);
   const reloadMenu = useCallback(() => {
-    adminMenu(staff)
-      .then((next) => alive.current && setMenu(next))
-      .catch(fail);
-  }, [staff, fail]);
+    const full = catalogWanted;
+    const id = ++menuReq.current;
+    (full ? adminMenu(staff) : adminRestaurant(staff).then((restaurant): Menu => ({ restaurant, categories: [], dishes: [], addOns: [] })))
+      .then((next) => {
+        if (!alive.current || id !== menuReq.current) return;
+        setMenu(next);
+        setCatalogReady(full);
+        setCatalogFailed(false);
+        setError(null);
+      })
+      .catch((e: unknown) => {
+        if (id !== menuReq.current) return;
+        if (full) setCatalogFailed(true);
+        fail(e);
+      });
+  }, [staff, fail, catalogWanted]);
 
   const applyRestaurant = useCallback((restaurant: Menu['restaurant']) => {
     if (alive.current) setMenu((prev) => (prev ? { ...prev, restaurant } : prev));
@@ -222,6 +277,12 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     reloadMenu();
   }, [reloadMenu, subscription.locked]);
 
+  // A catalog read that failed is tried again the next time a page that needs it is opened.
+  useEffect(() => {
+    if (needsCatalog && catalogFailed && !subscription.locked) reloadMenu();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsCatalog]);
+
   // The branch list captured at sign-in can be days old; re-read it whenever the dashboard opens.
   useEffect(() => {
     void refreshBranches();
@@ -260,10 +321,10 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
 
   const dashboard = useMemo<DashboardValue | null>(
     () =>
-      menu && (!needsOrders || orders)
+      menu && (!needsCatalog || catalogReady) && (!needsOrders || orders)
         ? { menu, orders: orders ?? [], reloadOrders, reloadMenu, applyRestaurant, applyOrder: applyUpdated, tablesTick }
         : null,
-    [menu, orders, needsOrders, reloadOrders, reloadMenu, applyRestaurant, applyUpdated, tablesTick],
+    [menu, orders, needsOrders, needsCatalog, catalogReady, reloadOrders, reloadMenu, applyRestaurant, applyUpdated, tablesTick],
   );
 
   const locked = subscription.locked;

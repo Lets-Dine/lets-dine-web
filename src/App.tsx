@@ -6,6 +6,7 @@ import { ToastProvider } from './state/ToastContext';
 import { Cart } from './routes/Cart';
 import { Checkout } from './routes/Checkout';
 import { DishDetail } from './routes/DishDetail';
+import { DishDetailV2 } from './routes/DishDetailV2';
 import { GetStarted } from './routes/GetStarted';
 import { Landing } from './routes/Landing';
 import { Pricing } from './routes/Pricing';
@@ -22,14 +23,18 @@ import { AuditLog } from './routes/admin/AuditLog';
 import { BranchDetail } from './routes/admin/BranchDetail';
 import { Branches } from './routes/admin/Branches';
 import { Categories } from './routes/admin/Categories';
+import { CategoriesV2 } from './routes/admin/CategoriesV2';
 import { CourierDetail } from './routes/admin/CourierDetail';
 import { Customers } from './routes/admin/Customers';
 import { CustomerDetail } from './routes/admin/CustomerDetail';
 import { Delivery } from './routes/admin/Delivery';
 import { Dashboard } from './routes/admin/Dashboard';
+import { DashboardV2 } from './routes/admin/DashboardV2';
 import { DishEditor } from './routes/admin/DishEditor';
+import { DishEditorV2 } from './routes/admin/DishEditorV2';
 import { MenuBoard } from './routes/admin/MenuBoard';
 import { Orders } from './routes/admin/Orders';
+import { OrdersV2 } from './routes/admin/OrdersV2';
 import { StockTake } from './routes/admin/StockTake';
 import { BuyList } from './routes/admin/BuyList';
 import { Watchlist } from './routes/admin/Watchlist';
@@ -55,9 +60,11 @@ import { Settings } from './routes/admin/Settings';
 import { SignIn } from './routes/admin/SignIn';
 import { Staff } from './routes/admin/Staff';
 import { Tables } from './routes/admin/Tables';
+import { TablesV2 } from './routes/admin/TablesV2';
 import { Floors } from './routes/admin/Floors';
 import { FloorDetail } from './routes/admin/FloorDetail';
 import { TableDetail } from './routes/admin/TableDetail';
+import { TableDetailV2 } from './routes/admin/TableDetailV2';
 import { PlatformLayout } from './routes/platform/PlatformLayout';
 import { PlatformSignIn } from './routes/platform/PlatformSignIn';
 import { PlatformRestaurants } from './routes/platform/Restaurants';
@@ -127,6 +134,41 @@ function Navigation() {
   return null;
 }
 
+/** The original dish page is the default; `?v=2` previews the redesigned one. */
+function DishPage() {
+  return new URLSearchParams(useLocation().search).get('v') === '2' ? <DishDetailV2 /> : <DishDetail />;
+}
+
+/** The redesigned admin dish editor is the default; `?v=1` brings back the original. */
+function DishEditorPage() {
+  return new URLSearchParams(useLocation().search).get('v') === '1' ? <DishEditor /> : <DishEditorV2 />;
+}
+
+/** The redesigned table page is the default; `?v=1` brings back the original. */
+function TableDetailPage() {
+  return new URLSearchParams(useLocation().search).get('v') === '1' ? <TableDetail /> : <TableDetailV2 />;
+}
+
+/** The redesigned tables list is the default; `?v=1` brings back the original. */
+function TablesPage() {
+  return new URLSearchParams(useLocation().search).get('v') === '1' ? <Tables /> : <TablesV2 />;
+}
+
+/** The redesigned orders page is the default; `?v=1` brings back the original. */
+function OrdersPage() {
+  return new URLSearchParams(useLocation().search).get('v') === '1' ? <Orders /> : <OrdersV2 />;
+}
+
+/** The redesigned dashboard is the default; `?v=1` brings back the original. */
+function DashboardPage() {
+  return new URLSearchParams(useLocation().search).get('v') === '1' ? <Dashboard /> : <DashboardV2 />;
+}
+
+/** The redesigned categories page is the default; `?v=1` brings back the original. */
+function CategoriesPage() {
+  return new URLSearchParams(useLocation().search).get('v') === '1' ? <Categories /> : <CategoriesV2 />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -144,7 +186,7 @@ export default function App() {
               {/* The QR encodes only the restaurant slug and an opaque table token. */}
               <Route path="/r/:slug/t/:token" element={<RestaurantLayout kind="table" />}>
                 <Route index element={<Menu />} />
-                <Route path="d/:dishId" element={<DishDetail />} />
+                <Route path="d/:dishId" element={<DishPage />} />
                 <Route path="cart" element={<Cart />} />
                 <Route path="checkout" element={<Checkout />} />
                 <Route path="orders" element={<OrderHistory />} />
@@ -155,7 +197,7 @@ export default function App() {
               {/* §16b — one QR for a whole floor; no single table, so a room is picked right after landing. */}
               <Route path="/r/:slug/f/:token" element={<RestaurantLayout kind="floor" />}>
                 <Route index element={<Menu />} />
-                <Route path="d/:dishId" element={<DishDetail />} />
+                <Route path="d/:dishId" element={<DishPage />} />
                 <Route path="cart" element={<Cart />} />
                 <Route path="checkout" element={<Checkout />} />
                 <Route path="orders" element={<OrderHistory />} />
@@ -166,7 +208,7 @@ export default function App() {
               {/* Delivery: no QR, no table — same layout, session starts from a phone number instead. */}
               <Route path="/r/:slug/delivery" element={<RestaurantLayout kind="delivery" />}>
                 <Route index element={<Menu />} />
-                <Route path="d/:dishId" element={<DishDetail />} />
+                <Route path="d/:dishId" element={<DishPage />} />
                 <Route path="cart" element={<Cart />} />
                 <Route path="checkout" element={<Checkout />} />
                 <Route path="orders" element={<OrderHistory />} />
@@ -177,14 +219,14 @@ export default function App() {
               {/* The restaurant side: same store, same rules, different job. */}
               <Route path="/admin/signin" element={<SignIn />} />
               <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<Dashboard />} />
-                <Route path="orders" element={<Orders />} />
+                <Route index element={<DashboardPage />} />
+                <Route path="orders" element={<OrdersPage />} />
                 <Route path="menu" element={<MenuBoard />} />
-                <Route path="menu/:dishId" element={<DishEditor />} />
+                <Route path="menu/:dishId" element={<DishEditorPage />} />
                 <Route path="add-ons" element={<AddOns />} />
-                <Route path="categories" element={<Categories />} />
-                <Route path="tables" element={<Tables />} />
-                <Route path="tables/:tableId" element={<TableDetail />} />
+                <Route path="categories" element={<CategoriesPage />} />
+                <Route path="tables" element={<TablesPage />} />
+                <Route path="tables/:tableId" element={<TableDetailPage />} />
                 <Route path="floors" element={<Floors />} />
                 <Route path="floors/:floorId" element={<FloorDetail />} />
                 <Route path="delivery" element={<Delivery />} />

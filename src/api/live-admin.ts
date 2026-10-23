@@ -745,6 +745,11 @@ async function fetchAddOns(): Promise<ApiAddOn[]> {
   return page.rows;
 }
 
+/** Just the restaurant — what the dashboard frame needs on pages that never touch the menu. */
+export async function adminRestaurant(): Promise<Restaurant> {
+  return toRestaurant(await apiRequest<ApiRestaurant>('/restaurant/profile', { headers: authHeaders() }));
+}
+
 export async function adminMenu(): Promise<Menu> {
   const [restaurant, categories, dishes, addOns] = await Promise.all([
     apiRequest<ApiRestaurant>('/restaurant/profile', { headers: authHeaders() }),
@@ -848,10 +853,13 @@ function dishBody(draft: Partial<DishDraft>): Record<string, unknown> {
 }
 
 export async function createDish(draft: DishDraft): Promise<{ id: string }> {
+  // Without an explicit sortOrder every dish is 0 and the list falls back to A-Z; append to the category instead.
+  const siblings = (await fetchDishes()).filter((d) => d.categoryId === draft.categoryId);
+  const sortOrder = Math.max(-1, ...siblings.map((d) => d.sortOrder)) + 1;
   const created = await apiRequest<ApiDish>('/restaurant/dishes', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify(dishBody(draft)),
+    body: JSON.stringify({ ...dishBody(draft), sortOrder }),
   });
   return { id: created.id };
 }
@@ -881,18 +889,14 @@ export async function moveDish(dishId: string, direction: -1 | 1): Promise<void>
     .filter((d) => d.categoryId === dish.categoryId && !d.isArchived)
     .sort((a, b) => a.sortOrder - b.sortOrder);
   const index = siblings.findIndex((d) => d.id === dishId);
-  const swapWith = siblings[index + direction];
-  if (!swapWith) return;
+  if (!siblings[index + direction]) return;
 
+  // Renumber the whole category: legacy dishes share sortOrder 0, so swapping two values would be a no-op.
+  [siblings[index], siblings[index + direction]] = [siblings[index + direction], siblings[index]];
   await apiRequest<ApiDish[]>('/restaurant/dishes/reorder', {
     method: 'PATCH',
     headers: authHeaders(),
-    body: JSON.stringify({
-      items: [
-        { id: dish.id, sortOrder: swapWith.sortOrder },
-        { id: swapWith.id, sortOrder: dish.sortOrder },
-      ],
-    }),
+    body: JSON.stringify({ items: siblings.map((d, i) => ({ id: d.id, sortOrder: i })) }),
   });
 }
 

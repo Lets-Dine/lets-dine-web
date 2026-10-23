@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { DATA_CHANGED_EVENT } from '../../api/http';
 import { ONBOARDING_ENABLED, fetchOnboarding } from '../../api/onboarding';
-import type { OnboardingStepKey } from '../../api/onboarding';
+import type { OnboardingProgress, OnboardingStepKey } from '../../api/onboarding';
 import type { Permission } from '../../domain/permissions';
 import { useAuth } from '../../state/AuthContext';
 import { useSubscription } from '../../state/SubscriptionContext';
@@ -62,8 +62,24 @@ export function SetupGuide() {
   const location = useLocation();
   const navigate = useNavigate();
   const enabled = ONBOARDING_ENABLED && allows('tables:edit') && !dismissed;
-  // Re-read on navigation, so finishing a step on its page ticks it by the time the owner is back.
-  const progress = useAsync(() => (enabled ? fetchOnboarding() : Promise.resolve(null)), [enabled, location.pathname]);
+  // Re-read on navigation (at most every 20s), so finishing a step on its page ticks it by the time the owner is back.
+  // Once everything required is done the guide is gone for the session, so it stops asking.
+  const complete = useRef(false);
+  const force = useRef(false);
+  const fetchedAt = useRef(0);
+  const latest = useRef<Promise<OnboardingProgress> | null>(null);
+  const progress = useAsync(() => {
+    if (!enabled) return Promise.resolve(null);
+    // Skipping hands back the latest fetch (possibly still in flight), so a forced reload cut short by navigation still lands.
+    if (latest.current && (complete.current || (!force.current && Date.now() - fetchedAt.current < 20_000))) return latest.current;
+    force.current = false;
+    latest.current = fetchOnboarding().then((p) => {
+      fetchedAt.current = Date.now();
+      complete.current = p.steps.filter((s) => allows(NEEDS[s.key] ?? 'tables:edit')).every((s) => s.done || s.optional);
+      return p;
+    });
+    return latest.current;
+  }, [enabled, location.pathname]);
 
   // A tour belongs to the page it was opened on; leaving the page (even through the control it points at) ends it.
   useEffect(() => stopTour, [location.pathname]);
@@ -84,8 +100,12 @@ export function SetupGuide() {
     if (!enabled) return;
     let timer: ReturnType<typeof setTimeout>;
     const onChange = () => {
+      if (complete.current) return;
       clearTimeout(timer);
-      timer = setTimeout(reload, 400);
+      timer = setTimeout(() => {
+        force.current = true;
+        reload();
+      }, 400);
     };
     window.addEventListener(DATA_CHANGED_EVENT, onChange);
     return () => {

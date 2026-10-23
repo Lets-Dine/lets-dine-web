@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import type { RevenueTrend, RevenueTrendPoint, TrendPeriod } from '../../domain/adminMetrics';
 import type { Minor } from '../../domain/types';
 import { formatMoney } from '../../domain/money';
-import { DISPLAY, cx } from '../ui';
+import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../ui';
 import { Lock } from '../icons';
 import { Change, Loading, Panel, Segmented } from './kit';
 
@@ -117,18 +117,16 @@ interface Props {
   locked?: boolean;
   onRetry: () => void;
   currency: string;
+  /** The redesigned dashboard's frame: no box, a heading and chip period picker. */
+  plain?: boolean;
 }
 
 /** A line comparison of revenue: this period drawn solid up to today, the one before it dashed behind. */
-export function RevenueTrendChart({ trend, period, onPeriodChange, loading, failed, locked = false, onRetry, currency }: Props) {
+export function RevenueTrendChart({ trend, period, onPeriodChange, loading, failed, locked = false, onRetry, currency, plain = false }: Props) {
   const copy = COPY[period];
 
-  return (
-    <Panel
-      title={copy.title}
-      hint="Settled payments, against the period before"
-      action={locked ? undefined : <Segmented label="Period" value={period} onChange={onPeriodChange} options={PERIODS} />}
-    >
+  const body = (
+    <>
       {trend === null ? (
         locked ? (
           <div className="grid place-items-center gap-2 py-14 text-center">
@@ -154,6 +152,38 @@ export function RevenueTrendChart({ trend, period, onPeriodChange, loading, fail
           <Chart key={`${trend.period}:${trend.currentTotal}:${trend.previousTotal}`} trend={trend} currency={currency} />
         </div>
       )}
+    </>
+  );
+
+  if (plain)
+    return (
+      <section>
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+          <div>
+            <h2 className={cx(DISPLAY, 'text-[24px]')}>{copy.title}</h2>
+            <p className="mt-1 text-[13px] text-ink-3">Settled payments, against the period before</p>
+          </div>
+          {!locked && (
+            <div className="flex gap-2" role="group" aria-label="Period">
+              {PERIODS.map((p) => (
+                <button key={p.value} type="button" aria-pressed={period === p.value} className={cx(CHIP, period === p.value ? CHIP_ON : CHIP_OFF)} onClick={() => onPeriodChange(p.value)}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {body}
+      </section>
+    );
+
+  return (
+    <Panel
+      title={copy.title}
+      hint="Settled payments, against the period before"
+      action={locked ? undefined : <Segmented label="Period" value={period} onChange={onPeriodChange} options={PERIODS} />}
+    >
+      {body}
     </Panel>
   );
 }

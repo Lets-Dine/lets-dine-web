@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { IS_LIVE_API } from '../../api/http';
 import { INVENTORY_ENABLED } from '../../api/inventory';
@@ -117,6 +117,11 @@ export function Settings() {
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
   const tab = tabs.find((t) => t.key === requested)?.key ?? 'restaurant';
+  // Loyalty reads its rules from the server, so it is only mounted once opened — and then kept, so edits survive a tab switch.
+  const [loyaltySeen, setLoyaltySeen] = useState(false);
+  useEffect(() => {
+    if (tab === 'loyalty') setLoyaltySeen(true);
+  }, [tab]);
   const savesHere = tab !== 'loyalty' && tab !== 'activity';
 
   // Only the Activity tab shows the log, so it is only read (fresh) when that tab opens.
@@ -180,7 +185,7 @@ export function Settings() {
         ))}
       </div>
 
-      {tabs.some((t) => t.key === 'loyalty') && (
+      {tabs.some((t) => t.key === 'loyalty') && (loyaltySeen || tab === 'loyalty') && (
         <div className={cx('mt-8 max-w-3xl', tab !== 'loyalty' && 'hidden')}>
           <LoyaltySettings currency={restaurant.currency} canEdit={canEdit} />
         </div>

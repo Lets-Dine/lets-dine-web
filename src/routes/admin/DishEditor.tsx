@@ -841,7 +841,7 @@ export function DishEditor() {
  * more way to get a photo, not a second section. "Browse all" opens the whole
  * library in a dialog for when the name matches nothing.
  */
-function PhotoSuggestions({
+export function PhotoSuggestions({
   name,
   value,
   onPick,
@@ -935,7 +935,7 @@ function PhotoStrip({
 }
 
 /** Pasting a link is the rare path, so it stays folded away until asked for. */
-function PhotoLink({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+export function PhotoLink({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
   const [open, setOpen] = useState(false);
   if (!open)
     return (
@@ -968,7 +968,7 @@ const DIETARY_OPTIONS = [
 ] as const;
 
 /** A variant's own spice level and dietary type — same choices as the dish's, since a variant is priced and served independently of it. */
-function VariantOptionFields({
+export function VariantOptionFields({
   spiceLevel,
   onSpiceLevel,
   dietaryType,
@@ -995,7 +995,7 @@ function VariantOptionFields({
   );
 }
 
-function VariantEditor({
+export function VariantEditor({
   variant,
   currency,
   busy,
