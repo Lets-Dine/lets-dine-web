@@ -21,7 +21,8 @@ import {
   updateIngredient,
 } from '../../api/inventory';
 import type { Ingredient, IngredientSummary, StockState, WasteReason } from '../../api/inventory';
-import { ADMIN_GHOST, ADMIN_PRIMARY, Confirm, Field, INPUT_BOX, MoneyInput, PageTitle, Panel, Segmented, Select, TextInput, useCommand } from '../../components/admin/kit';
+import { Block } from '../../components/admin/profile';
+import { ADMIN_GHOST, ADMIN_PRIMARY, Confirm, Field, INPUT_BOX, MoneyInput, Panel, Segmented, Select, TextInput, useCommand } from '../../components/admin/kit';
 import { Num } from '../../components/admin/profile';
 import { QtyField } from '../../components/admin/QtyField';
 import { useDiscardBack } from '../../components/admin/useDiscardBack';
@@ -476,14 +477,14 @@ export function Inventory() {
 
   if (list.loading && !list.data)
     return (
-      <>
-        <PageTitle title="Stock" />
-        <div role="status" aria-label="Loading stock" className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,15.5rem),1fr))] gap-3">
+      <div className="mx-auto max-w-6xl">
+        <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Stock</h1>
+        <div role="status" aria-label="Loading stock" className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,15.5rem),1fr))] mt-10 gap-3">
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="shimmer-bg animate-shimmer h-[9.5rem] rounded-2xl" style={{ opacity: 1 - i * 0.12 }} />
           ))}
         </div>
-      </>
+      </div>
     );
 
   const q = query.trim().toLowerCase();
@@ -491,63 +492,63 @@ export function Inventory() {
   const needing = rows.filter((r) => r.state !== 'ok').length;
   const openIng = open ? rows.find((r) => r.ing.id === open.id)?.ing : undefined;
 
+  const expiringCount = expiring.data?.length ?? 0;
+
   return (
-    <>
-      <PageTitle
-        title="Stock"
-        purpose="What is on the shelf right now."
-        subtitle="Open an ingredient to see where it went, restock it, use some or fix its count. The ones that need you are listed first."
-        action={
-          rows.length > 0 && canManage ? (
-            <>
-              <Link to="/admin/inventory/count" className={ADMIN_GHOST}>
-                Count everything
-              </Link>
-              <button type="button" className={ADMIN_PRIMARY} onClick={() => setAdding(true)}>
-                <Plus size={16} /> Add ingredient
-              </button>
-            </>
-          ) : undefined
-        }
-      />
+    <div className="mx-auto max-w-6xl">
+      <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Stock</h1>
+
+      <div className="mt-5 flex animate-rise flex-wrap items-center gap-2 [animation-delay:80ms]">
+        {rows.length > 6 && (
+          <span className="relative min-w-40 flex-1 sm:max-w-72 sm:flex-none">
+            <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-4" />
+            <input
+              type="search"
+              className={cx(INPUT_BOX, 'h-10 py-0 pr-3 pl-9')}
+              value={query}
+              placeholder="Find an ingredient"
+              aria-label="Find an ingredient"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </span>
+        )}
+        {rows.length > 0 && canManage && (
+          <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+            <Link to="/admin/inventory/count" className={ADMIN_GHOST}>
+              Count everything
+            </Link>
+            <button type="button" className={ADMIN_PRIMARY} onClick={() => setAdding(true)}>
+              <Plus size={16} /> Add ingredient
+            </button>
+          </span>
+        )}
+      </div>
 
       {rows.length === 0 ? (
-        <FirstRun onAdd={canManage ? () => setAdding(true) : undefined} />
+        <div className="mt-10"><FirstRun onAdd={canManage ? () => setAdding(true) : undefined} /></div>
       ) : (
         <>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[14px] text-ink-3">
-              {needing > 0 ? (
-                <>
-                  <span className="font-semibold text-ink">{needing}</span> of {rows.length} need restocking
-                </>
-              ) : (
-                `${rows.length} ingredients, all in stock`
-              )}
-            </p>
-            {rows.length > 6 && (
-              <span className="relative min-w-40 flex-1 sm:max-w-72 sm:flex-none">
-                <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-4" />
-                <input
-                  type="search"
-                  className={cx(INPUT_BOX, 'h-10 py-0 pr-3 pl-9')}
-                  value={query}
-                  placeholder="Find an ingredient"
-                  aria-label="Find an ingredient"
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </span>
-            )}
-          </div>
+          <p className="mt-5 max-w-[34ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:120ms] sm:max-w-[40ch]">
+            {needing > 0 ? `${needing} of ${rows.length} ingredients need restocking.` : `${rows.length} ingredients, all in stock.`} Open one to see where it went, restock it or fix its count.
+          </p>
 
-          {(expiring.data?.length ?? 0) > 0 && (
-            <Panel title="Use or bin soon" className="mb-4">
-              <ul className="divide-y divide-hairline">
+          <section aria-label="The three answers" className="mt-10 animate-rise overflow-hidden rounded-[28px] bg-surface-2 ring-1 ring-hairline-strong ring-inset [animation-delay:200ms]">
+            <div className="grid divide-y divide-hairline md:grid-cols-3 md:divide-x md:divide-y-0">
+              <Cell title="Ingredients" sub="On the shelf right now">{rows.length}</Cell>
+              <Cell title="Need restocking" sub="Low or out, listed first" bad={needing > 0}>{needing}</Cell>
+              <Cell title="Use or bin soon" sub="Expired or expiring in 3 days" bad={expiringCount > 0}>{expiringCount}</Cell>
+            </div>
+          </section>
+
+          <div className="mt-6 grid gap-6">
+          {expiringCount > 0 && (
+            <Block title="Use or bin soon" hint="Oldest first" delay={260}>
+              <ul className="border-t border-hairline">
                 {expiring.data?.map((l) => {
                   const gone = l.expiresOn < localDay();
                   const label = gone ? 'Expired' : l.expiresOn === localDay() ? 'Expires today' : `Expires ${dayOnly.format(new Date(`${l.expiresOn}T12:00:00`))}`;
                   return (
-                    <li key={l.lotId} className="flex items-baseline justify-between gap-3 py-2 text-[13.5px]">
+                    <li key={l.lotId} className="flex items-baseline justify-between gap-3 border-b border-hairline py-3 text-[14px] last:border-0">
                       <span className="min-w-0 truncate">
                         <span className="font-semibold">{l.name}</span> · {formatQty(l.remaining, l.unit)}
                       </span>
@@ -563,7 +564,7 @@ export function Inventory() {
                   );
                 })}
               </ul>
-            </Panel>
+            </Block>
           )}
 
           {visible.length === 0 ? (
@@ -582,6 +583,7 @@ export function Inventory() {
               ))}
             </ul>
           )}
+          </div>
         </>
       )}
 
@@ -622,7 +624,17 @@ export function Inventory() {
           }
         />
       )}
-    </>
+    </div>
+  );
+}
+
+function Cell({ title, sub, bad, children }: { title: string; sub: string; bad?: boolean; children: number }) {
+  return (
+    <div className="px-6 py-6">
+      <h2 className="mb-3 text-[13px] font-semibold text-ink-3">{title}</h2>
+      <p className={cx(DISPLAY, 'text-[clamp(28px,3.4vw,38px)] leading-none tnum', bad && 'text-berry-ink')}>{children}</p>
+      <p className="mt-2 text-[13.5px] text-ink-3">{sub}</p>
+    </div>
   );
 }
 

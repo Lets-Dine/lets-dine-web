@@ -8,10 +8,11 @@ import type { CustomerListItem, CustomerSegment } from '../../domain/types';
 import { formatMoney } from '../../domain/money';
 import { useAuth } from '../../state/AuthContext';
 import { useToast } from '../../state/ToastContext';
-import { ADMIN_GHOST, ADMIN_PRIMARY, Empty, Loading, PANEL, PageTitle, Select } from '../../components/admin/kit';
+import { ADMIN_GHOST, ADMIN_PRIMARY, Empty, Loading, Select } from '../../components/admin/kit';
+import { Block } from '../../components/admin/profile';
 import { Avatar, CustomerSheet, SegmentPill, Tally } from '../../components/admin/CustomerSheet';
 import { Plus, Search } from '../../components/icons';
-import { CHIP, CHIP_OFF, CHIP_ON, cx } from '../../components/ui';
+import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
 type Filter = 'all' | Exclude<CustomerSegment, 'occasional'>;
@@ -118,22 +119,10 @@ export function Customers() {
   const filtering = debounced.trim() !== '' || filter !== 'all';
 
   return (
-    <>
-      <div className="animate-rise">
-        <PageTitle
-          title="Customers"
-          subtitle="The people who keep coming back — and the ones who've gone quiet."
-          action={
-            canAdd && (
-              <button type="button" className={ADMIN_PRIMARY} onClick={() => setAdding(true)}>
-                <Plus size={16} /> Add customer
-              </button>
-            )
-          }
-        />
-      </div>
+    <div className="mx-auto max-w-6xl">
+      <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Customers</h1>
 
-      <div className="mb-4 animate-rise grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center [animation-delay:60ms]">
+      <div className="mt-5 flex animate-rise flex-wrap items-center gap-2 [animation-delay:80ms]">
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="group" aria-label="Filter customers">
           {FILTERS.map((f) => (
             <button key={f.value} type="button" aria-pressed={filter === f.value} onClick={() => setFilter(f.value)} className={cx(CHIP, filter === f.value ? CHIP_ON : CHIP_OFF)}>
@@ -141,7 +130,7 @@ export function Customers() {
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
+        <div className="flex min-w-0 flex-1 gap-2 lg:ml-auto lg:flex-none">
           <label className="relative block min-w-0 flex-1 lg:w-64 lg:flex-none">
             <span className="sr-only">Search customers</span>
             <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-4" />
@@ -156,14 +145,30 @@ export function Customers() {
           <div className="w-44 shrink-0">
             <Select value={sort} onChange={setSort} options={SORTS} />
           </div>
+          {canAdd && (
+            <button type="button" className={ADMIN_PRIMARY} onClick={() => setAdding(true)}>
+              <Plus size={16} /> Add customer
+            </button>
+          )}
         </div>
       </div>
+
+      {!error && !(loading && rows.length === 0) && (
+        <p className="mt-5 max-w-[34ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:120ms] sm:max-w-[40ch]">
+          {filtering
+            ? `${count} ${count === 1 ? 'customer matches' : 'customers match'} what you picked.`
+            : count === 0
+              ? 'No one has given you their number yet.'
+              : `${count} ${count === 1 ? 'person has' : 'people have'} given you their number. See who keeps coming back, and who has gone quiet.`}
+        </p>
+      )}
 
       <p className="sr-only" aria-live="polite">
         {loading ? 'Loading customers' : `${count} customers`}
       </p>
 
-      <section className={cx(PANEL, 'overflow-hidden animate-rise [animation-delay:120ms]')}>
+      <div className="mt-10">
+      <Block title="Customers" hint={count > 0 ? `${count} in total` : undefined} delay={200}>
         {error && rows.length === 0 ? (
           <Empty
             emoji="⚠️"
@@ -190,7 +195,7 @@ export function Customers() {
           )
         ) : (
           <>
-            <div className="hidden grid-cols-[minmax(0,2.2fr)_1.2fr_.7fr_1fr_1fr] gap-4 border-b border-hairline px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-4 lg:grid">
+            <div className="hidden grid-cols-[minmax(0,2.2fr)_1.2fr_.7fr_1fr_1fr] gap-4 border-y border-hairline py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-4 lg:grid">
               <span>Customer</span>
               <span>Last ten weeks</span>
               <span className="text-right">Visits</span>
@@ -203,7 +208,7 @@ export function Customers() {
                   <button
                     type="button"
                     onClick={() => navigate(`/admin/customers/${c.id}`)}
-                    className="grid w-full grid-cols-[1fr_auto] items-center gap-x-3.5 gap-y-2 px-4 py-3.5 text-left transition-colors duration-150 hover:bg-surface-2/50 focus-visible:bg-surface-2/50 focus-visible:outline-none sm:px-5 lg:grid-cols-[minmax(0,2.2fr)_1.2fr_.7fr_1fr_1fr] lg:gap-4"
+                    className="grid w-full grid-cols-[1fr_auto] items-center gap-x-3.5 gap-y-2 py-3.5 text-left transition-colors duration-150 hover:bg-surface-2/50 focus-visible:bg-surface-2/50 focus-visible:outline-none lg:grid-cols-[minmax(0,2.2fr)_1.2fr_.7fr_1fr_1fr] lg:gap-4"
                   >
                     <span className="flex min-w-0 items-center gap-3.5">
                       <Avatar name={c.name} />
@@ -231,7 +236,7 @@ export function Customers() {
                 </li>
               ))}
             </ul>
-            <div className="flex items-center justify-between gap-3 border-t border-hairline px-4 py-3 text-[12.5px] text-ink-3 sm:px-5">
+            <div className="flex items-center justify-between gap-3 border-t border-hairline pt-3 text-[12.5px] text-ink-3">
               <span className="tnum">
                 Showing {rows.length} of {count}
               </span>
@@ -243,10 +248,11 @@ export function Customers() {
             </div>
           </>
         )}
-      </section>
+      </Block>
+      </div>
       {CUSTOMER_WRITES && <p className="mt-3 text-[12px] text-ink-4">Sample customers for now — nothing here is saved to a server yet.</p>}
 
       {adding && <CustomerSheet onClose={() => setAdding(false)} onAdd={add} />}
-    </>
+    </div>
   );
 }

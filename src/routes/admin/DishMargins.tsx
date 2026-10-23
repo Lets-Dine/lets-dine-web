@@ -5,8 +5,9 @@ import type { DishMargin, Group, MarginSort } from '../../api/dishMargins';
 import { formatMoney } from '../../domain/money';
 import { useAsync } from '../../state/useAsync';
 import { MarginScatter } from '../../components/admin/MarginScatter';
-import { ADMIN_GHOST, Empty, Loading, PANEL, PageTitle, Select } from '../../components/admin/kit';
-import { CHIP, CHIP_OFF, CHIP_ON, cx } from '../../components/ui';
+import { ADMIN_GHOST, Empty, Loading, Select } from '../../components/admin/kit';
+import { Block } from '../../components/admin/profile';
+import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
 const DAY = 86_400_000;
@@ -56,13 +57,16 @@ export function DishMargins() {
   const target = targetMargin(rows);
   const unknown = sold.filter((r) => r.coverage < MIN_COVERAGE);
 
-  return (
-    <>
-      <div className="animate-rise">
-        <PageTitle title="Dish margins" subtitle="Food cost against price, from the stock your orders actually used. Labour, rent, discounts and tax are not included." />
-      </div>
+  const attention = rows.filter((r) => ['plowhorse', 'dog'].includes(groups.get(r.dishId) ?? '')).length;
 
-      <div className="mb-4 grid animate-rise gap-3 lg:grid-cols-[1fr_auto] lg:items-center [animation-delay:60ms]">
+  return (
+    <div className="mx-auto max-w-6xl">
+      <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Dish margins</h1>
+      <p className="mt-5 max-w-[34ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:80ms] sm:max-w-[40ch]">
+        Food cost against price, from the stock your orders actually used. Labour, rent, discounts and tax are not included.
+      </p>
+
+      <div className="mt-5 flex animate-rise flex-wrap items-center gap-2 [animation-delay:120ms]">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Period">
           {RANGES.map((r) => (
             <button key={r.value} type="button" aria-pressed={range === r.value} onClick={() => setRange(r.value)} className={cx(CHIP, range === r.value ? CHIP_ON : CHIP_OFF)}>
@@ -70,7 +74,7 @@ export function DishMargins() {
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
           <div className="flex gap-2" role="group" aria-label="View">
             {(['list', 'chart'] as const).map((v) => (
               <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)} className={cx(CHIP, view === v ? CHIP_ON : CHIP_OFF)}>
@@ -82,28 +86,52 @@ export function DishMargins() {
         </div>
       </div>
 
-      <NeedsAttention rows={rows} groups={groups} />
-
-      {unknown.length > 0 && (
-        <p className="mb-4 animate-rise rounded-xl bg-surface-2/60 px-4 py-3 text-[13px] leading-relaxed text-ink-3 ring-1 ring-hairline ring-inset [animation-delay:100ms]">
-          {unknown.length} of {sold.length} dishes that sold can't be fully costed yet — they have no recipe, or their stock was bought without a price. Add a recipe or a price to see their margin.
-        </p>
-      )}
-
-      {sold.length === 0 && rows.length === 0 ? (
-        <Empty emoji="🍽️" title="No dishes yet" message="Add dishes to the menu and they'll show up here once they sell." />
-      ) : view === 'chart' ? (
-        <div className={cx(PANEL, 'animate-rise p-4 sm:p-5 [animation-delay:140ms]')}>
-          <MarginScatter rows={rows} groups={groups} money={money} />
-        </div>
+      {rows.length === 0 ? (
+        <div className="mt-10"><Empty emoji="🍽️" title="No dishes yet" message="Add dishes to the menu and they'll show up here once they sell." /></div>
       ) : (
-        <ul className="grid animate-rise gap-3 [animation-delay:140ms]">
-          {rows.map((r) => (
-            <Row key={r.dishId} r={r} group={groups.get(r.dishId)} target={target} money={money} />
-          ))}
-        </ul>
+        <>
+          <section aria-label="The three answers" className="mt-10 animate-rise overflow-hidden rounded-[28px] bg-surface-2 ring-1 ring-hairline-strong ring-inset [animation-delay:200ms]">
+            <div className="grid divide-y divide-hairline md:grid-cols-3 md:divide-x md:divide-y-0">
+              <Cell title="Dishes sold" sub={`Of ${rows.length} on the menu`}>{String(sold.length)}</Cell>
+              <Cell title="Typical margin" sub="What the middle dish earns" good>{target === null ? '—' : `${Math.round(target * 100)}%`}</Cell>
+              <Cell title="Needs attention" sub="Plowhorses and Dogs" bad={attention > 0}>{String(attention)}</Cell>
+            </div>
+          </section>
+
+          <div className="mt-6 grid gap-6">
+            <NeedsAttention rows={rows} groups={groups} />
+
+            {unknown.length > 0 && (
+              <p role="note" className="animate-rise rounded-2xl bg-surface-2/60 px-5 py-4 text-[14px] leading-relaxed text-ink-3 ring-1 ring-hairline ring-inset [animation-delay:280ms]">
+                {unknown.length} of {sold.length} dishes that sold can't be fully costed yet — they have no recipe, or their stock was bought without a price. Add a recipe or a price to see their margin.
+              </p>
+            )}
+
+            <Block title={view === 'chart' ? 'Margin against sales' : 'Every dish'} hint={view === 'list' ? 'Tap a name to edit' : undefined} delay={340}>
+              {view === 'chart' ? (
+                <MarginScatter rows={rows} groups={groups} money={money} />
+              ) : (
+                <ul className="border-t border-hairline">
+                  {rows.map((r) => (
+                    <Row key={r.dishId} r={r} group={groups.get(r.dishId)} target={target} money={money} />
+                  ))}
+                </ul>
+              )}
+            </Block>
+          </div>
+        </>
       )}
-    </>
+    </div>
+  );
+}
+
+function Cell({ title, sub, good, bad, children }: { title: string; sub: string; good?: boolean; bad?: boolean; children: string }) {
+  return (
+    <div className="px-6 py-6">
+      <h2 className="mb-3 text-[13px] font-semibold text-ink-3">{title}</h2>
+      <p className={cx(DISPLAY, 'text-[clamp(28px,3.4vw,38px)] leading-none tnum', good && 'text-mint-ink', bad && 'text-berry-ink')}>{children}</p>
+      <p className="mt-2 text-[13.5px] text-ink-3">{sub}</p>
+    </div>
   );
 }
 
@@ -118,9 +146,8 @@ function NeedsAttention({ rows, groups }: { rows: DishMargin[]; groups: Map<stri
   ].filter((s) => s.dishes.length > 0);
   if (sections.length === 0) return null;
   return (
-    <section aria-label="Needs attention" className={cx(PANEL, 'mb-4 animate-rise p-4 [animation-delay:90ms] sm:p-5')}>
-      <h2 className="text-[15px] font-semibold">Needs attention</h2>
-      <ul className="mt-2 grid gap-1.5">
+    <Block title="Needs attention" hint="Act on these first" delay={260}>
+      <ul className="grid gap-1.5 border-t border-hairline pt-3">
         {sections.map((s) => (
           <li key={s.key} className="text-[13.5px] text-ink-2">
             <span className="font-medium text-ink">{s.dishes.length}</span> {s.label}:{' '}
@@ -134,7 +161,7 @@ function NeedsAttention({ rows, groups }: { rows: DishMargin[]; groups: Map<stri
           </li>
         ))}
       </ul>
-    </section>
+    </Block>
   );
 }
 
@@ -143,7 +170,7 @@ function Row({ r, group, target, money }: { r: DishMargin; group?: Group; target
   const tip = advise(r, group, target, money);
   const pct = r.marginPct === null ? 0 : Math.max(0, Math.min(1, r.marginPct));
   return (
-    <li className={cx(PANEL, 'grid gap-x-6 gap-y-2 p-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:items-center sm:p-5')}>
+    <li className="grid gap-x-6 gap-y-2 border-b border-hairline py-4 last:border-0 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Link to={`/admin/menu/${r.dishId}`} className="truncate text-[16px] font-semibold hover:underline">

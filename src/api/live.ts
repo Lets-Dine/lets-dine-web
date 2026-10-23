@@ -1,6 +1,6 @@
 import type { CreateOrderInput, DeliverySessionResult, StartDeliverySessionInput } from './client';
 import type { ReviewDraft } from './client';
-import type { AddOn, CartLine, Customer, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Floor, Menu, MenuCategory, Order, Payment, PaymentMethod, PublicBranch, Restaurant, Review, ServiceKind } from '../domain/types';
+import type { AddOn, CartLine, Customer, DeliveryChannel, DietaryType, DiningSession, DiningTable, Dish, DishStats, DishVariant, Floor, Menu, MenuCategory, Order, Payment, PaymentMethod, PublicBranch, Restaurant, Review, ServiceKind } from '../domain/types';
 import { apiRequest } from './http';
 import type { Paginated } from './http';
 import { getSocket, joinRoom } from './socket';
@@ -37,6 +37,9 @@ interface ApiRestaurant {
   serviceChargeRate: number;
   taxRate: number;
   deliveryFeeAmount?: number | null;
+  deliveryEnabled?: boolean;
+  deliveryChannel?: DeliveryChannel;
+  whatsappNumber?: string | null;
   vatPanNumber?: string | null;
   avgRating?: number | null;
   ratingCount?: number;
@@ -274,6 +277,9 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     serviceChargeRate: api.serviceChargeRate,
     taxRate: api.taxRate,
     deliveryFeeAmount: api.deliveryFeeAmount ?? null,
+    deliveryEnabled: api.deliveryEnabled ?? true,
+    deliveryChannel: api.deliveryChannel ?? 'APP',
+    whatsappNumber: api.whatsappNumber ?? null,
     vatPanNumber: api.vatPanNumber ?? null,
   };
 }

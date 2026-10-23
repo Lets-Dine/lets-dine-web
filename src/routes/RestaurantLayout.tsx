@@ -1,8 +1,9 @@
 import { useEffect, createContext, useContext, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Outlet, useParams } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useParams } from 'react-router-dom';
 import {
   getBranches,
+  getRestaurant,
   getMenu,
   isSessionOpen,
   joinTableSession,
@@ -65,6 +66,10 @@ interface RestaurantValue {
   floorPlace: string;
   setFloorPlace: (place: string) => void;
   session: DiningSession;
+  /** Delivery is switched off: the menu is visible but nothing can be added or ordered. */
+  browseOnly: boolean;
+  /** Delivery runs through WhatsApp: a cart, but no session — the order leaves as a message. */
+  whatsapp: boolean;
   ctx: RankContext;
   base: string;
   reload: () => void;
@@ -108,9 +113,14 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
   const [floorPlace, setFloorPlace] = useState('');
 
   const qr = useAsync(() => (kind === 'table' ? resolveQr(slug, token ?? '') : Promise.resolve(null)), [slug, token, kind]);
+  // A restaurant that has switched delivery off still shows its menu, just without a way to order.
+  const deliveryInfo = useAsync(() => (isDelivery ? getRestaurant(slug) : Promise.resolve(null)), [slug, isDelivery]);
+  const browseOnly = isDelivery && deliveryInfo.data?.deliveryEnabled === false;
+  const whatsapp = isDelivery && !browseOnly && deliveryInfo.data?.deliveryChannel === 'WHATSAPP';
+  const sessionless = browseOnly || whatsapp;
   const deliveryResume = useAsync(
-    () => (isDelivery ? resumeDeliverySession(slug) : Promise.resolve(null)),
-    [slug, isDelivery],
+    () => (isDelivery && !deliveryInfo.loading && !sessionless ? resumeDeliverySession(slug) : Promise.resolve(null)),
+    [slug, isDelivery, deliveryInfo.loading, sessionless],
   );
   // §16b — no identity question to block on any more; resumes a session
   // already open on this device, or opens a fresh one straight away.
@@ -118,7 +128,23 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
     () => (isFloor ? openFloorSession(slug, token ?? '') : Promise.resolve(null)),
     [slug, token, isFloor],
   );
-  const resolved: Resolved | null = isDelivery
+  const browseSession: DiningSession | null = sessionless
+    ? {
+        id: whatsapp ? `whatsapp-${slug}` : 'browse',
+        restaurantId: deliveryInfo.data?.id ?? '',
+        tableId: null,
+        anonymousSessionToken: '',
+        startedAt: '',
+        expiresAt: '',
+        endedAt: null,
+        customerId: null,
+        floorId: null,
+        floorVisitorName: null,
+      }
+    : null;
+  const resolved: Resolved | null = browseSession
+    ? { table: null, session: browseSession }
+    : isDelivery
     ? (delivery ?? deliveryResume.data ?? null)
     : isFloor
       ? floorOpen.data
@@ -150,12 +176,16 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
       floorPlace,
       setFloorPlace,
       session,
+      browseOnly,
+      whatsapp,
       ctx: buildRankContext(menu.data.dishes),
       base: isDelivery ? `/r/${slug}/delivery` : isFloor ? `/r/${slug}/f/${token}` : `/r/${slug}/t/${token}`,
       reload: menu.reload,
     };
   }, [
     resolved,
+    browseOnly,
+    whatsapp,
     menu.data,
     slug,
     token,
@@ -177,7 +207,7 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
    * delivery session too — staff can end one the same way.
    */
   useEffect(() => {
-    if (!resolved || resolved.session.endedAt) return;
+    if (!resolved || sessionless || resolved.session.endedAt) return;
     const onEnded = () => setEndedAt(new Date().toISOString());
 
     if (IS_LIVE_API) return subscribeToSessionEnd(resolved.session, onEnded);
@@ -188,7 +218,7 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
       });
     }, SESSION_POLL_MS);
     return () => clearInterval(timer);
-  }, [resolved]);
+  }, [resolved, sessionless]);
 
   const occupied = !isDelivery && !joined && qr.error instanceof ApiError && qr.error.key === TABLE_OCCUPIED_KEY;
   if (occupied) {
@@ -197,6 +227,7 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
 
   // Delivery has no QR/table to auto-resolve — ask for a phone number once
   // neither a resumed session nor a just-started one is already in hand.
+  if (isDelivery && deliveryInfo.loading) return <BootScreen />;
   if (isDelivery && !resolved) {
     if (deliveryResume.loading) return <BootScreen />;
     if (deliveryResume.error) {
@@ -223,6 +254,17 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
   if (!value) return <BootScreen />;
 
   const sessionEnded = Boolean(value.session.endedAt);
+
+  if (sessionless) {
+    return (
+      <RestaurantContext.Provider value={value}>
+        <CartProvider sessionId={value.session.id}>
+          <SessionlessOutlet base={value.base} allowCart={whatsapp} />
+          {whatsapp && <CartDock dishes={value.menu.dishes} base={value.base} />}
+        </CartProvider>
+      </RestaurantContext.Provider>
+    );
+  }
 
   return (
     <RestaurantContext.Provider value={value}>
@@ -316,6 +358,15 @@ function OccupiedTableScreen({
       </form>
     </main>
   );
+}
+
+/** Menu and dish pages (plus the cart for WhatsApp) — checkout and order screens need a session. */
+function SessionlessOutlet({ base, allowCart }: { base: string; allowCart: boolean }) {
+  const { pathname } = useLocation();
+  const rest = pathname.slice(base.length);
+  const allowed = rest === '' || rest === '/' || rest.startsWith('/d/') || (allowCart && rest === '/cart');
+  if (!allowed) return <Navigate to={base} replace />;
+  return <Outlet />;
 }
 
 /**

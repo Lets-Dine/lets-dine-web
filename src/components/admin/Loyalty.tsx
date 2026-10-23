@@ -8,7 +8,8 @@ import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../time';
 import { cx } from '../ui';
-import { ADMIN_GHOST, ADMIN_PRIMARY, Field, Loading, MoneyInput, Panel, PercentInput, TextInput, Toggle, useCommand } from './kit';
+import { ADMIN_GHOST, ADMIN_PRIMARY, Field, Loading, MoneyInput, PercentInput, TextInput, Toggle, useCommand } from './kit';
+import { Block } from './profile';
 
 const ENTRY_LABEL: Record<LoyaltyEntryType, string> = {
   EARN: 'Earned',
@@ -158,7 +159,7 @@ export function LoyaltySettings({ currency, canEdit, onSaved }: { currency: stri
   const loaded = saved ?? program.data;
   if (!loaded) {
     return (
-      <Panel title="Loyalty points">
+      <Block title="Loyalty points">
         {program.error ? (
           <p role="alert" className="text-[13px] text-berry-ink">
             The rules could not be loaded.{' '}
@@ -169,7 +170,7 @@ export function LoyaltySettings({ currency, canEdit, onSaved }: { currency: stri
         ) : (
           <Loading />
         )}
-      </Panel>
+      </Block>
     );
   }
   // Keyed on the saved rules so the form starts again from what is saved after every save.
@@ -198,9 +199,9 @@ function LoyaltyRules({ saved, currency, canEdit, onSaved }: { saved: LoyaltyPro
   const money = (m: number) => formatMoney(m, currency);
 
   return (
-    <Panel title="Loyalty points" hint={canEdit ? 'Earned when a bill is paid, spent as a discount at the till · saved on its own' : 'Only an owner can change these'}>
+    <Block title="Loyalty points" hint={canEdit ? 'Saved on its own' : 'Only an owner can change these'}>
       <fieldset disabled={!canEdit} className="grid gap-4 disabled:opacity-60">
-        <Toggle checked={enabled} onChange={setEnabled} label="Give points" hint="Customers with a phone number on their order earn points when the bill is paid." />
+        <Toggle checked={enabled} onChange={setEnabled} label="Give points" hint="Customers with a phone number on their order earn points when the bill is paid, and spend them as a discount at the till." />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Spend per point" hint="Every time a customer spends this much (on the bill before service charge and tax, less any discount), they earn one point.">
             <MoneyInput value={spend} onChange={setSpend} currency={currency} />
@@ -222,18 +223,18 @@ function LoyaltyRules({ saved, currency, canEdit, onSaved }: { saved: LoyaltyPro
         )}
       </fieldset>
       {canEdit && (
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <span className="text-[13px] text-ink-4">{dirty ? 'Unsaved changes' : 'Everything saved'}</span>
+        <div className="mt-6 flex items-center justify-between gap-3 border-t border-hairline pt-4">
+          <span className="text-[13px] text-ink-4" aria-live="polite">{dirty ? 'You have unsaved changes' : 'All changes saved'}</span>
           <button
             type="button"
             className={ADMIN_PRIMARY}
             disabled={busy || !dirty || !valid}
             onClick={() => void run('loyalty', async () => onSaved(await saveLoyaltyProgram({ enabled, spendPerPoint: spend, redeemValue: value, maxRedeemPct, reviewBonus })), 'Loyalty rules saved')}
           >
-            {busy ? 'Saving…' : 'Save rules'}
+            {busy ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       )}
-    </Panel>
+    </Block>
   );
 }

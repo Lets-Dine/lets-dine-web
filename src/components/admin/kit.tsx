@@ -312,11 +312,14 @@ export function StatusPill({ status, label }: { status: OrderStatus; label: stri
 export function Field({
   label,
   hint,
+  error,
   children,
   className,
 }: {
   label: string;
   hint?: string;
+  /** Replaces the hint, in the error colour. */
+  error?: string;
   children: ReactNode;
   className?: string;
 }) {
@@ -324,7 +327,11 @@ export function Field({
     <label className={cx('block', className)}>
       <span className={LABEL}>{label}</span>
       <span className="mt-1.5 block">{children}</span>
-      {hint && <span className="mt-1.5 block text-[12px] text-ink-4">{hint}</span>}
+      {error ? (
+        <span role="alert" className="mt-1.5 block text-[12px] text-berry-ink">{error}</span>
+      ) : (
+        hint && <span className="mt-1.5 block text-[12px] text-ink-4">{hint}</span>
+      )}
     </label>
   );
 }
@@ -694,8 +701,9 @@ export function Toggle({
       >
         <span
           className={cx(
-            'absolute top-1 size-4.5 rounded-full bg-ink shadow-lift transition-move duration-200',
-            checked ? 'left-5.5' : 'left-1',
+            'absolute top-1 size-4.5 rounded-full shadow-lift transition-move duration-200',
+            // `ink` is dark brown in the light theme, which sinks into the orange track; white holds in both themes.
+            checked ? 'left-5.5 bg-white' : 'left-1 bg-ink',
           )}
         />
       </span>

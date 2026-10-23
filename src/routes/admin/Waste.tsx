@@ -4,8 +4,9 @@ import { fetchWaste, formatQty, wasteLabel } from '../../api/inventory';
 import type { WasteTotals } from '../../api/inventory';
 import { formatMoney } from '../../domain/money';
 import { useAsync } from '../../state/useAsync';
-import { ADMIN_GHOST, Empty, Loading, PANEL, PageTitle } from '../../components/admin/kit';
-import { CHIP, CHIP_OFF, CHIP_ON, cx } from '../../components/ui';
+import { ADMIN_GHOST, Empty, Loading } from '../../components/admin/kit';
+import { Block, Step } from '../../components/admin/profile';
+import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
 const DAY = 86_400_000;
@@ -36,12 +37,13 @@ export function Waste() {
   const unpriced = (t: WasteTotals) => (t.unpriced > 0 ? ` · ${t.unpriced} not priced` : '');
 
   return (
-    <>
-      <div className="animate-rise">
-        <PageTitle title="Waste" subtitle="What was thrown away, priced from the delivery it came from. Log waste from an ingredient on the Stock page." />
-      </div>
+    <div className="mx-auto max-w-6xl">
+      <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Waste</h1>
+      <p className="mt-5 max-w-[34ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:80ms] sm:max-w-[40ch]">
+        What was thrown away, priced from the delivery it came from. Log waste from an ingredient on the Stock page.
+      </p>
 
-      <div className="mb-4 flex animate-rise flex-wrap gap-2 [animation-delay:60ms]" role="group" aria-label="Period">
+      <div className="mt-5 flex animate-rise flex-wrap items-center gap-2 [animation-delay:120ms]" role="group" aria-label="Period">
         {RANGES.map((x) => (
           <button key={x.value} type="button" aria-pressed={range === x.value} onClick={() => setRange(x.value)} className={cx(CHIP, range === x.value ? CHIP_ON : CHIP_OFF)}>
             {x.label}
@@ -50,71 +52,82 @@ export function Waste() {
       </div>
 
       {report.error ? (
-        <Empty emoji="⚠️" title="Couldn't load the waste report" message={report.error.message} action={<button type="button" className={ADMIN_GHOST} onClick={report.reload}>Try again</button>} />
+        <div className="mt-10"><Empty emoji="⚠️" title="Couldn't load the waste report" message={report.error.message} action={<button type="button" className={ADMIN_GHOST} onClick={report.reload}>Try again</button>} /></div>
       ) : !r || report.loading ? (
-        <Loading label="Adding up what was thrown away…" />
+        <div className="mt-10"><Loading label="Adding up what was thrown away…" /></div>
       ) : r.count === 0 ? (
-        <Empty emoji="🌿" title="No waste logged" message="Nothing was thrown away in this period, or none was logged. Use Waste on an ingredient to record it." />
+        <div className="mt-10"><Empty emoji="🌿" title="No waste logged" message="Nothing was thrown away in this period, or none was logged. Use Waste on an ingredient to record it." /></div>
       ) : (
-        <div className="grid animate-rise gap-4 [animation-delay:100ms]">
-          <section className={cx(PANEL, 'p-4 sm:p-5')} aria-label="Total">
-            <p className="text-[13px] text-ink-3">Thrown away</p>
-            <p className="text-[28px] font-semibold tracking-tight tnum">{money(r.cost)}</p>
-            <p className="text-[13px] text-ink-3">
-              {r.count} {r.count === 1 ? 'entry' : 'entries'}
-              {r.unpriced > 0 && ` · ${r.unpriced} couldn't be priced (no delivery price on record), so the total is at least this`}
-            </p>
+        <>
+          <section aria-label="The three answers" className="mt-10 animate-rise overflow-hidden rounded-[28px] bg-surface-2 ring-1 ring-hairline-strong ring-inset [animation-delay:200ms]">
+            <div className="grid divide-y divide-hairline md:grid-cols-3 md:divide-x md:divide-y-0">
+              <Cell title="Thrown away" sub={r.unpriced > 0 ? 'At least this — some entries have no price' : 'Priced from deliveries'} bad>{money(r.cost)}</Cell>
+              <Cell title="Entries" sub="Logged in this period">{String(r.count)}</Cell>
+              <Cell title="Not priced" sub="No delivery price on record">{String(r.unpriced)}</Cell>
+            </div>
           </section>
 
-          <section className={cx(PANEL, 'p-4 sm:p-5')} aria-label="By reason">
-            <h2 className="text-[15px] font-semibold">By reason</h2>
-            <ul className="mt-3 grid gap-3">
-              {r.byReason.map((x) => (
-                <li key={x.reason}>
-                  <div className="flex items-baseline justify-between gap-3 text-[14px]">
-                    <span className="font-medium">{wasteLabel(x.reason)}</span>
-                    <span className="tnum">{money(x.cost)}</span>
-                  </div>
-                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-ink/10" role="img" aria-label={`${wasteLabel(x.reason)} ${money(x.cost)}`}>
-                    <div className="h-full rounded-full bg-flame-2" style={{ width: `${(x.cost / top) * 100}%` }} />
-                  </div>
-                  <p className="mt-0.5 text-[12.5px] text-ink-3">{x.count} {x.count === 1 ? 'entry' : 'entries'}{unpriced(x)}</p>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+            <div className="grid content-start gap-6">
+              <Block title="By ingredient" hint="Biggest cost first" delay={260}>
+                <ul className="border-t border-hairline">
+                  {r.byIngredient.map((x) => (
+                    <li key={x.ingredientId} className="flex items-baseline justify-between gap-3 border-b border-hairline py-3.5 text-[14.5px] last:border-0">
+                      <div className="min-w-0">
+                        <Link to={`/admin/inventory?open=${x.ingredientId}`} className="font-medium hover:underline">{x.name}</Link>
+                        <p className="text-[13px] text-ink-3">{formatQty(x.quantity, x.unit)} · {x.count} {x.count === 1 ? 'entry' : 'entries'}{unpriced(x)}</p>
+                      </div>
+                      <span className="shrink-0 font-semibold tnum">{money(x.cost)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Block>
 
-          <section className={cx(PANEL, 'p-4 sm:p-5')} aria-label="By ingredient">
-            <h2 className="text-[15px] font-semibold">By ingredient</h2>
-            <ul className="mt-2 divide-y divide-hairline">
-              {r.byIngredient.map((x) => (
-                <li key={x.ingredientId} className="flex items-baseline justify-between gap-3 py-2.5 text-[14px]">
-                  <div className="min-w-0">
-                    <Link to={`/admin/inventory?open=${x.ingredientId}`} className="font-semibold hover:underline">{x.name}</Link>
-                    <p className="text-[12.5px] text-ink-3">{formatQty(x.quantity, x.unit)} · {x.count} {x.count === 1 ? 'entry' : 'entries'}{unpriced(x)}</p>
-                  </div>
-                  <span className="shrink-0 tnum">{money(x.cost)}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+              <Block title="Latest entries" delay={320}>
+                <ul className="border-t border-hairline">
+                  {r.recent.map((e, i) => (
+                    <Step
+                      key={e.id}
+                      label={`${e.ingredientName} · ${formatQty(e.quantity, e.unit)} · ${wasteLabel(e.reason)}`}
+                      note={`${when.format(new Date(e.createdAt))}${e.note ? ` · ${e.note}` : ''}`}
+                      value={e.cost === null ? 'not priced' : money(e.cost)}
+                      delay={320 + 140 + Math.min(i, 12) * 45}
+                    />
+                  ))}
+                </ul>
+              </Block>
+            </div>
 
-          <section className={cx(PANEL, 'p-4 sm:p-5')} aria-label="Latest entries">
-            <h2 className="text-[15px] font-semibold">Latest entries</h2>
-            <ul className="mt-2 divide-y divide-hairline">
-              {r.recent.map((e) => (
-                <li key={e.id} className="flex items-baseline justify-between gap-3 py-2.5 text-[14px]">
-                  <div className="min-w-0">
-                    <p><span className="font-semibold">{e.ingredientName}</span> · {formatQty(e.quantity, e.unit)} · {wasteLabel(e.reason)}</p>
-                    <p className="text-[12.5px] text-ink-3">{when.format(new Date(e.createdAt))}{e.note && ` · ${e.note}`}</p>
-                  </div>
-                  <span className="shrink-0 tnum text-ink-2">{e.cost === null ? 'not priced' : money(e.cost)}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
+            <div className="grid content-start gap-6">
+              <Block title="By reason" delay={300}>
+                <ul className="border-t border-hairline">
+                  {r.byReason.map((x, i) => (
+                    <Step
+                      key={x.reason}
+                      label={wasteLabel(x.reason)}
+                      note={`${x.count} ${x.count === 1 ? 'entry' : 'entries'}${unpriced(x)}`}
+                      value={money(x.cost)}
+                      bar={x.cost / top}
+                      share={r.cost > 0 ? `${((x.cost / r.cost) * 100).toFixed(1)}%` : '—'}
+                      delay={300 + 140 + i * 45}
+                    />
+                  ))}
+                </ul>
+              </Block>
+            </div>
+          </div>
+        </>
       )}
-    </>
+    </div>
+  );
+}
+
+function Cell({ title, sub, bad, children }: { title: string; sub: string; bad?: boolean; children: string }) {
+  return (
+    <div className="px-6 py-6">
+      <h2 className="mb-3 text-[13px] font-semibold text-ink-3">{title}</h2>
+      <p className={cx(DISPLAY, 'text-[clamp(28px,3.4vw,38px)] leading-none tnum', bad && 'text-berry-ink')}>{children}</p>
+      <p className="mt-2 text-[13.5px] text-ink-3">{sub}</p>
+    </div>
   );
 }

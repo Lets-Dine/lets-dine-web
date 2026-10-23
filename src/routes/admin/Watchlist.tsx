@@ -4,9 +4,10 @@ import { Link } from 'react-router-dom';
 import { fetchMargins, fetchQuality, loadMarginTarget, saveMarginTarget } from '../../api/inventory';
 import { fetchSuppliers } from '../../api/suppliers';
 import type { DishMargin, LotQuality } from '../../api/inventory';
-import { ADMIN_GHOST, INPUT_BOX, Loading, PANEL, PageTitle, Segmented } from '../../components/admin/kit';
+import { ADMIN_GHOST, INPUT_BOX, Loading, PANEL } from '../../components/admin/kit';
+import { Block } from '../../components/admin/profile';
 import { Bike, Check, Contact, Plate, Receipt, Search, Send, TrendUp } from '../../components/icons';
-import { cx } from '../../components/ui';
+import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { formatMoney } from '../../domain/money';
 import { useAuth } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
@@ -165,134 +166,144 @@ export function Watchlist() {
   const missingParts = [margins.error && 'dish margins', quality.error && 'delivery reviews'].filter(Boolean).join(' and ');
   const incomplete = Boolean(margins.error || quality.error);
 
+  const retry = () => {
+    margins.reload();
+    quality.reload();
+  };
+  const headline = issues.length === 0 ? (incomplete ? 'Nothing flagged in what loaded' : 'Nothing needs attention') : `${issues.length} thing${issues.length === 1 ? '' : 's'} need${issues.length === 1 ? 's' : ''} attention`;
+
   return (
-    <>
-      <PageTitle title="Watchlist" purpose="What needs your attention." subtitle="Dishes that earn too little after ingredient prices, and deliveries that disappointed diners. Check weekly." />
+    <div className="mx-auto max-w-6xl">
+      <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Watchlist</h1>
+      <div className="mt-5 flex animate-rise flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-ink-3 [animation-delay:80ms]">
+        <label className="flex items-center gap-2">
+          Warn below
+          <input
+            className={cx(INPUT_BOX, 'h-9 w-16 py-0 text-center tnum')}
+            inputMode="numeric"
+            value={draft}
+            aria-label="Profit percent to warn below"
+            onChange={(e) => {
+              const text = e.target.value.replace(/\D/g, '').slice(0, 2);
+              setDraft(text);
+              const next = Number.parseInt(text || '0', 10);
+              if (next >= 1 && next <= 95) {
+                setTarget(next);
+                saveMarginTarget(next);
+              }
+            }}
+            onBlur={() => setDraft(String(target))}
+          />
+          % left over
+        </label>
+        <span className="flex items-center gap-2">
+          Delivery reviews from
+          <Chips label="Delivery review period" value={days} onChange={setDays} options={PERIODS} />
+        </span>
+      </div>
 
       {loading ? (
-        <Loading />
+        <div className="mt-10"><Loading /></div>
       ) : failed && !margins.data && !quality.data ? (
-        <div className={cx(PANEL, 'flex flex-wrap items-center gap-3 p-4 sm:p-5')}>
+        <div className={cx(PANEL, 'mt-10 flex flex-wrap items-center gap-3 p-4 sm:p-5')}>
           <p className="min-w-0 flex-1 text-[14px]">The watchlist couldn’t load. {failed.message}</p>
-          <button
-            type="button"
-            className={ADMIN_GHOST}
-            onClick={() => {
-              margins.reload();
-              quality.reload();
-            }}
-          >
+          <button type="button" className={ADMIN_GHOST} onClick={retry}>
             Try again
           </button>
         </div>
       ) : (
-        <div className="grid gap-8">
-          <section aria-labelledby="attn-h" className="grid gap-3">
-            <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-              <div className="min-w-0 flex-1">
-                <h2 id="attn-h" className="text-[18px] font-semibold tracking-tight">
-                  {issues.length === 0 ? (incomplete ? 'Nothing flagged in what loaded' : 'Nothing needs attention') : `${issues.length} thing${issues.length === 1 ? '' : 's'} need${issues.length === 1 ? 's' : ''} attention`}
-                </h2>
-                <p className="mt-0.5 text-[13.5px] text-ink-3">
-                  Checked {dishes.length} dish{dishes.length === 1 ? '' : 'es'} and {lots.length} reviewed deliver{lots.length === 1 ? 'y' : 'ies'} from the last {days} days.{quality.loading && ' Updating deliveries…'}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-ink-3">
-                <label className="flex items-center gap-2">
-                  Warn below
-                  <input
-                    className={cx(INPUT_BOX, 'h-9 w-16 py-0 text-center tnum')}
-                    inputMode="numeric"
-                    value={draft}
-                    aria-label="Profit percent to warn below"
-                    onChange={(e) => {
-                      const text = e.target.value.replace(/\D/g, '').slice(0, 2);
-                      setDraft(text);
-                      const next = Number.parseInt(text || '0', 10);
-                      if (next >= 1 && next <= 95) {
-                        setTarget(next);
-                        saveMarginTarget(next);
-                      }
-                    }}
-                    onBlur={() => setDraft(String(target))}
-                  />
-                  % left over
-                </label>
-                <span className="flex items-center gap-2">
-                  Delivery reviews from
-                  <Segmented label="Delivery review period" value={days} onChange={setDays} options={PERIODS} />
-                </span>
-              </div>
-            </div>
+        <>
+          <p className="mt-5 max-w-[34ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:120ms] sm:max-w-[40ch]">
+            {headline}. Checked {dishes.length} dish{dishes.length === 1 ? '' : 'es'} and {lots.length} reviewed deliver{lots.length === 1 ? 'y' : 'ies'} from the last {days} days.
+          </p>
 
+          <section aria-label="The three answers" className="mt-10 animate-rise overflow-hidden rounded-[28px] bg-surface-2 ring-1 ring-hairline-strong ring-inset [animation-delay:200ms]">
+            <div className="grid divide-y divide-hairline md:grid-cols-3 md:divide-x md:divide-y-0">
+              <Cell title="Needs attention" sub={`Checked ${dishes.length} dish${dishes.length === 1 ? '' : 'es'}`} bad={issues.length > 0}>{issues.length}</Cell>
+              <Cell title="Low margin" sub={`Keeping under ${target}% of the price`} bad={counts('margin') > 0}>{counts('margin')}</Cell>
+              <Cell title="Poor deliveries" sub={`Of ${lots.length} reviewed in ${days} days`} bad={counts('delivery') > 0}>{counts('delivery')}</Cell>
+            </div>
+          </section>
+
+          <div className="mt-6 grid gap-6">
             {incomplete && (
-              <div role="alert" className={cx(PANEL, 'flex flex-wrap items-center gap-3 p-3.5 sm:px-5')}>
-                <p className="min-w-0 flex-1 text-[13.5px] text-berry-ink">The {missingParts} couldn’t load, so this list is incomplete.</p>
-                <button
-                  type="button"
-                  className={ADMIN_GHOST}
-                  onClick={() => {
-                    margins.reload();
-                    quality.reload();
-                  }}
-                >
+              <div role="alert" className="flex animate-rise flex-wrap items-center gap-3 rounded-2xl bg-berry/14 px-5 py-4 ring-1 ring-berry/40 ring-inset">
+                <p className="min-w-0 flex-1 text-[14px] text-berry-ink">The {missingParts} couldn’t load, so this list is incomplete.</p>
+                <button type="button" className={ADMIN_GHOST} onClick={retry}>
                   Try again
                 </button>
               </div>
             )}
 
-            {issues.length > 0 && (
-              <div role="group" aria-label="Filter by kind" className="flex flex-wrap gap-2">
-                <FilterChip on={active === 'all'} onClick={() => setFilter('all')} label="All" count={issues.length} />
-                {KIND_ORDER.map((k) => (
-                  <FilterChip key={k} on={active === k} onClick={() => setFilter(k)} label={KINDS[k].filter} count={counts(k)} tone={counts(k) > 0 ? KINDS[k].tone : undefined} />
-                ))}
-              </div>
-            )}
+            <Block title="Flagged" hint={quality.loading ? 'Updating deliveries…' : undefined} delay={260}>
+              {issues.length > 0 && (
+                <div role="group" aria-label="Filter by kind" className="mb-4 flex flex-wrap gap-2">
+                  <FilterChip on={active === 'all'} onClick={() => setFilter('all')} label="All" count={issues.length} />
+                  {KIND_ORDER.map((k) => (
+                    <FilterChip key={k} on={active === k} onClick={() => setFilter(k)} label={KINDS[k].filter} count={counts(k)} tone={counts(k) > 0 ? KINDS[k].tone : undefined} />
+                  ))}
+                </div>
+              )}
 
-            {issues.length === 0 && incomplete ? null : issues.length === 0 ? (
-              <div className={cx(PANEL, 'flex items-start gap-3 p-4 sm:p-5')}>
-                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-mint/20 text-mint-ink">
-                  <Check size={16} />
-                </span>
-                <p className="max-w-[62ch] text-[14px] leading-relaxed text-docket-inksoft">
-                  {dishes.length === 0
-                    ? 'Nothing to check yet. A margin needs a recipe on the dish and a price on each ingredient — prices come from the amount you enter when you receive a delivery.'
-                    : `Every priced dish keeps at least ${target}% and no delivery stands out. This updates as ingredient prices and reviews come in.`}
-                </p>
-              </div>
-            ) : shown.length === 0 ? (
-              <p className="px-1 text-[13.5px] text-ink-3">Nothing in this group.</p>
-            ) : (
-              <ul className={cx(PANEL, 'overflow-hidden', quality.loading && 'opacity-60 transition-opacity')} aria-busy={quality.loading}>
-                {shown.map((i, n) => (
-                  <IssueRow key={i.key} issue={i} delay={Math.min(n, 10) * 45} />
-                ))}
-              </ul>
-            )}
-          </section>
+              {issues.length === 0 && incomplete ? null : issues.length === 0 ? (
+                <div className="flex items-start gap-3">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-mint/20 text-mint-ink">
+                    <Check size={16} />
+                  </span>
+                  <p className="max-w-[62ch] text-[14px] leading-relaxed text-docket-inksoft">
+                    {dishes.length === 0
+                      ? 'Nothing to check yet. A margin needs a recipe on the dish and a price on each ingredient — prices come from the amount you enter when you receive a delivery.'
+                      : `Every priced dish keeps at least ${target}% and no delivery stands out. This updates as ingredient prices and reviews come in.`}
+                  </p>
+                </div>
+              ) : shown.length === 0 ? (
+                <p className="text-[13.5px] text-ink-3">Nothing in this group.</p>
+              ) : (
+                <ul className={cx('border-t border-hairline', quality.loading && 'opacity-60 transition-opacity')} aria-busy={quality.loading}>
+                  {shown.map((i, n) => (
+                    <IssueRow key={i.key} issue={i} delay={Math.min(n, 10) * 45} />
+                  ))}
+                </ul>
+              )}
+            </Block>
 
-          <Everything dishes={dishes} lots={lots} target={target} currency={currency} days={days} />
-        </div>
+            <Everything dishes={dishes} lots={lots} target={target} currency={currency} days={days} />
+          </div>
+        </>
       )}
-    </>
+    </div>
+  );
+}
+
+function Cell({ title, sub, bad, children }: { title: string; sub: string; bad?: boolean; children: number }) {
+  return (
+    <div className="px-6 py-6">
+      <h2 className="mb-3 text-[13px] font-semibold text-ink-3">{title}</h2>
+      <p className={cx(DISPLAY, 'text-[clamp(28px,3.4vw,38px)] leading-none tnum', bad && 'text-berry-ink')}>{children}</p>
+      <p className="mt-2 text-[13.5px] text-ink-3">{sub}</p>
+    </div>
   );
 }
 
 function FilterChip({ on, onClick, label, count, tone }: { on: boolean; onClick: () => void; label: string; count: number; tone?: 'bad' | 'warn' }) {
   return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={onClick}
-      className={cx(
-        'inline-flex h-8 items-center gap-2 rounded-full px-3 text-[13px] font-semibold ring-1 ring-inset transition-move',
-        on ? 'bg-surface-3 text-ink ring-ink/25' : 'bg-surface-2 text-ink-3 ring-hairline hover:text-ink-2',
-      )}
-    >
+    <button type="button" aria-pressed={on} onClick={onClick} className={cx(CHIP, 'gap-2', on ? CHIP_ON : CHIP_OFF)}>
       {label}
-      <span className={cx('tnum rounded-md px-1.5 text-[12px]', tone === 'bad' ? 'bg-berry/14 text-berry-ink' : tone === 'warn' ? 'bg-gold/20 text-gold-ink' : 'text-ink-4')}>{count}</span>
+      <span className={cx('tnum text-[12px]', !on && (tone === 'bad' ? 'text-berry-ink' : tone === 'warn' ? 'text-gold-ink' : 'text-ink-4'))}>{count}</span>
     </button>
+  );
+}
+
+/** Same chips as the other pages, for the choices that used to be a segmented control. */
+function Chips<T extends string>({ label, value, onChange, options }: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
+  return (
+    <span className="flex flex-wrap gap-2" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)} className={cx(CHIP, value === o.value ? CHIP_ON : CHIP_OFF)}>
+          {o.label}
+        </button>
+      ))}
+    </span>
   );
 }
 
@@ -322,7 +333,7 @@ function SupplierLinks({ name, phone }: { name: string; phone: string }) {
 function IssueRow({ issue, delay }: { issue: Issue; delay: number }) {
   const { label, tone, Icon } = KINDS[issue.kind];
   return (
-    <li style={{ animationDelay: `${delay}ms` }} className="animate-rise grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 border-b border-docket-line px-4 py-3.5 last:border-0 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5">
+    <li style={{ animationDelay: `${delay}ms` }} className="animate-rise grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 border-b border-hairline py-3.5 last:border-0 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
       <span className={cx('mt-0.5 grid size-8 place-items-center rounded-full sm:mt-0', tone === 'bad' ? 'bg-berry/14 text-berry-ink' : 'bg-gold/20 text-gold-ink')}>
         <Icon size={16} />
       </span>
@@ -377,12 +388,9 @@ function Everything({ dishes, lots, target, currency, days }: { dishes: DishMarg
   const visible = all ? rows : rows.slice(0, ROWS_SHOWN);
 
   return (
-    <section aria-labelledby="all-h" className="grid gap-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <h2 id="all-h" className="text-[18px] font-semibold tracking-tight">
-          Everything
-        </h2>
-        <Segmented
+    <Block title="Everything" delay={320}>
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <Chips
           label="What to list"
           value={tab}
           onChange={(t) => {
@@ -408,7 +416,7 @@ function Everything({ dishes, lots, target, currency, days }: { dishes: DishMarg
           />
         </div>
         {tab === 'dishes' && (
-          <Segmented
+          <Chips
             label="Sort dishes"
             value={sort}
             onChange={setSort}
@@ -421,11 +429,11 @@ function Everything({ dishes, lots, target, currency, days }: { dishes: DishMarg
       </div>
 
       {rows.length === 0 ? (
-        <p className="px-1 text-[13.5px] text-ink-3">
+        <p className="text-[13.5px] text-ink-3">
           {q ? 'No match.' : tab === 'dishes' ? 'No dishes with a recipe yet. Add one from the menu.' : `No delivery has been reviewed in the last ${days} days.`}
         </p>
       ) : (
-        <div className={cx(PANEL, 'overflow-hidden')}>
+        <div className="overflow-hidden border-t border-hairline">
           {tab === 'dishes' ? (
             <>
               <HeadRow cols={DISH_COLS} labels={['Dish', 'Price', 'Cost', 'Margin', 'Biggest cost']} />
@@ -445,17 +453,17 @@ function Everything({ dishes, lots, target, currency, days }: { dishes: DishMarg
       )}
 
       {rows.length > ROWS_SHOWN && (
-        <button type="button" className="justify-self-start text-[13px] font-semibold text-flame-1 underline-offset-4 hover:underline" onClick={() => setAll((v) => !v)}>
+        <button type="button" className="mt-3 text-[13px] font-semibold text-flame-1 underline-offset-4 hover:underline" onClick={() => setAll((v) => !v)}>
           {all ? `Show fewer` : `Show all ${rows.length}`}
         </button>
       )}
 
-      <p className="max-w-[72ch] px-1 text-[12.5px] leading-relaxed text-ink-4">
+      <p className="mt-4 max-w-[72ch] text-[12.5px] leading-relaxed text-ink-4">
         {tab === 'dishes'
           ? 'Cost is the recipe at each ingredient’s latest delivery price. Add-ons aren’t included, and the warning level is saved on this device.'
           : 'A rating of 2 stars or lower on taste or overall counts as poor. A delivery is flagged only when it is at least twice as bad as the same ingredient’s other deliveries, with four or more reviews behind it.'}
       </p>
-    </section>
+    </Block>
   );
 }
 

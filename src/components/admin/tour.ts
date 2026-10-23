@@ -15,17 +15,17 @@ interface Stop {
 /** The page each checklist step is done on, and the elements worth pointing at there. */
 export const TOURS: Record<OnboardingStepKey, { path: string; stops: Stop[] }> = {
   brand: {
-    path: '/admin/settings',
+    path: '/admin/settings?tab=branding',
     stops: [
       { target: 'logo', title: 'Your logo', body: 'Click Upload logo, pick a square image and crop it. Guests see it at the top of your menu. Then press Next.' },
-      { target: 'save-settings', title: 'Now save it', body: 'The upload is not kept until you click Save settings. The button lights up once there is something to save.' },
+      { target: 'save-settings', title: 'Now save it', body: 'The upload is not kept until you click Save changes. The button lights up once there is something to save.' },
     ],
   },
   fees: {
-    path: '/admin/settings',
+    path: '/admin/settings?tab=charges',
     stops: [
       { target: 'charges', title: 'Service charge and tax', body: 'Enter them as percentages. They are added to every order automatically. Leave both at 0 if you charge neither.' },
-      { target: 'save-settings', title: 'Save your changes', body: 'Click Save settings to keep them.' },
+      { target: 'save-settings', title: 'Save your changes', body: 'Click Save changes to keep them.' },
     ],
   },
   categories: {

@@ -1,4 +1,4 @@
-import type { BillLine } from '../domain/types';
+import type { BillLine, DeliveryChannel } from '../domain/types';
 import { HISTORY_REF_CEILING, orderHistory } from '../data/history';
 import { SEED_REVIEWS } from '../data/reviews';
 import { DEMO_PIN } from '../data/staff';
@@ -2023,6 +2023,9 @@ export interface SettingsPatch {
   taxRate?: number;
   /** Flat, minor-unit delivery fee. `null`/`0` means no fee. */
   deliveryFeeAmount?: number | null;
+  deliveryEnabled?: boolean;
+  deliveryChannel?: DeliveryChannel;
+  whatsappNumber?: string | null;
   /** VAT/PAN number for receipts; `null`/`''` clears it. */
   vatPanNumber?: string | null;
   /** Whether starting a dish takes its recipe off stock. */
@@ -2055,6 +2058,9 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
     serviceChargeRate: rate(patch.serviceChargeRate, 'Service charge') ?? before.serviceChargeRate,
     taxRate: rate(patch.taxRate, 'Tax') ?? before.taxRate,
     deliveryFeeAmount: deliveryFee !== undefined ? deliveryFee : before.deliveryFeeAmount,
+    deliveryEnabled: patch.deliveryEnabled ?? before.deliveryEnabled,
+    deliveryChannel: patch.deliveryChannel ?? before.deliveryChannel,
+    whatsappNumber: patch.whatsappNumber !== undefined ? patch.whatsappNumber?.replace(/\D/g, '') || null : before.whatsappNumber,
     vatPanNumber: patch.vatPanNumber !== undefined ? patch.vatPanNumber?.trim() || null : before.vatPanNumber,
   };
 
@@ -2070,6 +2076,9 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
   if (after.deliveryFeeAmount !== before.deliveryFeeAmount)
     changes.push(`Delivery fee ${formatMoney(before.deliveryFeeAmount ?? 0, before.currency)} → ${formatMoney(after.deliveryFeeAmount ?? 0, after.currency)}`);
 
+  if (after.deliveryEnabled !== before.deliveryEnabled) changes.push(`Delivery ${after.deliveryEnabled === false ? 'turned off' : 'turned on'}`);
+  if (after.deliveryChannel !== before.deliveryChannel) changes.push(`Delivery channel → ${after.deliveryChannel}`);
+  if (after.whatsappNumber !== before.whatsappNumber) changes.push('WhatsApp number changed');
   if (after.vatPanNumber !== before.vatPanNumber) changes.push(`VAT/PAN ${before.vatPanNumber ?? '—'} → ${after.vatPanNumber ?? '—'}`);
 
   // Only the editable fields are stored, so the seed data keeps owning
@@ -2085,6 +2094,9 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
       serviceChargeRate: after.serviceChargeRate,
       taxRate: after.taxRate,
       deliveryFeeAmount: after.deliveryFeeAmount,
+      deliveryEnabled: after.deliveryEnabled,
+      deliveryChannel: after.deliveryChannel,
+      whatsappNumber: after.whatsappNumber,
       vatPanNumber: after.vatPanNumber,
     },
   };

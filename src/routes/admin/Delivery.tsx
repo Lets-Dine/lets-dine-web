@@ -7,7 +7,8 @@ import { RIDER_KIND_LABEL, partnerTerms, riderStatus } from '../../domain/delive
 import type { Balance, DeliveryOverview, DeliveryPartner, PartnerListing, RiderListing } from '../../domain/delivery';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
-import { ADMIN_GHOST, ADMIN_PRIMARY, Empty, PANEL, Panel, Segmented, useCommand } from '../../components/admin/kit';
+import { ADMIN_GHOST, ADMIN_PRIMARY, Empty, INPUT_BOX, PANEL, useCommand } from '../../components/admin/kit';
+import { Block } from '../../components/admin/profile';
 import { FOOT_PRIMARY, SHEET_FOOT, Sheet } from '../../components/admin/Sheet';
 import {
   BalanceFigure,
@@ -22,8 +23,7 @@ import {
   emptyRiderDraft,
 } from '../../components/admin/delivery';
 import { Bike, ChevronRight, Handshake, Plus, Search } from '../../components/icons';
-import { PageTitle } from '../../components/admin/kit';
-import { cx } from '../../components/ui';
+import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
 type RiderFilter = 'all' | 'road' | 'cash';
@@ -58,9 +58,9 @@ export function Delivery() {
 
   if (book.loading && !book.data)
     return (
-      <>
-        <PageTitle title="Delivery" />
-        <div role="status" aria-label="Loading delivery" className="grid gap-3">
+      <div className="mx-auto max-w-6xl">
+        <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Delivery</h1>
+        <div role="status" aria-label="Loading delivery" className="mt-10 grid gap-3">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {[0, 1, 2].map((i) => (
               <div key={i} className="shimmer-bg animate-shimmer h-[196px] rounded-2xl" style={{ opacity: 1 - i * 0.18 }} />
@@ -70,20 +70,20 @@ export function Delivery() {
             <div key={i} className="shimmer-bg animate-shimmer h-14 rounded-xl" style={{ opacity: 1 - i * 0.16 }} />
           ))}
         </div>
-      </>
+      </div>
     );
 
   if (book.error && !book.data)
     return (
-      <>
-        <PageTitle title="Delivery" />
-        <p role="alert" className="rounded-2xl bg-berry/10 px-4 py-3 text-[14px] text-berry-ink ring-1 ring-berry/25 ring-inset">
+      <div className="mx-auto max-w-6xl">
+        <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Delivery</h1>
+        <p role="alert" className="mt-10 rounded-2xl bg-berry/10 px-4 py-3 text-[14px] text-berry-ink ring-1 ring-berry/25 ring-inset">
           {book.error.message}{' '}
           <button type="button" className="font-semibold underline underline-offset-2" onClick={book.reload}>
             Try again
           </button>
         </p>
-      </>
+      </div>
     );
 
   const v = view!;
@@ -96,39 +96,44 @@ export function Delivery() {
     return true;
   });
 
+  const { summary } = v;
+  const quiet = summary.onRoad === 0 && summary.cashOut === 0 && summary.owed === 0;
+  const money = (m: number) => formatMoney(m, currency);
+
   return (
-    <>
-      <div className="animate-rise">
-      <PageTitle
-        title="Delivery"
-        purpose="Who carries the food, and who owes whom."
-        subtitle="Hand an order to a rider or a partner from its ticket. Their fees and the cash they bring back build up here until you settle."
-        action={
-          canManage && !first ? (
-            <>
-              <button type="button" className={ADMIN_GHOST} onClick={() => setAdding('partner')}>
-                <Handshake size={16} /> Add partner
-              </button>
-              <button type="button" className={ADMIN_PRIMARY} onClick={() => setAdding('rider')}>
-                <Plus size={16} /> Add rider
-              </button>
-            </>
-          ) : undefined
-        }
-      />
-      </div>
+    <div className="mx-auto max-w-6xl">
+      <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Delivery</h1>
+
+      {canManage && !first && (
+        <div className="mt-5 flex animate-rise flex-wrap items-center gap-2 [animation-delay:80ms]">
+          <button type="button" className={ADMIN_GHOST} onClick={() => setAdding('partner')}>
+            <Handshake size={16} /> Add partner
+          </button>
+          <button type="button" className={ADMIN_PRIMARY} onClick={() => setAdding('rider')}>
+            <Plus size={16} /> Add rider
+          </button>
+        </div>
+      )}
 
       {first ? (
-        <FirstRun onRider={canManage ? () => setAdding('rider') : undefined} onPartner={canManage ? () => setAdding('partner') : undefined} />
+        <div className="mt-10"><FirstRun onRider={canManage ? () => setAdding('rider') : undefined} onPartner={canManage ? () => setAdding('partner') : undefined} /></div>
       ) : (
         <>
-          <div className="animate-rise [animation-delay:80ms]">
-            <Sentence summary={v.summary} currency={currency} />
-          </div>
+          <p aria-live="polite" className="mt-5 max-w-[34ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:120ms] sm:max-w-[40ch]">
+            {quiet ? 'Nobody is out, and every account is settled.' : `${summary.onRoad} on the road, and ${money(summary.cashOut)} of your cash is with couriers.`} Hand an order to a rider or a partner from its ticket.
+          </p>
 
-          <section aria-labelledby="partners-h" className="mt-6 animate-rise [animation-delay:160ms]">
+          <section aria-label="The three answers" className="mt-10 animate-rise overflow-hidden rounded-[28px] bg-surface-2 ring-1 ring-hairline-strong ring-inset [animation-delay:200ms]">
+            <div className="grid divide-y divide-hairline md:grid-cols-3 md:divide-x md:divide-y-0">
+              <Cell title="On the road" sub="Orders out right now">{String(summary.onRoad)}</Cell>
+              <Cell title="Cash with couriers" sub="Yours, to be handed back" bad={summary.cashOut > 0}>{money(summary.cashOut)}</Cell>
+              <Cell title="Fees owed" sub="Yours to pay them">{money(summary.owed)}</Cell>
+            </div>
+          </section>
+
+          <section aria-labelledby="partners-h" className="mt-8 animate-rise [animation-delay:260ms]">
             <div className="mb-3 flex items-baseline justify-between gap-3">
-              <h2 id="partners-h" className="text-[15px] font-semibold tracking-tight">
+              <h2 id="partners-h" className="text-[17px] font-semibold tracking-tight">
                 Partners
               </h2>
               <span className="text-[12.5px] text-ink-4">{v.partners.length === 0 ? 'None yet' : `${v.partners.length} on the books`}</span>
@@ -152,25 +157,11 @@ export function Delivery() {
             </div>
           </section>
 
-          <section aria-labelledby="riders-h" className="mt-8 animate-rise [animation-delay:280ms]">
-            <Panel
-              bare
+          <section aria-labelledby="riders-h" className="mt-8">
+            <Block
               title="Riders"
               hint={v.riders.length === 0 ? undefined : `${v.riders.length} ${v.riders.length === 1 ? 'rider' : 'riders'}`}
-              action={
-                v.riders.length > 0 ? (
-                  <Segmented
-                    label="Filter riders"
-                    value={filter}
-                    onChange={setFilter}
-                    options={[
-                      { value: 'all', label: 'All' },
-                      { value: 'road', label: 'On the road' },
-                      { value: 'cash', label: 'Holding cash' },
-                    ]}
-                  />
-                ) : undefined
-              }
+              delay={320}
             >
               {v.riders.length === 0 ? (
                 <Empty
@@ -186,46 +177,59 @@ export function Delivery() {
                 />
               ) : (
                 <>
-                  <div className="relative border-b border-hairline px-4 py-2.5 sm:px-5">
-                    <Search size={15} className="pointer-events-none absolute left-7 top-1/2 -translate-y-1/2 text-ink-4 sm:left-8" />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search by name or phone"
-                      aria-label="Search riders"
-                      className="h-9 w-full rounded-lg bg-transparent pl-8 text-[14px] text-ink outline-none placeholder:text-ink-4"
-                    />
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <div role="group" aria-label="Filter riders" className="flex flex-wrap gap-2">
+                      {([['all', 'All'], ['road', 'On the road'], ['cash', 'Holding cash']] as const).map(([value, label]) => (
+                        <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={cx(CHIP, filter === value ? CHIP_ON : CHIP_OFF)}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="relative min-w-40 flex-1 sm:ml-auto sm:max-w-72 sm:flex-none">
+                      <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-4" />
+                      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name or phone" aria-label="Search riders" className={cx(INPUT_BOX, 'h-10 py-0 pl-9')} />
+                    </span>
                   </div>
                   {riders.length === 0 ? (
-                    <p className="px-5 py-10 text-center text-[13.5px] text-ink-3">
+                    <p className="border-t border-hairline py-8 text-center text-[13.5px] text-ink-3">
                       {q ? `Nobody matches “${query.trim()}”.` : filter === 'road' ? 'Nobody is out on a delivery right now.' : 'No rider is holding cash. Everyone has handed theirs over.'}
                     </p>
                   ) : (
                     <>
-                      <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_120px_minmax(0,1.1fr)_16px] items-center gap-4 border-b border-hairline px-5 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-4 md:grid">
+                      <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_120px_minmax(0,1.1fr)_16px] items-center gap-4 border-y border-hairline py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-4 md:grid">
                         <span>Rider</span>
                         <span>Rides for</span>
                         <span>Now</span>
                         <span className="text-right">Balance</span>
                         <span />
                       </div>
-                      <ul>
+                      <ul className="max-md:border-t max-md:border-hairline">
                         {riders.map((rider, n) => (
-                          <RiderRow key={rider.id} rider={rider} max={v.max} currency={currency} delay={340 + Math.min(n, 10) * 45} />
+                          <RiderRow key={rider.id} rider={rider} max={v.max} currency={currency} delay={400 + Math.min(n, 10) * 45} />
                         ))}
                       </ul>
                     </>
                   )}
                 </>
               )}
-            </Panel>
+            </Block>
           </section>
         </>
       )}
 
       {adding === 'rider' && <AddRiderSheet branchId={branchId} currency={currency} partners={v.partners.filter((p) => p.isActive)} onClose={() => setAdding(null)} />}
       {adding === 'partner' && <AddPartnerSheet branchId={branchId} currency={currency} onClose={() => setAdding(null)} />}
-    </>
+    </div>
+  );
+}
+
+function Cell({ title, sub, bad, children }: { title: string; sub: string; bad?: boolean; children: string }) {
+  return (
+    <div className="px-6 py-6">
+      <h2 className="mb-3 text-[13px] font-semibold text-ink-3">{title}</h2>
+      <p className={cx(DISPLAY, 'text-[clamp(28px,3.4vw,38px)] leading-none tnum', bad && 'text-berry-ink')}>{children}</p>
+      <p className="mt-2 text-[13.5px] text-ink-3">{sub}</p>
+    </div>
   );
 }
 
@@ -241,27 +245,6 @@ function arrange(overview: DeliveryOverview) {
   );
   const balances: Balance[] = [...partners.map((p) => p.balance), ...riders.flatMap((r) => (r.balance ? [r.balance] : []))];
   return { partners, riders, max: balances.reduce((m, b) => Math.max(m, Math.abs(b.net)), 0), summary: overview.summary };
-}
-
-/** One sentence in place of a row of summary tiles. */
-function Sentence({ summary, currency }: { summary: { onRoad: number; cashOut: number; owed: number }; currency: string }) {
-  const quiet = summary.onRoad === 0 && summary.cashOut === 0 && summary.owed === 0;
-  const strong = 'font-semibold text-ink tnum';
-  return (
-    <p className="text-[14px] leading-relaxed text-ink-3" aria-live="polite">
-      {quiet ? (
-        'Nobody is out, and every account is settled.'
-      ) : (
-        <>
-          <span className={strong}>{summary.onRoad}</span> on the road
-          <span className="mx-2 text-ink-4">·</span>
-          <span className={strong}>{formatMoney(summary.cashOut, currency)}</span> of your cash is with couriers
-          <span className="mx-2 text-ink-4">·</span>
-          <span className={strong}>{formatMoney(summary.owed, currency)}</span> in fees owed to them
-        </>
-      )}
-    </p>
-  );
 }
 
 /* ── Partner card ──────────────────────────────────────────────────── */
@@ -331,7 +314,7 @@ function RiderRow({ rider, max, currency, delay }: { rider: RiderListing; max: n
       <Link
         to={`/admin/delivery/riders/${rider.id}`}
         className={cx(
-          'group grid items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-surface-2/40 sm:px-5',
+          'group grid items-center gap-x-4 gap-y-2 py-3 transition-colors hover:bg-surface-2/40',
           'grid-cols-[auto_minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_120px_minmax(0,1.1fr)_16px]',
           !rider.isActive && 'opacity-60',
         )}

@@ -24,7 +24,7 @@ const COL = 'mx-auto w-full max-w-[620px] px-4 sm:px-6 lg:mx-0 lg:max-w-none lg:
 
 export function DishDetail() {
   const { dishId = '' } = useParams();
-  const { menu, ctx, base } = useRestaurant();
+  const { menu, ctx, base, browseOnly } = useRestaurant();
   const navigate = useNavigate();
   const cart = useCart();
   const toast = useToast();
@@ -153,7 +153,7 @@ export function DishDetail() {
               </div>
 
               {/* Desktop keeps the add controls in the flow of the page. */}
-              <div className="mt-6 hidden lg:block">
+              {!browseOnly && <div className="mt-6 hidden lg:block">
                 <DishAddForm
                   dish={dish}
                   quantity={quantity}
@@ -168,7 +168,7 @@ export function DishDetail() {
                   onSelectVariant={setSelectedVariantId}
                   onAdd={addToCart}
                 />
-              </div>
+              </div>}
 
               {/* ── What diners actually said ─────────────────── */}
               {hasRatings ? (
@@ -259,7 +259,7 @@ export function DishDetail() {
       </div>
 
       {/* ── Sticky add bar (small screens) ──────────────────────── */}
-      <div
+      {!browseOnly && <div
         className={cx(
           'fixed inset-x-0 bottom-0 z-58 flex animate-rise flex-col gap-2.5 px-4 pb-[calc(12px+var(--safe-b))] pt-3 sm:px-6 lg:hidden',
           GLASS,
@@ -282,7 +282,7 @@ export function DishDetail() {
             onAdd={addToCart}
           />
         </div>
-      </div>
+      </div>}
     </main>
   );
 }

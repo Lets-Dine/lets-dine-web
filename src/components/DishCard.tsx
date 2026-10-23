@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useRestaurant } from '../routes/RestaurantLayout';
 import { useCart } from '../state/CartContext';
 import { badgesFor } from '../domain/metrics';
 import type { RankContext } from '../domain/metrics';
@@ -21,12 +22,15 @@ function AddControl({
   tone?: 'solid' | 'inset';
 }) {
   const cart = useCart();
+  const { browseOnly } = useRestaurant();
   // Sums every customized line for this dish, not just the plain one — a dish
   // with add-ons can be in the cart several times over, once per combination.
   const quantity = cart.lines.filter((l) => l.dishId === dish.id).reduce((sum, l) => sum + l.quantity, 0);
   // A varianted dish must never get an instant single-tap add, even with zero add-ons —
   // the diner still has to pick a variant.
   const needsSheet = dish.addOnIds.length > 0 || dish.variants.length > 0;
+
+  if (browseOnly) return null;
 
   if (!dish.isAvailable) {
     return (

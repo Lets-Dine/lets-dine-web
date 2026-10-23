@@ -112,7 +112,7 @@ export function Entry() {
               </div>
             )}
             <div className="flex flex-wrap items-center justify-center gap-1 lg:justify-start">
-              {entry && (
+              {entry && restaurant?.deliveryEnabled !== false && (
                 <>
                   <Link to={`/r/${entry.slug}/delivery`} className={BTN_QUIET}>
                     Order for delivery

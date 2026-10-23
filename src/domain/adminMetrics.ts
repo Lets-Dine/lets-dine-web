@@ -27,7 +27,7 @@ export const PERIOD_LABEL: Record<Period, string> = {
 };
 
 /**
- * `GET /restaurant/analytics/revenue?period=...` — settled-payment revenue for
+ * `GET /restaurant/analytics/revenue?period=...` — revenue actually collected (paid, net of refunds) for
  * the period so far against the whole of the one before it (today vs. all of
  * yesterday, not just the hours so far). `current`/`previous` are minor units;
  * `differencePercentage` is already a percent (12.34 means +12.34%), not the
@@ -42,7 +42,7 @@ export interface RevenueComparison {
 export type TrendPeriod = 'week' | 'month' | 'year';
 
 /**
- * `GET /restaurant/analytics/revenue/trend?period=...` — settled revenue slot by slot (a day for a
+ * `GET /restaurant/analytics/revenue/trend?period=...` — collected revenue slot by slot (a day for a
  * week or month, a month for a year) beside the same slot of the period before. `date` is the
  * restaurant-local day ("2026-01-14") or, for a year, month ("2026-01"). `current` is null for a slot
  * that hasn't happened yet; `previous` is null where the earlier period has no such slot (the 31st).
@@ -80,7 +80,7 @@ export function buildRevenueTrend(orders: Order[], period: TrendPeriod, now: Dat
   const byDay = new Map<string, Minor>();
   const byMonth = new Map<string, Minor>();
   for (const order of orders) {
-    if (!isRevenue(order)) continue;
+    if (order.status !== 'COMPLETED') continue; // revenue is money collected, not orders booked
     const at = new Date(order.createdAt);
     byDay.set(dayKey(at), (byDay.get(dayKey(at)) ?? 0) + order.total);
     const mk = monthKey(at.getFullYear(), at.getMonth() + 1);
@@ -220,7 +220,7 @@ export function totalsIn(orders: Order[], from: number, to: number): Totals {
       continue;
     }
     count++;
-    revenue += order.total;
+    if (order.status === 'COMPLETED') revenue += order.total;
     for (const item of order.items) covers += item.quantity;
   }
   return { orders: count, revenue, cancelled, averageOrder: count ? Math.round(revenue / count) : 0, covers };

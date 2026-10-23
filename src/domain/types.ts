@@ -40,6 +40,12 @@ export interface Restaurant {
   taxRate: number;
   /** Flat, owner-configurable delivery fee in minor units. `null`/`0` = no fee. */
   deliveryFeeAmount: number | null;
+  /** Off = no delivery orders; the menu stays visible. Absent = on. */
+  deliveryEnabled?: boolean;
+  /** How delivery orders arrive while delivery is on: in the app (default) or as a WhatsApp message to `whatsappNumber`. */
+  deliveryChannel?: DeliveryChannel;
+  /** Digits with country code, no "+". Required for the WHATSAPP channel. */
+  whatsappNumber?: string | null;
   /** VAT/PAN registration number printed on receipts. `null` = none on file. */
   vatPanNumber: string | null;
   /** Whether starting a dish takes its recipe off stock. A branch or a dish can override it. Live backend only. */
@@ -120,6 +126,8 @@ export interface PublicBranch extends BranchRef {
   isOpenNow: boolean;
   hours: BranchHours[];
 }
+
+export type DeliveryChannel = 'APP' | 'WHATSAPP';
 
 export interface DiningSession {
   id: string;

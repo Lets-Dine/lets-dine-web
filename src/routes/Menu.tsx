@@ -49,7 +49,7 @@ function GuideStep({ icon, step, title, text }: { icon: ReactNode; step: string;
 }
 
 export function Menu() {
-  const { menu, table, identityLabel, session, ctx, base } = useRestaurant();
+  const { menu, table, identityLabel, session, ctx, base, browseOnly } = useRestaurant();
   usePageTitle(`${menu.restaurant.name} · Menu`, menu.restaurant.tagline);
   const cart = useCart();
   const [query, setQuery] = useState('');
@@ -192,8 +192,16 @@ export function Menu() {
         </div>
       </header>
 
+      {browseOnly && (
+        <section className={cx(WIDE, 'pt-4')}>
+          <p className="rounded-2xl bg-surface-2 px-4 py-3 text-[13.5px] text-ink-3 ring-1 ring-hairline ring-inset">
+            {menu.restaurant.name} isn&apos;t taking delivery orders right now — you can still look through the menu.
+          </p>
+        </section>
+      )}
+
       {/* ── First-visit guide ──────────────────────────────────── */}
-      {!guideDismissed && (
+      {!guideDismissed && !browseOnly && (
         <section className={cx(WIDE, 'pt-4')}>
           <div className="relative animate-rise rounded-3xl bg-surface p-4 shadow-warm ring-1 ring-hairline ring-inset sm:p-5">
             <button

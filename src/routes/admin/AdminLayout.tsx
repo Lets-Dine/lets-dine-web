@@ -37,6 +37,8 @@ interface DashboardValue {
   orders: Order[];
   reloadOrders: () => void;
   reloadMenu: () => void;
+  /** Swaps in a restaurant the server just returned (after a settings save) without re-reading the whole menu. */
+  applyRestaurant: (restaurant: Menu['restaurant']) => void;
   /**
    * Drops a server's own copy of one order straight into the queue. Every
    * order mutation already answers with the updated ticket, so a screen that
@@ -173,6 +175,10 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
       .catch(fail);
   }, [staff, fail]);
 
+  const applyRestaurant = useCallback((restaurant: Menu['restaurant']) => {
+    if (alive.current) setMenu((prev) => (prev ? { ...prev, restaurant } : prev));
+  }, []);
+
   /** Sounds the alert for any id this poll turned up that wasn't there last time — silent on the very first load. */
   const noteOrders = useCallback((next: Order[]) => {
     const seen = knownOrderIds.current;
@@ -255,9 +261,9 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const dashboard = useMemo<DashboardValue | null>(
     () =>
       menu && (!needsOrders || orders)
-        ? { menu, orders: orders ?? [], reloadOrders, reloadMenu, applyOrder: applyUpdated, tablesTick }
+        ? { menu, orders: orders ?? [], reloadOrders, reloadMenu, applyRestaurant, applyOrder: applyUpdated, tablesTick }
         : null,
-    [menu, orders, needsOrders, reloadOrders, reloadMenu, applyUpdated, tablesTick],
+    [menu, orders, needsOrders, reloadOrders, reloadMenu, applyRestaurant, applyUpdated, tablesTick],
   );
 
   const locked = subscription.locked;

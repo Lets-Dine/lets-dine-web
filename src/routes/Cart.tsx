@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { track } from '../domain/analytics';
+import { mapsUrl, placeName } from '../domain/location';
+import type { LatLng } from '../domain/location';
 import { formatMoney, percentOf } from '../domain/money';
-import type { AddOn, CartLine, Dish } from '../domain/types';
+import type { AddOn, CartLine, Dish, Menu } from '../domain/types';
 import { haptic } from '../platform/haptics';
 import { DishImage, QuantityStepper } from '../components/Bits';
 import { QuickAddSheet } from '../components/QuickAddSheet';
 import { BTN, BTN_FLAME, BTN_SIZE, EYEBROW, GLASS, SHELL, cx } from '../components/ui';
-import { Plus } from '../components/icons';
+import { MapPin, Plus } from '../components/icons';
 import { useCart } from '../state/CartContext';
+import { useDeliveryPlace } from '../state/useDeliveryPlace';
 import { usePageTitle } from '../state/usePageTitle';
 import { useToast } from '../state/ToastContext';
 import { useRestaurant } from './RestaurantLayout';
@@ -104,8 +107,53 @@ export function BillLines({
   );
 }
 
+function whatsappUrl(number: string, text: string): string {
+  return `https://wa.me/${number.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
+}
+
+/** The order as a plain-text message — the restaurant reads it in WhatsApp, so no markup beyond line breaks. */
+function whatsappMessage({
+  menu,
+  cart,
+  bill,
+  name,
+  phone,
+  address,
+  pin,
+  note,
+}: {
+  menu: Menu;
+  cart: CartLine[];
+  bill: { total: number };
+  name: string;
+  phone: string;
+  address: string;
+  pin: LatLng | null;
+  note: string;
+}): string {
+  const byId = new Map(menu.dishes.map((d) => [d.id, d]));
+  const currency = menu.restaurant.currency;
+  const lines = cart.flatMap((line) => {
+    const dish = byId.get(line.dishId);
+    if (!dish) return [];
+    const extras = [variantLabel(dish, line.variantId), ...addOnLabels(line.addOnIds, menu.addOns)].filter(Boolean).join(', ');
+    const price = formatMoney(lineUnitPrice(dish, line.variantId, line.addOnIds, menu.addOns) * line.quantity, currency);
+    return [`${line.quantity} × ${dish.name}${extras ? ` (${extras})` : ''} — ${price}${line.note ? `\n   Note: ${line.note}` : ''}`];
+  });
+  const details = [name && `Name: ${name}`, phone && `Phone: ${phone}`, address.trim() && !(pin && address.trim() === 'Pinned location') && `Address: ${address.trim()}`, pin && `Location: ${mapsUrl(pin)}`, note && `Note: ${note}`].filter(Boolean);
+  return [
+    `New delivery order for ${menu.restaurant.name}`,
+    '',
+    ...lines,
+    '',
+    `Total: ${formatMoney(bill.total, currency)} (incl. delivery, pay on delivery)`,
+    '',
+    ...details,
+  ].join('\n');
+}
+
 export function Cart() {
-  const { menu, customer, identityLabel, base, session } = useRestaurant();
+  const { menu, customer, identityLabel, base, session, whatsapp } = useRestaurant();
   usePageTitle(`Your order · ${menu.restaurant.name}`);
   const cart = useCart();
   const navigate = useNavigate();
@@ -113,6 +161,23 @@ export function Cart() {
   const [openNote, setOpenNote] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ line: CartLine; trigger: HTMLElement } | null>(null);
   const sessionEnded = Boolean(session.endedAt);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  // The last delivery's address and pin live on this device, as in the in-app checkout.
+  const [lastPlace, rememberPlace] = useDeliveryPlace();
+  const [address, setAddress] = useState(lastPlace?.address ?? customer?.defaultAddress ?? '');
+  // The exact spot, sent as a Google Maps link so the restaurant can tap straight to the door.
+  const [pin, setPin] = useState<LatLng | null>(lastPlace?.pin ?? null);
+  // What the box held when we filled it ourselves — a new pin may replace it, never what the diner typed.
+  const autoFilled = useRef('');
+  const addressRef = useRef(address);
+  useEffect(() => {
+    addressRef.current = address;
+  }, [address]);
+  const lookup = useRef(0);
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState<string | null>(null);
+  const [orderNote, setOrderNote] = useState('');
 
   const closeEdit = () => {
     editing?.trigger.focus();
@@ -120,7 +185,7 @@ export function Cart() {
   };
 
   const byId = new Map(menu.dishes.map((d) => [d.id, d]));
-  const deliveryFee = customer ? (menu.restaurant.deliveryFeeAmount ?? 0) : 0;
+  const deliveryFee = customer || whatsapp ? (menu.restaurant.deliveryFeeAmount ?? 0) : 0;
   const bill = useBill(cart.lines, menu.dishes, deliveryFee);
   const currency = menu.restaurant.currency;
 
@@ -144,7 +209,49 @@ export function Cart() {
     );
   }
 
+  // The exact spot is kept at once; the place name is a label looked up after, and optional.
+  const adopt = async (here: LatLng) => {
+    const mine = ++lookup.current;
+    setPin(here);
+    const name = await placeName(here);
+    if (mine !== lookup.current) return;
+    const typed = addressRef.current.trim() !== '' && addressRef.current !== autoFilled.current;
+    if (!typed) {
+      autoFilled.current = name ?? 'Pinned location';
+      setAddress(autoFilled.current);
+    }
+  };
+
+  const locate = () => {
+    if (!navigator.geolocation) return setLocateError("This device can't share its location. Type the address instead.");
+    setLocating(true);
+    setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        haptic.select();
+        void adopt({ lat: coords.latitude, lng: coords.longitude });
+        setLocating(false);
+      },
+      (err) => {
+        setLocating(false);
+        setLocateError(
+          err.code === err.PERMISSION_DENIED
+            ? 'Location is blocked for this site. Allow it in your browser settings, or type the address.'
+            : "Couldn't find your location. Try again, or type the address.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+    );
+  };
+
   const proceed = () => {
+    if (whatsapp) {
+      if (!address.trim() && !pin) return toast('Add your address or share your location first', '📍');
+      haptic.select();
+      rememberPlace({ address: address.trim() || 'Pinned location', pin });
+      window.open(whatsappUrl(menu.restaurant.whatsappNumber ?? '', whatsappMessage({ menu, cart: cart.lines, bill, name, phone, address, pin, note: orderNote })), '_blank', 'noopener');
+      return;
+    }
     haptic.select();
     track('cart_viewed', { items: cart.count });
     navigate(`${base}/checkout`);
@@ -285,8 +392,52 @@ export function Cart() {
               serviceRate={menu.restaurant.serviceChargeRate}
               taxRate={menu.restaurant.taxRate}
             />
+            {whatsapp && (
+              <div className="flex flex-col gap-2">
+                {([
+                  ['Your name', name, setName],
+                  ['Phone', phone, setPhone],
+                  ['Delivery address (or share your location)', address, setAddress],
+                  ['Note for the restaurant (optional)', orderNote, setOrderNote],
+                ] as const).map(([label, value, set]) => (
+                  <input
+                    key={label}
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    placeholder={label}
+                    aria-label={label}
+                    maxLength={200}
+                    className="h-10 w-full rounded-xl bg-surface-2 px-3 text-[13.5px] outline-none ring-1 ring-hairline ring-inset placeholder:text-ink-4 focus:ring-[1.5px] focus:ring-flame-2/35"
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={locate}
+                  disabled={locating}
+                  className={cx(
+                    'inline-flex h-10 items-center justify-center gap-2 rounded-xl text-[13.5px] font-semibold ring-1 ring-inset transition-move active:scale-[0.98] disabled:opacity-70',
+                    pin ? 'bg-flame-2/15 text-flame-1 ring-flame-2/40' : 'bg-surface-2 text-ink-2 ring-hairline',
+                  )}
+                >
+                  <MapPin size={16} className={cx(locating && 'motion-safe:animate-pulse')} />
+                  {locating ? 'Finding you…' : pin ? 'Location shared — update' : 'Share my location'}
+                </button>
+                {(pin || locateError) && (
+                  <p role={locateError ? 'alert' : 'status'} className={cx('text-[12px] leading-snug', locateError ? 'text-berry-ink' : 'text-ink-3')}>
+                    {locateError ?? 'A Google Maps link to your spot goes in the message.'}{' '}
+                    {pin && !locateError && (
+                      <button type="button" onClick={() => { lookup.current++; setPin(null); }} className="font-semibold underline underline-offset-2">
+                        Remove
+                      </button>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
             <p className="text-[11.5px] leading-relaxed text-ink-4">
-              {sessionEnded
+              {whatsapp
+                ? 'This opens WhatsApp with your order ready to send. The restaurant confirms it there.'
+                : sessionEnded
                 ? "This table has been closed out — new orders can't be placed."
                 : 'The kitchen confirms the final amount when it accepts your order.'}
             </p>
@@ -296,7 +447,7 @@ export function Cart() {
               onClick={proceed}
               disabled={sessionEnded}
             >
-              {sessionEnded ? 'Table closed' : 'Review & order'}
+              {whatsapp ? 'Order on WhatsApp' : sessionEnded ? 'Table closed' : 'Review & order'}
             </button>
           </div>
         </aside>
@@ -323,7 +474,7 @@ export function Cart() {
             onClick={proceed}
             disabled={sessionEnded}
           >
-            {sessionEnded ? 'Table closed' : 'Review & order'}
+            {whatsapp ? 'Order on WhatsApp' : sessionEnded ? 'Table closed' : 'Review & order'}
           </button>
         </div>
       </div>

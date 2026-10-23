@@ -149,7 +149,7 @@ export function SetupGuide() {
                   <button
                     type="button"
                     disabled={step.done}
-                    onClick={() => navigate(TOURS[step.key].path, { replace: location.pathname === TOURS[step.key].path, state: { tour: step.key } })}
+                    onClick={() => navigate(TOURS[step.key].path, { replace: location.pathname === TOURS[step.key].path.split('?')[0], state: { tour: step.key } })}
                     className={cx('flex w-full items-start gap-2.5 rounded-xl px-2 py-1.5 text-left', !step.done && 'hover:bg-surface-2', isNext && 'bg-flame/8')}
                   >
                     <span aria-hidden className={cx('mt-0.5 grid size-4 shrink-0 place-items-center rounded-full text-[10px] font-bold', step.done ? 'bg-mint text-white' : 'ring-1.5 ring-hairline-strong ring-inset')}>

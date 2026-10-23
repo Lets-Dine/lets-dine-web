@@ -14,9 +14,9 @@ const PERIODS: { value: TrendPeriod; label: string }[] = [
 ];
 
 const COPY: Record<TrendPeriod, { this: string; last: string; title: string; unit: string }> = {
-  week: { this: 'This week', last: 'Last week', title: 'Revenue, week on week', unit: 'day' },
-  month: { this: 'This month', last: 'Last month', title: 'Revenue, month on month', unit: 'day' },
-  year: { this: 'This year', last: 'Last year', title: 'Revenue, year on year', unit: 'month' },
+  week: { this: 'This week', last: 'Last week', title: 'Sales, week on week', unit: 'day' },
+  month: { this: 'This month', last: 'Last month', title: 'Sales, month on month', unit: 'day' },
+  year: { this: 'This year', last: 'Last year', title: 'Sales, year on year', unit: 'month' },
 };
 
 /** "2026-01-14" or "2026-01" as a local date — never `new Date(string)`, which would read it as UTC and slip a day. */
@@ -133,7 +133,7 @@ export function RevenueTrendChart({ trend, period, onPeriodChange, loading, fail
         locked ? (
           <div className="grid place-items-center gap-2 py-14 text-center">
             <Lock size={20} className="text-ink-4" />
-            <p className="text-[13.5px] font-semibold">Revenue trends are not in your current plan</p>
+            <p className="text-[13.5px] font-semibold">Sales trends are not in your current plan</p>
             <p className="max-w-[38ch] text-[13px] leading-snug text-ink-3">Today's orders and the pass are unaffected. A higher plan adds trends and comparisons.</p>
             <Link to="/admin/plan" className="mt-1 text-[13px] font-semibold text-flame-1">
               See what your plan includes
@@ -141,7 +141,7 @@ export function RevenueTrendChart({ trend, period, onPeriodChange, loading, fail
           </div>
         ) : failed ? (
           <div className="grid place-items-center gap-3 py-16 text-center">
-            <p className="text-[13.5px] text-ink-3">Revenue couldn't be loaded.</p>
+            <p className="text-[13.5px] text-ink-3">Sales couldn't be loaded.</p>
             <button type="button" onClick={onRetry} className="text-[13px] font-semibold text-flame-1">
               Try again
             </button>

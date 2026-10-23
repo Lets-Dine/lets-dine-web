@@ -1,4 +1,4 @@
-import type { BillLine, PaymentRefund, PaymentStatus, PaymentTender, ServiceKind, ServiceRequest } from '../domain/types';
+import type { BillLine, DeliveryChannel, PaymentRefund, PaymentStatus, PaymentTender, ServiceKind, ServiceRequest } from '../domain/types';
 import type { AddOnDraft, DishDraft, ItemOptions, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import { nextItemStatus } from '../domain/orderStatus';
@@ -127,6 +127,9 @@ interface ApiRestaurant {
   serviceChargeRate: number;
   taxRate: number;
   deliveryFeeAmount?: number | null;
+  deliveryEnabled?: boolean;
+  deliveryChannel?: DeliveryChannel;
+  whatsappNumber?: string | null;
   vatPanNumber?: string | null;
   autoConsumeStock?: boolean;
 }
@@ -341,6 +344,9 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     serviceChargeRate: api.serviceChargeRate,
     taxRate: api.taxRate,
     deliveryFeeAmount: api.deliveryFeeAmount ?? null,
+    deliveryEnabled: api.deliveryEnabled ?? true,
+    deliveryChannel: api.deliveryChannel ?? 'APP',
+    whatsappNumber: api.whatsappNumber ?? null,
     vatPanNumber: api.vatPanNumber ?? null,
     autoConsumeStock: api.autoConsumeStock ?? true,
   };
