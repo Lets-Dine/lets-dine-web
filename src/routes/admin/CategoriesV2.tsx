@@ -6,6 +6,8 @@ import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_TINY, Confirm, INPUT_BOX, useCommand 
 import { ChevronLeft, Plus } from '../../components/icons';
 import { DISPLAY, cx } from '../../components/ui';
 import { haptic } from '../../platform/haptics';
+import { DragHandle } from '../../components/admin/DragHandle';
+import { useDragReorder } from '../../components/admin/useDragReorder';
 import { useDashboard } from './AdminLayout';
 
 /*
@@ -46,6 +48,11 @@ export function CategoriesV2() {
   const dishTotal = [...counts.values()].reduce((a, b) => a + b, 0);
 
   const act = (key: string, action: () => Promise<unknown>, message: string) => void run(key, action, message).then(reloadMenu);
+  const { list, dragId, rowProps, handleProps } = useDragReorder(ordered, (id, overId) => {
+    haptic.tick();
+    setMoved(id);
+    act(id, () => moveCategory(staff, id, overId), 'Category moved');
+  });
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -57,10 +64,15 @@ export function CategoriesV2() {
       </header>
 
       <ul className="divide-y divide-hairline border-y border-hairline">
-        {ordered.map((category, index) => {
+        {list.map((category, index) => {
           const count = counts.get(category.id) ?? 0;
           return (
-            <li key={category.id} className="animate-rise" style={{ animationDelay: `${Math.min(index, 10) * 40}ms` }}>
+            <li
+              key={category.id}
+              className={cx('animate-rise', dragId === category.id && 'bg-flame-2/10 ring-1 ring-flame-2/40 ring-inset [&>*]:invisible')}
+              style={{ animationDelay: `${Math.min(index, 10) * 40}ms` }}
+              {...rowProps(category.id)}
+            >
               {editing === category.id ? (
                 <CategoryEditor
                   category={category}
@@ -74,11 +86,12 @@ export function CategoriesV2() {
               ) : (
                 <div
                   className={cx(
-                    'group flex items-center gap-4 px-2 py-4 transition-[background-color,opacity] duration-700 sm:px-3',
+                    'group relative flex items-center gap-4 px-2 py-4 transition-[background-color,opacity] duration-700 sm:px-3',
                     moved === category.id && 'bg-flame-2/10',
                     pending === category.id && 'opacity-50',
                   )}
                 >
+                  <DragHandle {...handleProps(!busy)} className="[@media(hover:hover)]:-mr-4 [@media(hover:hover)]:group-hover:mr-0" />
                   <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-surface-2 text-[24px] ring-1 ring-hairline ring-inset transition-transform duration-300 ease-spring group-hover:-rotate-6 group-hover:scale-110" aria-hidden>
                     {category.emoji}
                   </span>
@@ -122,7 +135,7 @@ export function CategoriesV2() {
                       onClick={() => {
                         haptic.tick();
                         setMoved(category.id);
-                        act(category.id, () => moveCategory(staff, category.id, -1), `${category.name} moved up`);
+                        act(category.id, () => moveCategory(staff, category.id, list[index - 1].id), `${category.name} moved up`);
                       }}
                     >
                       <span className="rotate-90">
@@ -132,12 +145,12 @@ export function CategoriesV2() {
                     <button
                       type="button"
                       aria-label={`Move ${category.name} down`}
-                      disabled={index === ordered.length - 1 || busy}
+                      disabled={index === list.length - 1 || busy}
                       className="grid size-7 place-items-center rounded-full text-ink-4 transition-[color,background-color,scale] hover:bg-surface-2 hover:text-ink active:scale-90 disabled:pointer-events-none disabled:opacity-25"
                       onClick={() => {
                         haptic.tick();
                         setMoved(category.id);
-                        act(category.id, () => moveCategory(staff, category.id, 1), `${category.name} moved down`);
+                        act(category.id, () => moveCategory(staff, category.id, list[index + 1].id), `${category.name} moved down`);
                       }}
                     >
                       <span className="-rotate-90">

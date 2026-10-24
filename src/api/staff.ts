@@ -111,8 +111,8 @@ export function deleteCategory(actor: StaffMember, categoryId: string): Promise<
   return IS_LIVE_API ? live.deleteCategory(categoryId) : mock.deleteCategory(actor, categoryId);
 }
 
-export function moveCategory(actor: StaffMember, categoryId: string, direction: -1 | 1): Promise<void> {
-  return IS_LIVE_API ? live.moveCategory(categoryId, direction) : mock.moveCategory(actor, categoryId, direction);
+export function moveCategory(actor: StaffMember, categoryId: string, overId: string): Promise<void> {
+  return IS_LIVE_API ? live.moveCategory(categoryId, overId) : mock.moveCategory(actor, categoryId, overId);
 }
 
 export function createDish(actor: StaffMember, draft: DishDraft) {
@@ -127,8 +127,8 @@ export function setDishArchived(actor: StaffMember, dishId: string, archived: bo
   return IS_LIVE_API ? live.setDishArchived(dishId, archived) : mock.setDishArchived(actor, dishId, archived);
 }
 
-export function moveDish(actor: StaffMember, dishId: string, direction: -1 | 1) {
-  return IS_LIVE_API ? live.moveDish(dishId, direction) : mock.moveDish(actor, dishId, direction);
+export function moveDish(actor: StaffMember, dishId: string, overId: string) {
+  return IS_LIVE_API ? live.moveDish(dishId, overId) : mock.moveDish(actor, dishId, overId);
 }
 
 export function createAddOn(actor: StaffMember, draft: AddOnDraft) {

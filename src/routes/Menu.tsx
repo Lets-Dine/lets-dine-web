@@ -295,13 +295,14 @@ export function Menu() {
 
           {!results && (
             <div className={cx(RAIL, 'mt-2.5 lg:hidden')} ref={chipRailRef}>
-              {menu.categories.map((c) => (
+              {menu.categories.map((c, i) => (
                 <button
                   key={c.id}
                   type="button"
                   data-cat={c.id}
                   onClick={() => jumpTo(c.id)}
-                  className={cx(CHIP, activeCategory === c.id ? CHIP_ON : CHIP_OFF)}
+                  style={{ animationDelay: `${200 + Math.min(i, 8) * 50}ms` }}
+                  className={cx(CHIP, 'animate-rise', activeCategory === c.id ? CHIP_ON : CHIP_OFF)}
                 >
                   <span aria-hidden>{c.emoji}</span>
                   {c.name}
@@ -388,7 +389,7 @@ export function Menu() {
             <aside className="hidden lg:block">
               <nav className="sticky top-32 flex flex-col gap-0.5" aria-label="Menu categories">
                 <h2 className={cx(EYEBROW, 'mb-2 px-3')}>Categories</h2>
-                {menu.categories.map((c) => {
+                {menu.categories.map((c, i) => {
                   const count = menu.dishes.filter((d) => d.categoryId === c.id).length;
                   return (
                     <button
@@ -396,8 +397,9 @@ export function Menu() {
                       type="button"
                       onClick={() => jumpTo(c.id)}
                       aria-current={activeCategory === c.id ? 'true' : undefined}
+                      style={{ animationDelay: `${300 + Math.min(i, 8) * 50}ms` }}
                       className={cx(
-                        'flex items-center gap-2.5 rounded-xl py-2.5 pl-2.5 pr-3 text-left text-[14px] font-semibold transition-colors duration-150',
+                        'animate-rise flex items-center gap-2.5 rounded-xl py-2.5 pl-2.5 pr-3 text-left text-[14px] font-semibold transition-colors duration-150',
                         activeCategory === c.id
                           ? 'bg-flame-2/14 text-flame-1 ring-1 ring-flame-2/30 ring-inset'
                           : 'text-ink-3 hover:bg-surface-2 hover:text-ink',
@@ -420,7 +422,7 @@ export function Menu() {
             </aside>
 
             <div>
-              {menu.categories.map((category) => {
+              {menu.categories.map((category, ci) => {
                 const dishes = menu.dishes
                   .filter((d) => d.categoryId === category.id)
                   .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -435,7 +437,7 @@ export function Menu() {
                       else sectionRefs.current.delete(category.id);
                     }}
                   >
-                    <Reveal>
+                    <Reveal intro="animate-rise" introDelay={300 + Math.min(ci, 3) * 80}>
                     <h2 className={cx(DISPLAY, 'flex items-center gap-2.5 pb-1 pt-5.5 text-[28px] lg:text-2xl')}>
                       <span aria-hidden>{category.emoji}</span>
                       {category.name}
@@ -445,8 +447,8 @@ export function Menu() {
                     </h2>
                     </Reveal>
                     <div className="md:grid md:grid-cols-2 md:gap-3 lg:mt-2">
-                      {dishes.map((d) => (
-                        <Reveal key={d.id} className="last:[&>article]:border-b-0">
+                      {dishes.map((d, i) => (
+                        <Reveal key={d.id} intro="animate-rise" introDelay={380 + Math.min(ci * 3 + i, 8) * 60} className="last:[&>article]:border-b-0">
                           <DishRow dish={d} href={href(d)} ctx={ctx} onQuickAdd={openQuickAdd} />
                         </Reveal>
                       ))}

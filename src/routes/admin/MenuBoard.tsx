@@ -18,6 +18,8 @@ import {
 } from '../../components/admin/kit';
 import { ChevronLeft, Plate, Search, Sparkle } from '../../components/icons';
 import { cx } from '../../components/ui';
+import { DragHandle } from '../../components/admin/DragHandle';
+import { useDragReorder } from '../../components/admin/useDragReorder';
 import { useDashboard } from './AdminLayout';
 
 /**
@@ -167,9 +169,7 @@ export function MenuBoard() {
                   dish.isFeatured ? `${dish.name} is no longer a staff pick` : `${dish.name} is a staff pick`,
                 )
               }
-              onMove={(dish, direction) =>
-                act(dish.id, () => moveDish(staff, dish.id, direction), `${dish.name} moved`)
-              }
+              onMove={(dish, overId) => act(dish.id, () => moveDish(staff, dish.id, overId), `${dish.name} moved`)}
               onArchive={(dish) =>
                 act(
                   dish.id,
@@ -194,11 +194,13 @@ interface GroupProps {
   pending: string | null;
   onToggleAvailable: (dish: Dish) => void;
   onToggleFeatured: (dish: Dish) => void;
-  onMove: (dish: Dish, direction: -1 | 1) => void;
+  onMove: (dish: Dish, overId: string) => void;
   onArchive: (dish: Dish) => void;
 }
 
 function CategorySection({ category, dishes, currency, editable, pending, delay, ...handlers }: GroupProps) {
+  // Local to the section, so a dish can only be dropped among its own category's rows.
+  const { list, dragId, rowProps, handleProps } = useDragReorder(dishes, (id, overId) => handlers.onMove(dishes.find((d) => d.id === id)!, overId));
   return (
     <div style={{ animationDelay: `${delay}ms` }} className="animate-rise overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line">
       <div className="flex items-baseline justify-between gap-3 px-6 pt-5 pb-4">
@@ -210,19 +212,22 @@ function CategorySection({ category, dishes, currency, editable, pending, delay,
         </span>
       </div>
       <Perforation />
-      {dishes.map((dish, index) => (
+      {list.map((dish, index) => (
         <DishRow
           key={dish.id}
           dish={dish}
           index={index}
           delay={delay + 120 + Math.min(index, 8) * 40}
-          count={dishes.length}
+          count={list.length}
           currency={currency}
           editable={editable}
           pending={pending}
           onToggleAvailable={() => handlers.onToggleAvailable(dish)}
           onToggleFeatured={() => handlers.onToggleFeatured(dish)}
-          onMove={(direction) => handlers.onMove(dish, direction)}
+          dragging={dragId === dish.id}
+          dragProps={rowProps(dish.id)}
+          handle={editable && !dish.isArchived ? handleProps(pending === null) : undefined}
+          onMove={(offset) => handlers.onMove(dish, list[index + offset].id)}
           onArchive={() => handlers.onArchive(dish)}
         />
       ))}
@@ -264,6 +269,9 @@ function DishRow({
   onToggleAvailable,
   onToggleFeatured,
   onMove,
+  dragging,
+  dragProps,
+  handle,
   onArchive,
 }: {
   dish: Dish;
@@ -275,15 +283,23 @@ function DishRow({
   pending: string | null;
   onToggleAvailable: () => void;
   onToggleFeatured: () => void;
-  onMove: (direction: -1 | 1) => void;
+  onMove: (offset: -1 | 1) => void;
+  dragging: boolean;
+  dragProps: React.ComponentProps<'div'>;
+  handle?: React.ComponentProps<'span'>;
   onArchive: () => void;
 }) {
   const busy = pending === dish.id;
   const off = !dish.isAvailable && !dish.isArchived;
 
   return (
-    <div style={{ animationDelay: `${delay}ms` }} className="animate-rise border-t border-dashed border-docket-line first:border-t-0">
-    <div className={cx('flex flex-wrap items-center gap-3.5 px-6 py-4', busy && 'opacity-50')}>
+    <div
+      style={{ animationDelay: `${delay}ms` }}
+      className={cx('animate-rise border-t border-dashed border-docket-line first:border-t-0', dragging && 'bg-flame-2/10 ring-1 ring-flame-2/40 ring-inset [&>*]:invisible')}
+      {...dragProps}
+    >
+    <div className={cx('group flex flex-wrap items-center gap-3.5 px-6 py-4', busy && 'opacity-50')}>
+      {handle && <DragHandle {...handle} className="[@media(hover:hover)]:-mr-3.5 [@media(hover:hover)]:group-hover:mr-0" />}
       {/* The photo and name open the dish, so editing is one click on the row, not a hunt for the button. */}
       <Lead {...(editable ? { to: `/admin/menu/${dish.id}` } : {})} className="group flex min-w-0 flex-1 basis-45 items-center gap-3.5 rounded-lg">
       <DishImage dish={dish} className="size-11 shrink-0 rounded-full ring-1 ring-docket-line" monogram="text-[13px]" />

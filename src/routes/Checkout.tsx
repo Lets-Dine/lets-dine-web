@@ -285,8 +285,10 @@ export function Checkout() {
                       <input
                         className={cx(INPUT, 'h-12')}
                         value={identityPhone}
-                        onChange={(event) => setIdentityPhone(event.target.value)}
+                        onChange={(event) => setIdentityPhone(event.target.value.replace(/\D/g, '').slice(0, 10))}
                         placeholder="98XXXXXXXX"
+                        type="tel"
+                        maxLength={10}
                         inputMode="tel"
                         autoComplete="tel"
                         required

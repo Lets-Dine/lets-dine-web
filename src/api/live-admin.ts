@@ -814,24 +814,19 @@ export async function deleteCategory(categoryId: string): Promise<void> {
   });
 }
 
-/** Swaps this category's sort position with its neighbour in the given direction. */
-export async function moveCategory(categoryId: string, direction: -1 | 1): Promise<void> {
+/** Moves a category to where `overId` sits, shifting the ones between. */
+export async function moveCategory(categoryId: string, overId: string): Promise<void> {
   const ordered = await fetchCategories();
-  const index = ordered.findIndex((c) => c.id === categoryId);
-  if (index < 0) throw new ApiError(404, CATEGORY_ERROR);
-  const swapWith = ordered[index + direction];
-  if (!swapWith) return;
-  const current = ordered[index];
+  const from = ordered.findIndex((c) => c.id === categoryId);
+  const to = ordered.findIndex((c) => c.id === overId);
+  if (from < 0 || to < 0) throw new ApiError(404, CATEGORY_ERROR);
+  if (from === to) return;
 
+  ordered.splice(to, 0, ...ordered.splice(from, 1));
   await apiRequest<ApiCategory[]>('/restaurant/categories/reorder', {
     method: 'PATCH',
     headers: authHeaders(),
-    body: JSON.stringify({
-      items: [
-        { id: current.id, sortOrder: swapWith.sortOrder },
-        { id: swapWith.id, sortOrder: current.sortOrder },
-      ],
-    }),
+    body: JSON.stringify({ items: ordered.map((c, i) => ({ id: c.id, sortOrder: i })) }),
   });
 }
 
@@ -879,8 +874,8 @@ export async function setDishArchived(dishId: string, archived: boolean): Promis
   });
 }
 
-/** Moves a dish one place within its own category, mirroring the mock's rule. */
-export async function moveDish(dishId: string, direction: -1 | 1): Promise<void> {
+/** Moves a dish to where `overId` sits within its own category, mirroring the mock's rule. */
+export async function moveDish(dishId: string, overId: string): Promise<void> {
   const dishes = await fetchDishes();
   const dish = dishes.find((d) => d.id === dishId);
   if (!dish) throw new ApiError(404, DISH_ERROR);
@@ -888,11 +883,13 @@ export async function moveDish(dishId: string, direction: -1 | 1): Promise<void>
   const siblings = dishes
     .filter((d) => d.categoryId === dish.categoryId && !d.isArchived)
     .sort((a, b) => a.sortOrder - b.sortOrder);
-  const index = siblings.findIndex((d) => d.id === dishId);
-  if (!siblings[index + direction]) return;
+  const from = siblings.findIndex((d) => d.id === dishId);
+  const to = siblings.findIndex((d) => d.id === overId);
+  if (to < 0) throw new ApiError(404, DISH_ERROR);
+  if (from === to) return;
 
   // Renumber the whole category: legacy dishes share sortOrder 0, so swapping two values would be a no-op.
-  [siblings[index], siblings[index + direction]] = [siblings[index + direction], siblings[index]];
+  siblings.splice(to, 0, ...siblings.splice(from, 1));
   await apiRequest<ApiDish[]>('/restaurant/dishes/reorder', {
     method: 'PATCH',
     headers: authHeaders(),

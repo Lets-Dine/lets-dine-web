@@ -90,7 +90,7 @@ export function Categories() {
                         aria-label={`Move ${category.name} up`}
                         disabled={index === 0 || busy}
                         className={cx(ADMIN_TINY, 'px-1.5 text-ink-4 hover:text-ink')}
-                        onClick={() => act(category.id, () => moveCategory(staff, category.id, -1), `${category.name} moved up`)}
+                        onClick={() => act(category.id, () => moveCategory(staff, category.id, ordered[index - 1].id), `${category.name} moved up`)}
                       >
                         <span className="rotate-90">
                           <ChevronLeft size={15} />
@@ -101,7 +101,7 @@ export function Categories() {
                         aria-label={`Move ${category.name} down`}
                         disabled={index === ordered.length - 1 || busy}
                         className={cx(ADMIN_TINY, 'px-1.5 text-ink-4 hover:text-ink')}
-                        onClick={() => act(category.id, () => moveCategory(staff, category.id, 1), `${category.name} moved down`)}
+                        onClick={() => act(category.id, () => moveCategory(staff, category.id, ordered[index + 1].id), `${category.name} moved down`)}
                       >
                         <span className="-rotate-90">
                           <ChevronLeft size={15} />

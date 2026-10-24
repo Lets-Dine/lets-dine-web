@@ -1233,8 +1233,8 @@ export async function setDishArchived(actor: StaffMember, dishId: string, archiv
   return after;
 }
 
-/** Moves a dish one place within its own category. */
-export async function moveDish(actor: StaffMember, dishId: string, direction: -1 | 1): Promise<void> {
+/** Moves a dish to where `overId` sits within its own category. */
+export async function moveDish(actor: StaffMember, dishId: string, overId: string): Promise<void> {
   authorize(actor, 'menu:edit');
   const base = withEditableMenu(readStore());
   const dish = base.menu.dishes.find((d) => d.id === dishId);
@@ -1243,19 +1243,16 @@ export async function moveDish(actor: StaffMember, dishId: string, direction: -1
   const siblings = base.menu.dishes
     .filter((d) => d.categoryId === dish.categoryId && !d.isArchived)
     .sort((a, b) => a.sortOrder - b.sortOrder);
-  const index = siblings.findIndex((d) => d.id === dishId);
-  const swapWith = siblings[index + direction];
-  if (!swapWith) return;
+  const from = siblings.findIndex((d) => d.id === dishId);
+  const to = siblings.findIndex((d) => d.id === overId);
+  if (to < 0) throw new ApiError(404, 'That dish is not on the menu.');
+  if (from === to) return;
 
-  const dishes = base.menu.dishes.map((d) => {
-    if (d.id === dish.id) return { ...d, sortOrder: swapWith.sortOrder };
-    if (d.id === swapWith.id) return { ...d, sortOrder: dish.sortOrder };
-    return d;
-  });
+  siblings.splice(to, 0, ...siblings.splice(from, 1));
+  const rank = new Map(siblings.map((d, i) => [d.id, i]));
+  const dishes = base.menu.dishes.map((d) => (rank.has(d.id) ? { ...d, sortOrder: rank.get(d.id)! } : d));
 
-  writeStore(
-    record({ ...base, menu: { ...base.menu, dishes } }, actor, 'dish_reordered', dish.name, `Moved ${direction < 0 ? 'up' : 'down'}`),
-  );
+  writeStore(record({ ...base, menu: { ...base.menu, dishes } }, actor, 'dish_reordered', dish.name, 'Reordered'));
 }
 
 /* ── Add-ons ───────────────────────────────────────────────────────── */
@@ -1598,21 +1595,18 @@ export async function deleteCategory(actor: StaffMember, categoryId: string): Pr
   );
 }
 
-export async function moveCategory(actor: StaffMember, categoryId: string, direction: -1 | 1): Promise<void> {
+export async function moveCategory(actor: StaffMember, categoryId: string, overId: string): Promise<void> {
   authorize(actor, 'menu:edit');
   const base = withEditableMenu(readStore());
   const ordered = [...base.menu.categories].sort((a, b) => a.sortOrder - b.sortOrder);
-  const index = ordered.findIndex((c) => c.id === categoryId);
-  if (index < 0) throw new ApiError(404, 'That category no longer exists.');
-  const swapWith = ordered[index + direction];
-  if (!swapWith) return;
+  const from = ordered.findIndex((c) => c.id === categoryId);
+  const to = ordered.findIndex((c) => c.id === overId);
+  if (from < 0 || to < 0) throw new ApiError(404, 'That category no longer exists.');
+  if (from === to) return;
 
-  const current = ordered[index];
-  const categories = base.menu.categories.map((c) => {
-    if (c.id === current.id) return { ...c, sortOrder: swapWith.sortOrder };
-    if (c.id === swapWith.id) return { ...c, sortOrder: current.sortOrder };
-    return c;
-  });
+  const current = ordered[from];
+  ordered.splice(to, 0, ...ordered.splice(from, 1));
+  const categories = base.menu.categories.map((c) => ({ ...c, sortOrder: ordered.findIndex((o) => o.id === c.id) }));
 
   writeStore(
     record(
@@ -1620,7 +1614,7 @@ export async function moveCategory(actor: StaffMember, categoryId: string, direc
       actor,
       'category_reordered',
       current.name,
-      `Moved ${direction < 0 ? 'up' : 'down'}`,
+      'Reordered',
     ),
   );
 }

@@ -456,8 +456,10 @@ function DeliveryEntryScreen({
           <input
             className={cx(INPUT, 'h-13')}
             value={phone}
-            onChange={(event) => setPhone(event.target.value)}
+            onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))}
             placeholder="98XXXXXXXX"
+            type="tel"
+            maxLength={10}
             inputMode="tel"
             autoComplete="tel"
             required
