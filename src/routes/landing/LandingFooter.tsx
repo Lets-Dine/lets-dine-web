@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cx } from '../../components/ui';
 import { RAIL } from './kit';
 import { scrollToSection } from './motion';
+import features from '../../content/features.json';
 
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
@@ -12,6 +13,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
       { label: 'Reviews', href: '#reviews' },
       { label: 'Analytics', href: '#dashboard' },
       { label: 'Pricing', href: '/pricing' },
+      ...features.map((f) => ({ label: f.name, href: `/${f.slug}` })),
     ],
   },
   {

@@ -1,0 +1,178 @@
+[
+  {
+    "slug": "qr-menu",
+    "name": "QR digital menu",
+    "title": "QR Code Digital Menu for Restaurants in Nepal · FeastoX",
+    "description": "Replace paper menus with a QR code digital menu. Update prices and availability instantly, show dish photos and ratings, no app for diners to install.",
+    "h1": "A QR code digital menu your diners will actually use",
+    "intro": "Put a QR code on every table. Diners scan it, and your full menu opens in their phone browser with photos, prices and real ratings. No app to install, no account to create.",
+    "sections": [
+      {
+        "h": "Change the menu in seconds, not reprints",
+        "p": "Edit dishes, prices and categories from the dashboard and the menu updates everywhere at once. Mark a dish unavailable the moment the kitchen runs out, so nobody orders what you cannot serve."
+      },
+      {
+        "h": "Menus that help people choose",
+        "p": "Every dish shows its photo, description and a verified rating with the number of diners behind it. Instead of guessing, guests can see what other people who ate it actually thought."
+      },
+      {
+        "h": "One code per table",
+        "p": "Each table gets its own QR code, so an order always arrives tagged with the right table. The code carries no prices or personal data, so a printed code never goes out of date when you change the menu."
+      },
+      {
+        "h": "Built for Nepali restaurants",
+        "p": "Prices are shown in Rs., and the menu works on any phone with a browser, including mid-range Android devices on a mobile connection."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Do diners need to download an app to see the QR menu?",
+        "a": "No. The menu opens in the phone's normal browser after scanning the QR code."
+      },
+      {
+        "q": "Can I update my digital menu after printing the QR codes?",
+        "a": "Yes. The QR code only points to your restaurant and table. Menu and price changes appear immediately without reprinting."
+      }
+    ]
+  },
+  {
+    "slug": "qr-ordering",
+    "name": "QR table ordering",
+    "title": "QR Table Ordering for Restaurants and Cafes · FeastoX",
+    "description": "Let diners order from their table by scanning a QR code. Orders reach your kitchen queue by table, with live status from accepted to ready.",
+    "h1": "QR table ordering that sends clean orders to your kitchen",
+    "intro": "Diners scan, pick their dishes and place the order from their seat. Your staff see it in a live queue, tagged with the table, and move it through the kitchen.",
+    "sections": [
+      {
+        "h": "Fewer missed tables, fewer mistakes",
+        "p": "Orders are typed by the diner, not taken from memory. Staff see exactly what was ordered, with add-ons and notes, so the kitchen works from the real ticket."
+      },
+      {
+        "h": "A live order queue for staff",
+        "p": "Every order moves one step at a time: accepted, preparing, ready, completed. Staff can mark a dish unavailable, and the diner sees the status update on their phone."
+      },
+      {
+        "h": "Several orders per visit",
+        "p": "A table can place more than one order during a visit. They stay grouped under the same dining session, so the bill and history stay together."
+      },
+      {
+        "h": "Prices you can trust",
+        "p": "Totals, tax and service charge are always calculated on the server from your own menu and settings, so a diner's phone can never change what an order costs."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Does the diner have to create an account to order?",
+        "a": "No. Ordering works anonymously from the table's QR code."
+      },
+      {
+        "q": "What happens if the diner taps the order button twice?",
+        "a": "The order is idempotent, so a retried submission returns the original order instead of creating a duplicate."
+      }
+    ]
+  },
+  {
+    "slug": "dish-ratings",
+    "name": "Dish ratings",
+    "title": "Verified Dish Ratings and Reviews for Restaurants · FeastoX",
+    "description": "Collect purchase-verified ratings on every dish: taste, portion and value. See which dishes diners love and which ones to fix or remove.",
+    "h1": "Dish-level ratings that only real diners can leave",
+    "intro": "Restaurant reviews tell you about the evening. FeastoX tells you about each dish. Only someone who ordered and received a dish can rate it, so the feedback is honest and specific.",
+    "sections": [
+      {
+        "h": "Rate taste, portion and value",
+        "p": "Diners give an overall score and rate taste, portion size and value for money. They also say whether they would order the dish again and can leave a short comment."
+      },
+      {
+        "h": "Purchase-verified, never fabricated",
+        "p": "A rating is tied to a completed order that contained the dish, with one review per dish per order. Ratings are always shown with how many diners left them."
+      },
+      {
+        "h": "Fair rankings",
+        "p": "A dish with a perfect score from two people does not outrank one rated slightly lower by hundreds. Rankings are adjusted for how many ratings a dish has, so the top of your menu is trustworthy."
+      },
+      {
+        "h": "Know what to keep, fix or drop",
+        "p": "The dashboard shows which dishes are loved, which are reordered and which are quietly disappointing, so menu decisions come from data, not guesses."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Can a restaurant fake or delete bad dish ratings?",
+        "a": "Ratings come only from verified orders and are not created by the restaurant."
+      },
+      {
+        "q": "How do diners leave a rating?",
+        "a": "After an order is completed, the diner is prompted to rate the dishes they ate, straight from the order page."
+      }
+    ]
+  },
+  {
+    "slug": "for-cafes",
+    "name": "For cafes",
+    "title": "QR Menu and Ordering Software for Cafes · FeastoX",
+    "description": "A QR menu and table ordering system for cafes: quick ordering, easy price updates, add-ons and dish ratings. Start with a free trial.",
+    "h1": "QR menu and ordering for busy cafes",
+    "intro": "Cafes turn tables fast and run on small teams. FeastoX lets guests order from the table while your staff stay focused on the counter and the kitchen.",
+    "sections": [
+      {
+        "h": "Order without queueing",
+        "p": "Regulars scan, order and sit back. Your team sees one clean queue instead of shouting orders across the room."
+      },
+      {
+        "h": "Add-ons and customisations",
+        "p": "Extra shots, milk choices, sides and toppings are set up once as add-ons and offered on the dishes where they apply."
+      },
+      {
+        "h": "Seasonal menus without reprinting",
+        "p": "Rotate specials, hide sold-out items and change prices from your phone or laptop, and the menu is current at every table."
+      },
+      {
+        "h": "Find your signature items",
+        "p": "Ratings show which drinks and bakes diners love, so you can put them first and retire what does not sell."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Is FeastoX suitable for a small cafe with a few tables?",
+        "a": "Yes. The same menu, ordering and rating flow works for six tables or six branches."
+      }
+    ]
+  },
+  {
+    "slug": "for-restaurants",
+    "name": "For restaurants",
+    "title": "QR Menu and Table Ordering for Restaurants · FeastoX",
+    "description": "Digital menu, QR table ordering, staff roles and dish analytics for restaurants. Know which dishes to promote, fix or remove.",
+    "h1": "A digital menu and ordering system that shows what is worth ordering",
+    "intro": "FeastoX combines a QR menu, table ordering and verified dish ratings in one system, with roles for staff, managers and owners.",
+    "sections": [
+      {
+        "h": "The right access for each person",
+        "p": "Staff work the order queue. Managers edit the menu, tables and QR codes. Owners also control tax, service charge and settings."
+      },
+      {
+        "h": "Tables and floors",
+        "p": "Create tables, print a unique QR code for each one and organise them by floor so orders always arrive with the right location."
+      },
+      {
+        "h": "Analytics from real orders",
+        "p": "See best-selling and best-rated dishes, how often a dish is reordered, and which dishes are ordered together."
+      },
+      {
+        "h": "Start with a free trial",
+        "p": "Create your account, add your menu and print your table codes in a few minutes. New restaurants begin on a free trial before choosing a monthly or yearly plan."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Can different staff have different permissions?",
+        "a": "Yes. Staff, manager and owner roles each see and change only what they need to."
+      },
+      {
+        "q": "How do I get started?",
+        "a": "Create an account on the Get started page, add your menu, then print a QR code for each table."
+      }
+    ]
+  }
+]

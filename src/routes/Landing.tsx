@@ -15,6 +15,7 @@ import { MenuManagement } from './landing/MenuManagement';
 import { Reviews } from './landing/Reviews';
 import { GrowthLoop } from './landing/GrowthLoop';
 import { RestaurantTypes } from './landing/RestaurantTypes';
+import { Faq } from './landing/Faq';
 import { FinalCta } from './landing/FinalCta';
 import { LandingFooter } from './landing/LandingFooter';
 import { ScrollTrigger, scrollToSection, useRefreshOnLoad, useSmoothScroll } from './landing/motion';
@@ -37,8 +38,8 @@ export function Landing() {
   const { hash } = useLocation();
 
   usePageTitle(
-    'FeastoX · A smarter way to dine, a smarter way to run a restaurant',
-    'Digital menus, QR table ordering and dish level ratings, built from real orders. See what your customers actually think about every dish.',
+    'QR Menu & Table Ordering for Restaurants in Nepal · FeastoX',
+    'FeastoX gives restaurants a digital QR menu, table ordering without waiters, and purchase-verified ratings on every dish. Start a free trial.',
   );
 
   useLayoutEffect(() => {
@@ -85,6 +86,7 @@ export function Landing() {
         <Reviews />
         <GrowthLoop />
         <RestaurantTypes />
+        <Faq />
         <FinalCta />
       </main>
       <LandingFooter />

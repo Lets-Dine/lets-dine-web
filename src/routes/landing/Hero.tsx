@@ -72,7 +72,7 @@ export function Hero() {
         <div className="lg:col-span-7 lg:pr-6">
           <p data-hero-rise className="label flex items-center gap-2.5 text-ink-4">
             <span className="inline-block size-1.5 rounded-full bg-flame-2" aria-hidden />
-            A dining experience platform
+            QR menu &amp; table ordering for restaurants in Nepal
           </p>
 
           <h1 className="mt-5">

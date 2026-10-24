@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import features from './content/features.json';
+import { Feature } from './routes/Feature';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigationType } from 'react-router-dom';
 import { AuthProvider } from './state/AuthContext';
 import { AdminThemeProvider } from './state/AdminTheme';
@@ -181,6 +183,9 @@ export default function App() {
               {/* The public, self-serve restaurant sign-up — what the landing page's "Get started" CTA points at. */}
               <Route path="/get-started" element={<GetStarted />} />
               <Route path="/pricing" element={<Pricing />} />
+              {features.map((f) => (
+                <Route key={f.slug} path={`/${f.slug}`} element={<Feature slug={f.slug} />} />
+              ))}
               {/* Stands in for the physical QR code on the table — the live product starts at /r/:slug/t/:token. */}
               {/* <Route path="/demo" element={<Entry />} /> */}
               {/* The QR encodes only the restaurant slug and an opaque table token. */}
