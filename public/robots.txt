@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /r/
+Disallow: /admin
+Disallow: /platform
+
+Sitemap: https://feastox.com/sitemap.xml

@@ -60,6 +60,7 @@ export function useDragReorder<T extends { id: string }>(items: T[], onDrop: (id
     onDragOver: (e: DragEvent) => {
       if (!drag) return;
       e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
       if (drag.id === id || Date.now() < (settleAt.current.get(id) ?? 0)) return;
       const order = [...drag.order];
       order.splice(order.indexOf(id), 0, ...order.splice(order.indexOf(drag.id), 1));
