@@ -11,6 +11,8 @@ import { QuickAddSheet } from '../components/QuickAddSheet';
 import { BTN, BTN_FLAME, BTN_SIZE, EYEBROW, GLASS, SHELL, cx } from '../components/ui';
 import { MapPin, Plus } from '../components/icons';
 import { useCart } from '../state/CartContext';
+import { encodeOrder } from '../components/OwnerPitch';
+import { useDinerIdentity } from '../state/useDinerIdentity';
 import { useDeliveryPlace } from '../state/useDeliveryPlace';
 import { usePageTitle } from '../state/usePageTitle';
 import { useToast } from '../state/ToastContext';
@@ -111,7 +113,7 @@ function whatsappUrl(number: string, text: string): string {
   return `https://wa.me/${number.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
 }
 
-/** The order as a plain-text message — the restaurant reads it in WhatsApp, so no markup beyond line breaks. */
+/** A short WhatsApp message: headline + total, with the full order behind the link. Plain text only. */
 function whatsappMessage({
   menu,
   cart,
@@ -121,6 +123,7 @@ function whatsappMessage({
   address,
   pin,
   note,
+  menuUrl,
 }: {
   menu: Menu;
   cart: CartLine[];
@@ -130,6 +133,7 @@ function whatsappMessage({
   address: string;
   pin: LatLng | null;
   note: string;
+  menuUrl: string;
 }): string {
   const byId = new Map(menu.dishes.map((d) => [d.id, d]));
   const currency = menu.restaurant.currency;
@@ -141,14 +145,15 @@ function whatsappMessage({
     return [`${line.quantity} × ${dish.name}${extras ? ` (${extras})` : ''} — ${price}${line.note ? `\n   Note: ${line.note}` : ''}`];
   });
   const details = [name && `Name: ${name}`, phone && `Phone: ${phone}`, address.trim() && !(pin && address.trim() === 'Pinned location') && `Address: ${address.trim()}`, pin && `Location: ${mapsUrl(pin)}`, note && `Note: ${note}`].filter(Boolean);
+  const body = [...lines, '', `Total: ${formatMoney(bill.total, currency)} (incl. delivery, pay on delivery)`, '', ...details].join('\n');
+  // The details ride in the link's fragment (never sent to a server) and open on the menu page.
   return [
-    `New delivery order for ${menu.restaurant.name}`,
+    `New delivery order for ${menu.restaurant.name} — ${formatMoney(bill.total, currency)}`,
     '',
-    ...lines,
+    'Next: open the order below, confirm with the customer, then prepare and deliver. Payment is on delivery.',
     '',
-    `Total: ${formatMoney(bill.total, currency)} (incl. delivery, pay on delivery)`,
-    '',
-    ...details,
+    'Order details (Source: Feastox):',
+    `${menuUrl}#o=${encodeOrder(body)}`,
   ].join('\n');
 }
 
@@ -161,8 +166,10 @@ export function Cart() {
   const [openNote, setOpenNote] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ line: CartLine; trigger: HTMLElement } | null>(null);
   const sessionEnded = Boolean(session.endedAt);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  // Name and phone are remembered on this device too; the boxes stay editable and the next order saves any change.
+  const [dinerIdentity, rememberIdentity] = useDinerIdentity();
+  const [name, setName] = useState(dinerIdentity?.name ?? '');
+  const [phone, setPhone] = useState(dinerIdentity?.phone ?? '');
   // The last delivery's address and pin live on this device, as in the in-app checkout.
   const [lastPlace, rememberPlace] = useDeliveryPlace();
   const [address, setAddress] = useState(lastPlace?.address ?? customer?.defaultAddress ?? '');
@@ -249,7 +256,8 @@ export function Cart() {
       if (!address.trim() && !pin) return toast('Add your address or share your location first', '📍');
       haptic.select();
       rememberPlace({ address: address.trim() || 'Pinned location', pin });
-      window.open(whatsappUrl(menu.restaurant.whatsappNumber ?? '', whatsappMessage({ menu, cart: cart.lines, bill, name, phone, address, pin, note: orderNote })), '_blank', 'noopener');
+      if (name.trim() && phone.trim()) rememberIdentity({ name: name.trim(), phone: phone.trim() });
+      window.open(whatsappUrl(menu.restaurant.whatsappNumber ?? '', whatsappMessage({ menu, cart: cart.lines, bill, name, phone, address, pin, note: orderNote, menuUrl: `${window.location.origin}${base}?ref=order` })), '_blank', 'noopener');
       return;
     }
     haptic.select();

@@ -9,6 +9,7 @@ import { Cart } from './routes/Cart';
 import { Checkout } from './routes/Checkout';
 import { DishDetail } from './routes/DishDetail';
 import { DishDetailV2 } from './routes/DishDetailV2';
+import { Claim } from './routes/Claim';
 import { GetStarted } from './routes/GetStarted';
 import { Landing } from './routes/Landing';
 import { Pricing } from './routes/Pricing';
@@ -182,6 +183,8 @@ export default function App() {
               <Route path="/" element={<Landing />} />
               {/* The public, self-serve restaurant sign-up — what the landing page's "Get started" CTA points at. */}
               <Route path="/get-started" element={<GetStarted />} />
+              {/* Where an owner activates a restaurant that was already set up for them (from the order welcome screen). */}
+              <Route path="/claim" element={<Claim />} />
               <Route path="/pricing" element={<Pricing />} />
               {features.map((f) => (
                 <Route key={f.slug} path={`/${f.slug}`} element={<Feature slug={f.slug} />} />
