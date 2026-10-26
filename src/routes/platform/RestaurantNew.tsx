@@ -32,6 +32,8 @@ const blank = {
   slug: '',
   city: '',
   cuisine: '',
+  googleUrl: '',
+  unclaimed: true,
   ownerName: '',
   ownerEmail: '',
   planKey: 'growth' as PlanKey,
@@ -102,6 +104,8 @@ export function PlatformRestaurantNew() {
         slug: form.slug,
         serviceChargeRate: Number(form.service) / 100,
         taxRate: Number(form.tax) / 100,
+        googleUrl: form.googleUrl.trim() || null,
+        claimed: !form.unclaimed,
         owner: { name: form.ownerName.trim(), email: form.ownerEmail.trim(), pin },
       });
       const tenant = await createTenant({
@@ -116,6 +120,7 @@ export function PlatformRestaurantNew() {
         ownerEmail: form.ownerEmail.trim(),
         serviceChargePct: Number(form.service) || 0,
         taxPct: Number(form.tax) || 0,
+        claimed: !form.unclaimed,
       });
       setDone({ tenant, pin });
     });
@@ -211,6 +216,13 @@ export function PlatformRestaurantNew() {
                     <TextInput value={form.cuisine} onChange={(v) => set('cuisine', v)} maxLength={60} placeholder="Newari" />
                   </Field>
                 </div>
+                <Field label="Google link" hint="The restaurant's Google Maps or website page. Shown to the owner when they claim it.">
+                  <TextInput value={form.googleUrl} onChange={(v) => set('googleUrl', v)} maxLength={500} placeholder="https://maps.google.com/…" />
+                </Field>
+                <label className="flex items-center gap-2.5 text-[14px] text-ink-2">
+                  <input type="checkbox" checked={form.unclaimed} onChange={(e) => set('unclaimed', e.target.checked)} />
+                  We're setting this up — the owner hasn't claimed it yet
+                </label>
               </>
             )}
 

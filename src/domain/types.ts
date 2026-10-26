@@ -52,6 +52,10 @@ export interface Restaurant {
   addressName?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  /** False = we set this restaurant up and its owner hasn't claimed it yet. Absent = claimed. */
+  claimed?: boolean;
+  /** The restaurant's own Google Maps / website link. */
+  googleUrl?: string | null;
   /** Whether starting a dish takes its recipe off stock. A branch or a dish can override it. Live backend only. */
   autoConsumeStock?: boolean;
 }

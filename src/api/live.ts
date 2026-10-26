@@ -43,6 +43,8 @@ interface ApiRestaurant {
   vatPanNumber?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  googleUrl?: string | null;
+  claimedAt?: string | null;
   avgRating?: number | null;
   ratingCount?: number;
 }
@@ -285,6 +287,9 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     vatPanNumber: api.vatPanNumber ?? null,
     latitude: api.latitude ?? null,
     longitude: api.longitude ?? null,
+    googleUrl: api.googleUrl ?? null,
+    // `claimedAt` is absent from older payloads, which were all claimed.
+    claimed: api.claimedAt !== null,
   };
 }
 
@@ -750,6 +755,11 @@ export function demoEntry(): { slug: string; tableToken: string } | null {
 /** Rating aggregates only come with the menu, so this one reports none. */
 export async function getRestaurant(restaurantSlug: string): Promise<Restaurant> {
   return toRestaurant(await apiRequest<ApiRestaurant>(`/public/restaurants/${encodeURIComponent(restaurantSlug)}`));
+}
+
+/** An owner asks to take over a restaurant we set up. */
+export async function requestClaim(restaurantSlug: string, name: string, phone: string): Promise<void> {
+  await apiRequest(`/public/restaurants/${encodeURIComponent(restaurantSlug)}/claim`, { method: 'POST', body: JSON.stringify({ name, phone }) });
 }
 
 /** The restaurant's active branches with their hours and whether each is open right now. */

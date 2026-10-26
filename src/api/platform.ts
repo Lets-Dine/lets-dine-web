@@ -25,6 +25,8 @@ export interface PlatformRestaurant {
   timezone: string;
   serviceChargeRate: number;
   taxRate: number;
+  googleUrl?: string | null;
+  claimedAt?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -49,6 +51,9 @@ export interface RegisterRestaurantInput {
   timezone?: string;
   serviceChargeRate?: number;
   taxRate?: number;
+  googleUrl?: string | null;
+  /** false = we set it up and the owner hasn't claimed it yet. */
+  claimed?: boolean;
   owner: { name: string; email: string; pin: string };
 }
 
@@ -212,6 +217,8 @@ export async function registerRestaurant(input: RegisterRestaurantInput): Promis
     timezone: input.timezone?.trim() || 'Asia/Kathmandu',
     serviceChargeRate: input.serviceChargeRate ?? 0,
     taxRate: input.taxRate ?? 0,
+    googleUrl: input.googleUrl ?? null,
+    claimedAt: input.claimed === false ? null : now,
     isActive: true,
     createdAt: now,
     updatedAt: now,

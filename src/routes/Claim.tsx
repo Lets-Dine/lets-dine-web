@@ -1,6 +1,7 @@
 import { useLayoutEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { requestClaim } from '../api/diner';
 import { salesWhatsAppUrl } from '../domain/contact';
 import { usePageTitle } from '../state/usePageTitle';
 import { ArrowUpRight, Check, WhatsApp } from '../components/icons';
@@ -11,8 +12,8 @@ const ACTION =
   'inline-flex h-12.5 w-full items-center justify-center gap-2 rounded-full px-6 text-[15.5px] font-semibold tracking-tight transition-move active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40';
 
 /**
- * Where a restaurant owner activates a Feastox restaurant that was set up for them. There's no ownership check
- * in the backend yet, so this sends a claim request to the Feastox team on WhatsApp for them to verify by hand.
+ * Where a restaurant owner activates a Feastox restaurant that was set up for them. The request is saved against the
+ * restaurant and also sent to the Feastox team on WhatsApp, who verify the owner by hand.
  */
 export function Claim() {
   usePageTitle('Claim your restaurant — Feastox', 'Your restaurant is already on Feastox. Claim it to manage your menu, prices and orders.');
@@ -37,11 +38,16 @@ export function Claim() {
     };
   }, []);
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError('Tell us your name so we know who to look for.');
     if (!/^\d{10}$/.test(phone)) return setError('Enter a 10 digit phone number.');
     setError(null);
+    try {
+      if (slug) await requestClaim(slug, name.trim(), phone);
+    } catch (err) {
+      return setError(err instanceof Error ? err.message : 'Could not send your request. Try again.');
+    }
     const who = restaurant ? `${restaurant}${slug ? ` (${slug})` : ''}` : slug || 'my restaurant';
     window.open(salesWhatsAppUrl(`Hi, I'm ${name.trim()} (${phone.trim()}). I own ${who} on Feastox and I'd like to claim it.`), '_blank', 'noopener');
     setSent(true);
@@ -73,7 +79,7 @@ export function Claim() {
             </div>
           </div>
         ) : (
-          <form onSubmit={submit} noValidate className="animate-rise flex flex-col gap-6">
+          <form onSubmit={(e) => void submit(e)} noValidate className="animate-rise flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <h1 className={cx(DISPLAY, 'text-[clamp(28px,6vw,40px)]')}>{restaurant ? `Claim ${restaurant}` : 'Claim your restaurant'}</h1>
               <p className="text-[16px] leading-relaxed text-ink-2">Your menu is already live on Feastox. Tell us who you are and we'll hand it over, so you can manage the menu, prices and orders yourself.</p>

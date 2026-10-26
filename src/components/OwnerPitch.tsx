@@ -272,3 +272,25 @@ export function OwnerPitch({ restaurantName }: { restaurantName?: string }) {
     </div>
   );
 }
+
+/** Shown on the public page of a restaurant we set up that its owner hasn't claimed yet. */
+export function UnclaimedBanner({ restaurant }: { restaurant: { name: string; slug: string; claimed?: boolean; googleUrl?: string | null } }) {
+  const [params] = useSearchParams();
+  if (restaurant.claimed !== false || params.get('ref') === 'order') return null; // `?ref=order` has its own pitch above
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-surface-2 px-4 py-2.5 text-[13px] text-ink-2">
+      <p className="min-w-0 flex-1 leading-snug">
+        <b className="text-ink">Is this your restaurant?</b> It hasn't been claimed yet.
+        {restaurant.googleUrl && (
+          <>
+            {' '}
+            <a href={restaurant.googleUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">View on Google</a>
+          </>
+        )}
+      </p>
+      <Link to={`/claim?r=${encodeURIComponent(restaurant.slug)}&n=${encodeURIComponent(restaurant.name)}`} className="shrink-0 rounded-full bg-flame px-3.5 py-1.5 font-bold text-white">
+        Claim it
+      </Link>
+    </div>
+  );
+}

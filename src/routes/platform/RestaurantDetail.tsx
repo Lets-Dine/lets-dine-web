@@ -15,6 +15,7 @@ import {
   resetPin,
   setOverrides,
   setPersonActive,
+  setTenantClaimed,
   setTenantStatus,
   tenantMrr,
   usageLimits,
@@ -234,6 +235,23 @@ function OverviewTab({ tenant, onChange }: { tenant: Tenant; onChange: () => voi
         </Panel>
       </div>
 
+      <div className="grid gap-5">
+      <Panel title="Ownership" hint="Whether the owner has taken this restaurant over">
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-[13.5px] text-ink-2">
+            {tenant.claimed ? 'Claimed — the owner runs it.' : 'Not claimed — diners see a "Claim it" button on its menu.'}
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            className={ADMIN_GHOST}
+            onClick={() => void run('claimed', () => setTenantClaimed(tenant.id, !tenant.claimed), tenant.claimed ? 'Marked unclaimed.' : 'Marked claimed.').then((ok) => ok && onChange())}
+          >
+            {tenant.claimed ? 'Mark unclaimed' : 'Mark claimed'}
+          </button>
+        </div>
+      </Panel>
+
       <Panel title="Details">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-4">
           <Fact label="Owner">{tenant.owner.name}</Fact>
@@ -253,6 +271,7 @@ function OverviewTab({ tenant, onChange }: { tenant: Tenant; onChange: () => voi
           Fees and menu are the owner's to edit. Platform defaults only apply when a restaurant is created.
         </p>
       </Panel>
+      </div>
     </div>
   );
 }

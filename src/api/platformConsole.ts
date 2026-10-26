@@ -2,7 +2,7 @@ import { latency, uid } from './store';
 import { ApiError } from './store';
 import { apiRequest, IS_LIVE_API } from './http';
 import type { Paginated } from './http';
-import { platformHeaders } from './platform';
+import { listPlatformRestaurants, platformHeaders } from './platform';
 import type { BillingInterval, Plan, SubscriptionStatus } from '../domain/subscription';
 import type { Minor } from '../domain/types';
 
@@ -81,6 +81,8 @@ export interface Tenant {
   timezone: string;
   serviceChargeRate: number;
   taxRate: number;
+  /** False = we set it up and its owner hasn't taken it over yet. */
+  claimed: boolean;
   owner: Person;
   people: Person[];
   notes: Note[];
@@ -280,6 +282,7 @@ function buildTenant(seed: Seed, index: number): Tenant {
     timezone: 'Asia/Kathmandu',
     serviceChargeRate: 0.1,
     taxRate: 0.13,
+    claimed: true,
     owner,
     people: [owner, ...crew],
     notes:
@@ -711,6 +714,7 @@ async function adoptLiveTenant(id: string): Promise<Tenant | undefined> {
     timezone: 'Asia/Kathmandu',
     serviceChargeRate: 0,
     taxRate: 0,
+    claimed: (await listPlatformRestaurants()).rows.find((r) => r.id === id)?.claimedAt != null,
     owner,
     people: [owner],
     notes: [],
@@ -776,6 +780,7 @@ export interface NewTenantInput {
   ownerEmail: string;
   serviceChargePct: number;
   taxPct: number;
+  claimed?: boolean;
 }
 
 export async function createTenant(input: NewTenantInput): Promise<Tenant> {
@@ -810,6 +815,7 @@ export async function createTenant(input: NewTenantInput): Promise<Tenant> {
     timezone: settings.defaults.timezone,
     serviceChargeRate: input.serviceChargePct / 100,
     taxRate: input.taxPct / 100,
+    claimed: input.claimed ?? true,
     owner,
     people: [owner],
     notes: [],
@@ -826,6 +832,17 @@ export async function setTenantStatus(id: string, status: 'SUSPENDED' | 'ACTIVE'
   t.suspendedReason = status === 'SUSPENDED' ? (reason ?? 'Suspended by operator.') : null;
   if (status === 'ACTIVE') t.pastDueSince = null;
   log('restaurant', status === 'SUSPENDED' ? 'Suspended restaurant' : status === 'RESTRICTED' ? 'Restricted restaurant' : 'Restored restaurant', t, reason ?? null);
+}
+
+export async function setTenantClaimed(id: string, claimed: boolean): Promise<void> {
+  if (IS_LIVE_API) {
+    await apiRequest(`/platform/restaurants/${encodeURIComponent(id)}/claimed`, { method: 'PATCH', headers: platformHeaders(), body: JSON.stringify({ claimed }) });
+  } else {
+    await latency();
+  }
+  const t = need(id);
+  t.claimed = claimed;
+  log('restaurant', claimed ? 'Marked restaurant claimed' : 'Marked restaurant unclaimed', t);
 }
 
 export async function changeTenantPlan(id: string, planKey: PlanKey, interval: BillingInterval): Promise<void> {

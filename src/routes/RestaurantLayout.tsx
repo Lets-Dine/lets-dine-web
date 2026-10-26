@@ -25,7 +25,7 @@ import { useAsync } from '../state/useAsync';
 import { useDinerIdentity } from '../state/useDinerIdentity';
 import type { DinerIdentity } from '../state/useDinerIdentity';
 import { CartDock } from '../components/CartDock';
-import { OwnerPitch } from '../components/OwnerPitch';
+import { OwnerPitch, UnclaimedBanner } from '../components/OwnerPitch';
 import { OrderDock } from '../components/OrderDock';
 import { BTN_FLAME, CARD, DISPLAY, EYEBROW, INPUT, SHELL, cx } from '../components/ui';
 import { Check } from '../components/icons';
@@ -261,6 +261,7 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
       <RestaurantContext.Provider value={value}>
         <CartProvider sessionId={value.session.id}>
           <OwnerPitch restaurantName={value.menu.restaurant.name} />
+          <UnclaimedBanner restaurant={value.menu.restaurant} />
           <SessionlessOutlet base={value.base} allowCart={whatsapp} />
           {whatsapp && <CartDock dishes={value.menu.dishes} base={value.base} />}
         </CartProvider>
@@ -273,6 +274,7 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
       <CartProvider sessionId={value.session.id}>
         <SessionOrdersProvider session={value.session} base={value.base}>
           <OwnerPitch restaurantName={value.menu.restaurant.name} />
+          <UnclaimedBanner restaurant={value.menu.restaurant} />
           {sessionEnded && <SessionEndedBanner isDelivery={isDelivery} />}
           <Outlet />
           <CartDock dishes={value.menu.dishes} base={value.base} hidden={sessionEnded} />

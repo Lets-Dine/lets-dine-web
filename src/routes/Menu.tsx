@@ -185,6 +185,15 @@ export function Menu() {
             <p style={{ animationDelay: '400ms' }} className="max-w-[46ch] animate-rise text-[13.5px] leading-relaxed text-ink-3 lg:text-[15px]">
               {menu.restaurant.description}
             </p>
+            {menu.restaurant.claimed === false && (
+              <Link
+                to={`/claim?r=${encodeURIComponent(menu.restaurant.slug)}&n=${encodeURIComponent(menu.restaurant.name)}`}
+                style={{ animationDelay: '440ms' }}
+                className="inline-flex w-fit animate-rise items-center gap-1.5 rounded-full bg-flame px-4 py-2 text-[13.5px] font-bold text-white shadow-flame"
+              >
+                Own this restaurant? Claim it
+              </Link>
+            )}
             {/* Joining by code only makes sense at a shared table — nobody joins a delivery order. */}
             <CallStaff session={session} />
             {table && <SessionCode label="Group session" token={session.anonymousSessionToken} />}

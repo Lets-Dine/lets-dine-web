@@ -87,6 +87,11 @@ export function getBranches(restaurantSlug: string): Promise<PublicBranch[]> {
   return IS_LIVE_API ? live.getBranches(restaurantSlug) : Promise.resolve([]);
 }
 
+/** Nothing to store in the offline demo — the WhatsApp message is the request. */
+export function requestClaim(restaurantSlug: string, name: string, phone: string): Promise<void> {
+  return IS_LIVE_API ? live.requestClaim(restaurantSlug, name, phone) : Promise.resolve();
+}
+
 /** `currency` is only needed live, where it lives on the restaurant, not the dish. */
 export function getDish(dishId: string, currency: string): Promise<Dish> {
   return IS_LIVE_API ? live.getDish(dishId, currency) : mock.getDish(dishId);
