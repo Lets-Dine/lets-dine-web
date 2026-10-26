@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { track } from '../domain/analytics';
-import { mapsUrl, placeName } from '../domain/location';
+import { directionsUrl, placeName } from '../domain/location';
 import type { LatLng } from '../domain/location';
 import { formatMoney, percentOf } from '../domain/money';
 import type { AddOn, CartLine, Dish, Menu } from '../domain/types';
@@ -144,7 +144,9 @@ function whatsappMessage({
     const price = formatMoney(lineUnitPrice(dish, line.variantId, line.addOnIds, menu.addOns) * line.quantity, currency);
     return [`${line.quantity} × ${dish.name}${extras ? ` (${extras})` : ''} — ${price}${line.note ? `\n   Note: ${line.note}` : ''}`];
   });
-  const details = [name && `Name: ${name}`, phone && `Phone: ${phone}`, address.trim() && !(pin && address.trim() === 'Pinned location') && `Address: ${address.trim()}`, pin && `Location: ${mapsUrl(pin)}`, note && `Note: ${note}`].filter(Boolean);
+  const { latitude, longitude } = menu.restaurant;
+  const from = latitude != null && longitude != null ? { lat: latitude, lng: longitude } : null;
+  const details = [name && `Name: ${name}`, phone && `Phone: ${phone}`, address.trim() && !(pin && address.trim() === 'Pinned location') && `Address: ${address.trim()}`, pin && `Location: ${directionsUrl(pin, from)}`, note && `Note: ${note}`].filter(Boolean);
   const body = [...lines, '', `Total: ${formatMoney(bill.total, currency)} (incl. delivery, pay on delivery)`, '', ...details].join('\n');
   // The details ride in the link's fragment (never sent to a server) and open on the menu page.
   return [

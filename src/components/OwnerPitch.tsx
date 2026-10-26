@@ -29,12 +29,13 @@ function decodeOrder(hash: string): string | null {
   }
 }
 
-/** The Maps pin rides in the ticket as a bare URL — wrap it so the owner can open it. */
+/** The Maps pin rides in the ticket as a bare URL — wrap it so the owner can open it, under a short label. */
 function linkedOrder(text: string) {
   return text.split(/(https?:\/\/\S+)/g).map((part, i) =>
     /^https?:\/\//.test(part) ? (
       <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-flame-1 underline underline-offset-2">
-        {part}
+        {/* The raw directions URL is ~150 characters of query string; show what it does instead. */}
+        {/\/maps\/dir\//.test(part) ? 'Get directions →' : /google\.com\/maps/.test(part) ? 'Open in Maps →' : part}
       </a>
     ) : (
       part

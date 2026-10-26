@@ -41,6 +41,8 @@ interface ApiRestaurant {
   deliveryChannel?: DeliveryChannel;
   whatsappNumber?: string | null;
   vatPanNumber?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   avgRating?: number | null;
   ratingCount?: number;
 }
@@ -281,6 +283,8 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     deliveryChannel: api.deliveryChannel ?? 'APP',
     whatsappNumber: api.whatsappNumber ?? null,
     vatPanNumber: api.vatPanNumber ?? null,
+    latitude: api.latitude ?? null,
+    longitude: api.longitude ?? null,
   };
 }
 

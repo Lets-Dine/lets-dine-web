@@ -6,6 +6,12 @@ export interface LatLng {
 /** Opens Google Maps on the exact spot — what a rider or dispatcher taps. */
 export const mapsUrl = ({ lat, lng }: LatLng) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 
+/** Turn-by-turn from the restaurant to the diner; without a pinned restaurant it just opens the diner's spot. */
+export const directionsUrl = (to: LatLng, from?: LatLng | null) =>
+  from
+    ? `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&travelmode=driving`
+    : mapsUrl(to);
+
 /** The order's shared location, if it has one — both coordinates or none. */
 export const locationOf = (o: { deliveryLatitude?: number | null; deliveryLongitude?: number | null }): LatLng | null =>
   o.deliveryLatitude != null && o.deliveryLongitude != null ? { lat: o.deliveryLatitude, lng: o.deliveryLongitude } : null;

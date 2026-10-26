@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { IS_LIVE_API } from '../../api/http';
 import { INVENTORY_ENABLED } from '../../api/inventory';
 import { listAudit, updateSettings } from '../../api/staff';
+import { PinMap } from '../../components/PinMap';
+import { placeName, type LatLng } from '../../domain/location';
 import { ROLE_LABEL, ROLE_SCOPE } from '../../domain/permissions';
 import type { AuditEntry, DeliveryChannel, Restaurant } from '../../domain/types';
 import { planAllowsAutoStock } from '../../domain/subscription';
@@ -11,7 +13,7 @@ import { useSubscription } from '../../state/SubscriptionContext';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../../components/time';
-import { ADMIN_PRIMARY, Field, MoneyInput, PercentInput, TextArea, TextInput, Toggle, useCommand } from '../../components/admin/kit';
+import { ADMIN_PRIMARY, Field, LABEL, MoneyInput, PercentInput, TextArea, TextInput, Toggle, useCommand } from '../../components/admin/kit';
 import { Block } from '../../components/admin/profile';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { ImageUpload } from '../../components/admin/ImageUpload';
@@ -61,6 +63,9 @@ const CHANNELS = [
 /** Nepal, the home market — the sign-up form takes a bare 10-digit number, so the code is added here. */
 const COUNTRY_CODE = '977';
 
+/** Where the map opens until the restaurant has a pin. */
+const KATHMANDU: LatLng = { lat: 27.7172, lng: 85.324 };
+
 export function Settings() {
   const staff = useStaff();
   const { allows } = useAuth();
@@ -78,6 +83,42 @@ export function Settings() {
   const [service, setService] = useState((restaurant.serviceChargeRate * 100).toFixed(1));
   const [tax, setTax] = useState((restaurant.taxRate * 100).toFixed(1));
   const [vatPan, setVatPan] = useState(restaurant.vatPanNumber ?? '');
+  // The pin is the source of truth for coordinates; the name starts as the map's guess and the owner can retype it.
+  const [pin, setPin] = useState<LatLng | null>(
+    restaurant.latitude != null && restaurant.longitude != null ? { lat: restaurant.latitude, lng: restaurant.longitude } : null,
+  );
+  const [addressName, setAddressName] = useState(restaurant.addressName ?? '');
+  // Every pin move looks the address up again; only the newest answer may land, and a miss clears the stale name rather than keep one for the old spot.
+  const lookup = useRef(0);
+  const adoptPin = (next: LatLng) => {
+    setPin(next);
+    const mine = ++lookup.current;
+    void placeName(next).then((name) => {
+      if (mine === lookup.current) setAddressName(name ?? '');
+    });
+  };
+  const [locateError, setLocateError] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
+  const useMyLocation = () => {
+    if (!navigator.geolocation) return setLocateError("This device can't share its location. Tap the map instead.");
+    setLocating(true);
+    setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLocating(false);
+        adoptPin({ lat: coords.latitude, lng: coords.longitude });
+      },
+      (err) => {
+        setLocating(false);
+        setLocateError(
+          err.code === err.PERMISSION_DENIED
+            ? 'Location is blocked for this site. Allow it in your browser settings, or tap the map.'
+            : "Couldn't find your location. Try again, or tap the map.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+    );
+  };
   const [deliveryFee, setDeliveryFee] = useState(restaurant.deliveryFeeAmount ?? 0);
   const [deliveryOn, setDeliveryOn] = useState(restaurant.deliveryEnabled ?? true);
   const [channel, setChannel] = useState<DeliveryChannel>(restaurant.deliveryChannel ?? 'APP');
@@ -99,7 +140,10 @@ export function Settings() {
       name !== restaurant.name ||
       tagline !== restaurant.tagline ||
       description !== restaurant.description ||
-      vatPan.trim() !== (restaurant.vatPanNumber ?? ''),
+      vatPan.trim() !== (restaurant.vatPanNumber ?? '') ||
+      pin?.lat !== (restaurant.latitude ?? undefined) ||
+      pin?.lng !== (restaurant.longitude ?? undefined) ||
+      addressName.trim() !== (restaurant.addressName ?? ''),
     branding: coverImageUrl !== restaurant.coverImageUrl || logoUrl !== restaurant.logoUrl,
     charges: Number(service) / 100 !== restaurant.serviceChargeRate || Number(tax) / 100 !== restaurant.taxRate,
     delivery:
@@ -141,6 +185,9 @@ export function Settings() {
           coverImageUrl: coverImageUrl.trim() || null,
           logoUrl: logoUrl.trim() || null,
           vatPanNumber: vatPan.trim() || null,
+          addressName: pin ? addressName.trim() || null : null,
+          latitude: pin?.lat ?? null,
+          longitude: pin?.lng ?? null,
           serviceChargeRate: Number(service) / 100,
           taxRate: Number(tax) / 100,
           deliveryFeeAmount: deliveryFee,
@@ -216,6 +263,33 @@ export function Settings() {
                   placeholder="9800000000"
                 />
               </Field>
+              {/* Not a <Field>: that is a <label>, and a click on the map would be forwarded to the first button inside it. */}
+              <div>
+                <span className={LABEL}>Address</span>
+                <p className="mt-1.5 text-[12px] text-ink-4">Pin the restaurant on the map, then edit the name if it needs it. Delivery routes start here.</p>
+                <div className="mt-2 grid gap-3">
+                  <div className="overflow-hidden rounded-2xl ring-1 ring-hairline ring-inset">
+                    <PinMap
+                      value={pin ?? KATHMANDU}
+                      onChange={adoptPin}
+                      label="Map: drag the pin or tap to set the restaurant's location"
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button type="button" onClick={useMyLocation} disabled={locating} className={cx(CHIP, CHIP_OFF)}>
+                      {locating ? 'Locating…' : 'Use my current location'}
+                    </button>
+                    {locateError && <span className="text-[13px] font-medium text-ink-3">{locateError}</span>}
+                  </div>
+                  <TextInput
+                    value={addressName}
+                    onChange={setAddressName}
+                    maxLength={200}
+                    placeholder={pin ? 'Address name' : 'Tap the map to drop the pin'}
+                    disabled={!pin}
+                  />
+                </div>
+              </div>
             </fieldset>
           </Block>
         )}

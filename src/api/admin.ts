@@ -2022,6 +2022,10 @@ export interface SettingsPatch {
   whatsappNumber?: string | null;
   /** VAT/PAN number for receipts; `null`/`''` clears it. */
   vatPanNumber?: string | null;
+  /** The pinned address; all three together, or all `null` to clear. */
+  addressName?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   /** Whether starting a dish takes its recipe off stock. */
   autoConsumeStock?: boolean;
 }
@@ -2056,6 +2060,9 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
     deliveryChannel: patch.deliveryChannel ?? before.deliveryChannel,
     whatsappNumber: patch.whatsappNumber !== undefined ? patch.whatsappNumber?.replace(/\D/g, '') || null : before.whatsappNumber,
     vatPanNumber: patch.vatPanNumber !== undefined ? patch.vatPanNumber?.trim() || null : before.vatPanNumber,
+    addressName: patch.addressName !== undefined ? patch.addressName?.trim() || null : before.addressName,
+    latitude: patch.latitude !== undefined ? patch.latitude : before.latitude,
+    longitude: patch.longitude !== undefined ? patch.longitude : before.longitude,
   };
 
   const changes: string[] = [];
@@ -2074,6 +2081,8 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
   if (after.deliveryChannel !== before.deliveryChannel) changes.push(`Delivery channel → ${after.deliveryChannel}`);
   if (after.whatsappNumber !== before.whatsappNumber) changes.push('WhatsApp number changed');
   if (after.vatPanNumber !== before.vatPanNumber) changes.push(`VAT/PAN ${before.vatPanNumber ?? '—'} → ${after.vatPanNumber ?? '—'}`);
+  if (after.addressName !== before.addressName || after.latitude !== before.latitude || after.longitude !== before.longitude)
+    changes.push(`Address → ${after.addressName ?? '—'}`);
 
   // Only the editable fields are stored, so the seed data keeps owning
   // identity (slug, currency, timezone) and the review aggregates.
@@ -2092,6 +2101,9 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
       deliveryChannel: after.deliveryChannel,
       whatsappNumber: after.whatsappNumber,
       vatPanNumber: after.vatPanNumber,
+      addressName: after.addressName,
+      latitude: after.latitude,
+      longitude: after.longitude,
     },
   };
   if (changes.length > 0) next = record(next, actor, 'settings_updated', before.name, changes.join(' · '));

@@ -48,6 +48,10 @@ export interface Restaurant {
   whatsappNumber?: string | null;
   /** VAT/PAN registration number printed on receipts. `null` = none on file. */
   vatPanNumber: string | null;
+  /** Pinned restaurant location — where delivery routes start. Absent/null = not set yet. */
+  addressName?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   /** Whether starting a dish takes its recipe off stock. A branch or a dish can override it. Live backend only. */
   autoConsumeStock?: boolean;
 }

@@ -5,7 +5,7 @@ import type { LatLng } from '../domain/location';
  * A map with one pin the diner can drag, or move by tapping where their door is. Leaflet loads only
  * when this mounts, so the menu never pays for it. Tiles are OpenStreetMap's.
  */
-export function PinMap({ value, onChange }: { value: LatLng; onChange: (next: LatLng) => void }) {
+export function PinMap({ value, onChange, label = 'Map: drag the pin or tap to set your delivery spot' }: { value: LatLng; onChange: (next: LatLng) => void; label?: string }) {
   const box = useRef<HTMLDivElement>(null);
   const move = useRef<(next: LatLng) => void>(() => {});
   const onChangeRef = useRef(onChange);
@@ -61,5 +61,5 @@ export function PinMap({ value, onChange }: { value: LatLng; onChange: (next: La
 
   useEffect(() => move.current(value), [value]);
 
-  return <div ref={box} className="pin-map relative z-0 h-56 w-full" role="application" aria-label="Map: drag the pin or tap to set your delivery spot" />;
+  return <div ref={box} className="pin-map relative z-0 h-56 w-full" role="application" aria-label={label} />;
 }
