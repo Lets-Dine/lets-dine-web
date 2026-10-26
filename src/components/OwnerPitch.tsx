@@ -29,6 +29,19 @@ function decodeOrder(hash: string): string | null {
   }
 }
 
+/** The Maps pin rides in the ticket as a bare URL — wrap it so the owner can open it. */
+function linkedOrder(text: string) {
+  return text.split(/(https?:\/\/\S+)/g).map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-flame-1 underline underline-offset-2">
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
+
 const FEASTOX = (
   <span className="inline-flex items-center gap-1.5 font-display text-[15px] font-semibold tracking-tight text-ink">
     <Sparkle size={14} className="text-flame-2" /> Feastox
@@ -115,7 +128,7 @@ export function OwnerPitch({ restaurantName }: { restaurantName?: string }) {
           </span>
           <span className="text-[12px] text-ink-4">pay on delivery</span>
         </div>
-        <pre className="max-h-[46dvh] overflow-y-auto whitespace-pre-wrap break-words px-4 py-3.5 font-mono text-[12.5px] leading-[1.7] text-ink-2">{order}</pre>
+        <pre className="max-h-[46dvh] overflow-y-auto whitespace-pre-wrap break-words px-4 py-3.5 font-mono text-[12.5px] leading-[1.7] text-ink-2">{order && linkedOrder(order)}</pre>
       </div>
       <div className="flex flex-col gap-4">
         <b className="text-[13.5px] font-semibold text-ink-3">What to do next</b>
@@ -230,7 +243,7 @@ export function OwnerPitch({ restaurantName }: { restaurantName?: string }) {
             </div>
             {close}
           </div>
-          {order && <pre className="max-h-[40dvh] overflow-y-auto whitespace-pre-wrap break-words rounded-2xl bg-surface-2 p-3.5 font-mono text-[12.5px] leading-[1.7] text-ink">{order}</pre>}
+          {order && <pre className="max-h-[40dvh] overflow-y-auto whitespace-pre-wrap break-words rounded-2xl bg-surface-2 p-3.5 font-mono text-[12.5px] leading-[1.7] text-ink">{linkedOrder(order)}</pre>}
           {order && <div className="rounded-2xl bg-flame-2/10 p-4 ring-1 ring-flame-2/25 ring-inset">{nextSteps}</div>}
           <ul className="flex flex-col gap-1.5 text-[14px] text-ink-2">
             <li>• Customers browse and order from a link or QR, no app to install</li>
