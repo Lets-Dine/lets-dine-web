@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/store';
 import { adjustLoyalty, fetchLoyaltyLedger, fetchLoyaltyProgram, saveLoyaltyProgram } from '../../api/customers';
 import type { LoyaltyEntryType, LoyaltyProgram } from '../../api/customers';
@@ -9,6 +9,7 @@ import { useAsync } from '../../state/useAsync';
 import { relativeTime } from '../time';
 import { cx } from '../ui';
 import { ADMIN_GHOST, ADMIN_PRIMARY, Field, Loading, MoneyInput, PercentInput, TextInput, Toggle, useCommand } from './kit';
+import { Check } from '../icons';
 import { Block } from './profile';
 
 const ENTRY_LABEL: Record<LoyaltyEntryType, string> = {
@@ -196,7 +197,34 @@ function LoyaltyRules({ saved, currency, canEdit, onSaved }: { saved: LoyaltyPro
   const validBonus = /^\d+$/.test(bonus) && reviewBonus <= 1_000_000;
   const valid = spend >= 1 && spend <= 10_000_000 && value >= 1 && value <= 10_000_000 && wholePct && maxRedeemPct >= 1 && maxRedeemPct <= 100 && validBonus && safeRates;
   const dirty = enabled !== saved.enabled || spend !== saved.spendPerPoint || value !== saved.redeemValue || maxRedeemPct !== saved.maxRedeemPct || reviewBonus !== (saved.reviewBonus ?? 0);
+  const canSave = canEdit && dirty && valid && !busy;
+  const [justSaved, setJustSaved] = useState(false);
+  const saveRef = useRef<() => void>(() => {});
   const money = (m: number) => formatMoney(m, currency);
+
+  const save = () => {
+    if (!canSave) return;
+    void run(
+      'loyalty',
+      async () => onSaved(await saveLoyaltyProgram({ enabled, spendPerPoint: spend, redeemValue: value, maxRedeemPct, reviewBonus })),
+    ).then((ok) => {
+      if (!ok) return;
+      setJustSaved(true);
+      window.setTimeout(() => setJustSaved(false), 1800);
+    });
+  };
+  saveRef.current = save;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
     <Block title="Loyalty points" hint={canEdit ? 'Saved on its own' : 'Only an owner can change these'}>
@@ -223,16 +251,33 @@ function LoyaltyRules({ saved, currency, canEdit, onSaved }: { saved: LoyaltyPro
         )}
       </fieldset>
       {canEdit && (
-        <div className="mt-6 flex items-center justify-between gap-3 border-t border-hairline pt-4">
-          <span className="text-[13px] text-ink-4" aria-live="polite">{dirty ? 'You have unsaved changes' : 'All changes saved'}</span>
-          <button
-            type="button"
-            className={ADMIN_PRIMARY}
-            disabled={busy || !dirty || !valid}
-            onClick={() => void run('loyalty', async () => onSaved(await saveLoyaltyProgram({ enabled, spendPerPoint: spend, redeemValue: value, maxRedeemPct, reviewBonus })), 'Loyalty rules saved')}
-          >
-            {busy ? 'Saving…' : 'Save changes'}
-          </button>
+        <div
+          className={cx(
+            'fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 transition-[transform,opacity] duration-500 ease-spring',
+            dirty || justSaved || busy ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-8 opacity-0',
+          )}
+          aria-hidden={!dirty && !justSaved && !busy}
+        >
+          <div className="flex w-full max-w-lg items-center gap-3 rounded-full bg-surface-2/90 py-2 pl-5 pr-2 shadow-deep ring-1 ring-hairline-strong ring-inset backdrop-blur-xl">
+            <span className="flex min-w-0 flex-1 items-center gap-2.5 truncate text-[13.5px] text-ink-2" aria-live="polite">
+              <span aria-hidden className={cx('size-2 shrink-0 rounded-full', justSaved ? 'bg-mint' : 'animate-breathe bg-gold')} />
+              {justSaved ? 'Saved' : 'Unsaved changes'}
+            </span>
+            <button type="button" className={cx(ADMIN_PRIMARY, 'relative h-9 overflow-hidden px-4')} disabled={!canSave && !justSaved} onClick={save}>
+              <span aria-hidden className={cx('absolute inset-0 origin-left bg-mint transition-transform duration-500 ease-out-quart', justSaved ? 'scale-x-100' : 'scale-x-0')} />
+              <span className="relative inline-flex items-center gap-1.5">
+                {justSaved ? (
+                  <>
+                    <Check size={15} /> Saved
+                  </>
+                ) : busy ? (
+                  'Saving…'
+                ) : (
+                  'Save'
+                )}
+              </span>
+            </button>
+          </div>
         </div>
       )}
     </Block>

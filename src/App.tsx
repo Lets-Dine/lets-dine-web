@@ -61,6 +61,7 @@ import { Referrals } from './routes/admin/Referrals';
 import { Reviews } from './routes/admin/Reviews';
 import { Settings } from './routes/admin/Settings';
 import { SignIn } from './routes/admin/SignIn';
+import { Kitchen } from './routes/Kitchen';
 import { Staff } from './routes/admin/Staff';
 import { Tables } from './routes/admin/Tables';
 import { TablesV2 } from './routes/admin/TablesV2';
@@ -225,6 +226,9 @@ export default function App() {
               </Route>
 
               {/* The restaurant side: same store, same rules, different job. */}
+              {/* A tablet on the kitchen or bar wall — outside the admin chrome on purpose. */}
+              <Route path="/kitchen" element={<Navigate to="/kitchen/kitchen" replace />} />
+              <Route path="/kitchen/:station" element={<Kitchen />} />
               <Route path="/admin/signin" element={<SignIn />} />
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<DashboardPage />} />

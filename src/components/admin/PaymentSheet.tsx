@@ -115,6 +115,7 @@ export function PaymentSheet({
   orders,
   dishes,
   restaurantName,
+  legalName,
   vatPanNumber,
   serviceChargeRate,
   taxRate,
@@ -127,6 +128,7 @@ export function PaymentSheet({
   orders: Order[];
   dishes: Dish[];
   restaurantName: string;
+  legalName: string;
   vatPanNumber: string | null;
   serviceChargeRate: number;
   taxRate: number;
@@ -683,7 +685,7 @@ export function PaymentSheet({
                 table,
                 draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total })),
                 { currency, subtotal, serviceCharge, tax, discount: appliedDiscount + pointsDiscount, total },
-                { name: restaurantName, vatPanNumber },
+                { name: restaurantName, legalName, vatPanNumber },
                 undefined,
                 customerName,
               )
@@ -932,7 +934,7 @@ export function PaymentSheet({
               <button
                 type="button"
                 onClick={() =>
-                  printReceipt(table, committed.lines, committed.totals, { name: restaurantName, vatPanNumber }, {
+                  printReceipt(table, committed.lines, committed.totals, { name: restaurantName, legalName, vatPanNumber }, {
                     method: method === 'qr' ? 'QR' : 'CASH',
                     label: method === 'credit' ? (paidNow > 0 ? 'Part paid — rest on credit' : 'On credit — unpaid') : undefined,
                     takenBy: staff.name,

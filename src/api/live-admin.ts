@@ -10,6 +10,7 @@ import type {
   BranchHours,
   BranchRef,
   DietaryType,
+  KitchenStation,
   DiningTable,
   Dish,
   DishStats,
@@ -57,7 +58,7 @@ function storeToken(token: string): void {
   }
 }
 
-function readToken(): string | null {
+export function readToken(): string | null {
   try {
     return localStorage.getItem(TOKEN_KEY);
   } catch {
@@ -105,6 +106,7 @@ interface ApiBranch extends BranchRef {
   taxRate: number | null;
   deliveryFeeAmount: number | null;
   autoConsumeStock?: boolean | null;
+  ackStations?: KitchenStation[];
   isActive: boolean;
   hours?: BranchHours[];
 }
@@ -117,6 +119,7 @@ interface ApiAuthSession {
 interface ApiRestaurant {
   id: string;
   name: string;
+  legalName?: string | null;
   slug: string;
   tagline: string;
   description: string;
@@ -172,6 +175,7 @@ interface ApiDish {
   sortOrder: number;
   spiceLevel: number;
   dietaryType: DietaryType;
+  station?: KitchenStation;
   stats: DishStats;
   addOnIds: string[];
   variants: ApiDishVariant[];
@@ -334,6 +338,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
   return {
     id: api.id,
     name: api.name,
+    legalName: api.legalName?.trim() || api.name,
     slug: api.slug,
     tagline: api.tagline,
     description: api.description,
@@ -400,6 +405,7 @@ function toDish(api: ApiDish, currency: string): Dish {
     sortOrder: api.sortOrder,
     spiceLevel: api.spiceLevel as Dish['spiceLevel'],
     dietaryType: api.dietaryType,
+    station: api.station,
     stats: api.stats,
     addOnIds: api.addOnIds ?? [],
     variants: (api.variants ?? []).map((v) => toDishVariant(v, currency)),
@@ -552,6 +558,7 @@ export async function signIn(email: string, pin: string, branchId?: string): Pro
 
 export interface SignUpInput {
   restaurantName: string;
+  legalName: string;
   slug: string;
   ownerName: string;
   email: string;
@@ -567,6 +574,7 @@ export async function signUp(input: SignUpInput): Promise<void> {
     method: 'POST',
     body: JSON.stringify({
       name: input.restaurantName.trim(),
+      legalName: input.legalName.trim(),
       slug: input.slug,
       owner: { name: input.ownerName.trim(), email: input.email.trim(), phone: input.phone, pin: input.pin.trim() },
       ...(input.referralCode ? { referralCode: input.referralCode } : {}),
@@ -611,6 +619,7 @@ export interface BranchDraft {
   deliveryFeeAmount: number | null;
   /** `null` follows the restaurant. */
   autoConsumeStock?: boolean | null;
+  ackStations?: KitchenStation[];
   /** On create only: start this branch's menu as a copy of another branch's. Without it the menu starts empty. */
   copyMenuFrom?: string;
 }
@@ -629,6 +638,7 @@ function branchBody(draft: Partial<BranchDraft>): Record<string, unknown> {
     ...(draft.taxRate !== undefined && { taxRate: draft.taxRate }),
     ...(draft.deliveryFeeAmount !== undefined && { deliveryFeeAmount: draft.deliveryFeeAmount }),
     ...(draft.autoConsumeStock !== undefined && { autoConsumeStock: draft.autoConsumeStock }),
+    ...(draft.ackStations !== undefined && { ackStations: draft.ackStations }),
     ...(draft.copyMenuFrom && { copyMenuFrom: draft.copyMenuFrom }),
   };
 }
@@ -846,6 +856,7 @@ function dishBody(draft: Partial<DishDraft>): Record<string, unknown> {
   if (draft.imageUrl !== undefined) body.imageUrl = draft.imageUrl;
   if (draft.price !== undefined) body.price = draft.price;
   if (draft.dietaryType !== undefined) body.dietaryType = draft.dietaryType;
+  if (draft.station !== undefined) body.station = draft.station;
   if (draft.spiceLevel !== undefined) body.spiceLevel = draft.spiceLevel;
   if (draft.isAvailable !== undefined) body.isAvailable = draft.isAvailable;
   if (draft.isFeatured !== undefined) body.isFeatured = draft.isFeatured;
@@ -1443,7 +1454,7 @@ export async function fetchOrderComparison(period: Period, branchId?: string): P
   });
 }
 
-/** §31 — dishes actually paid for, ranked by units sold. No dates: everything to date. */
+/** §31 — dishes served, ranked by units. Counted when handed over, not when paid. No dates: everything to date. */
 export async function fetchTopSellingDishes(startDate?: string, endDate?: string, branchId?: string): Promise<TopSellingDish[]> {
   const params = new URLSearchParams();
   if (branchId) params.set('branchId', branchId);

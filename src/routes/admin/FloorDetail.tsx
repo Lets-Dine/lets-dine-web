@@ -217,6 +217,7 @@ export function FloorDetail() {
         orders={payingOrder ? [payingOrder] : []}
         dishes={menuDishes}
         restaurantName={menu.restaurant.name}
+        legalName={menu.restaurant.legalName}
         vatPanNumber={menu.restaurant.vatPanNumber}
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}

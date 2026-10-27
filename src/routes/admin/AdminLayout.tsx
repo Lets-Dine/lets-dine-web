@@ -16,6 +16,8 @@ import { BranchSwitcher } from '../../components/admin/BranchSwitcher';
 import { FEEDBACK_ENABLED } from '../../api/feedback';
 import { FeedbackDialog } from '../../components/admin/FeedbackDialog';
 import { Loading } from '../../components/admin/kit';
+import { PrintAgent } from '../../components/admin/PrintAgent';
+import { KitchenWatch } from '../../components/admin/KitchenWatch';
 import { ServiceRequests } from '../../components/admin/ServiceRequests';
 import { RestaurantCard } from '../../components/admin/RestaurantCard';
 import { LockedScreen, PlanChip, SubscriptionBanner } from '../../components/admin/SubscriptionBits';
@@ -444,6 +446,8 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
               </p>
             ) : dashboard ? (
               <DashboardContext.Provider value={dashboard}>
+                <KitchenWatch />
+                <PrintAgent />
                 <ServiceRequests />
                 <Outlet />
               </DashboardContext.Provider>

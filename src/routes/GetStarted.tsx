@@ -18,7 +18,7 @@ function referralCodeFrom(raw: string | null): string | undefined {
   return REFERRAL_CODE.test(code) ? code : undefined;
 }
 
-type FieldId = 'restaurantName' | 'city' | 'ownerName' | 'email' | 'phone' | 'pin' | 'pinConfirm';
+type FieldId = 'restaurantName' | 'legalName' | 'city' | 'ownerName' | 'email' | 'phone' | 'pin' | 'pinConfirm';
 
 interface Question {
   id: FieldId;
@@ -29,6 +29,7 @@ interface Question {
   type: 'text' | 'email' | 'tel' | 'password';
   autoComplete: string;
   validate: (value: string, all: Record<FieldId, string>) => string | undefined;
+  maxLength?: number;
 }
 
 const QUESTIONS: Question[] = [
@@ -40,6 +41,17 @@ const QUESTIONS: Question[] = [
     type: 'text',
     autoComplete: 'organization',
     validate: (v) => (v.trim().length < 2 ? 'Tell us the name diners will see.' : undefined),
+  },
+  {
+    id: 'legalName',
+    group: 'restaurant',
+    question: "What's the legal business name?",
+    helper: 'The registered name printed on receipts. It starts as the restaurant name — change it if the registered name is different.',
+    placeholder: 'e.g. Himalayan Table Pvt. Ltd.',
+    type: 'text',
+    autoComplete: 'organization',
+    maxLength: 120,
+    validate: (v) => (v.trim().length < 2 ? 'Enter the registered business name.' : undefined),
   },
   {
     id: 'city',
@@ -112,7 +124,7 @@ function slugify(name: string) {
 }
 
 function groupForStep(step: number) {
-  if (step <= 1) return 0;
+  if (step <= 2) return 0;
   if (step < CONFIRM_STEP) return 1;
   return 2;
 }
@@ -196,7 +208,7 @@ function QuestionStage({
             type={question.type}
             inputMode={question.id === 'phone' || question.type === 'password' ? 'numeric' : undefined}
             autoComplete={question.autoComplete}
-            maxLength={question.id === 'phone' ? 10 : undefined}
+            maxLength={question.id === 'phone' ? 10 : question.maxLength}
             value={value}
             onChange={(e) => onChange(question.id === 'phone' ? e.target.value.replace(/\D/g, '').slice(0, 10) : e.target.value)}
             onBlur={() => setTouched(true)}
@@ -254,11 +266,12 @@ function ConfirmStage({
 }) {
   const rows: { label: string; value: string; step: number }[] = [
     { label: 'Restaurant', value: values.restaurantName, step: 0 },
-    { label: 'City', value: values.city, step: 1 },
-    { label: 'Owner', value: values.ownerName, step: 2 },
-    { label: 'Email', value: values.email, step: 3 },
-    { label: 'Phone', value: values.phone, step: 4 },
-    { label: 'Login PIN', value: '•'.repeat(values.pin.length), step: 5 },
+    { label: 'Legal name', value: values.legalName, step: 1 },
+    { label: 'City', value: values.city, step: 2 },
+    { label: 'Owner', value: values.ownerName, step: 3 },
+    { label: 'Email', value: values.email, step: 4 },
+    { label: 'Phone', value: values.phone, step: 5 },
+    { label: 'Login PIN', value: '•'.repeat(values.pin.length), step: 6 },
   ];
 
   return (
@@ -362,6 +375,7 @@ export function GetStarted() {
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<Record<FieldId, string>>({
     restaurantName: '',
+    legalName: '',
     city: '',
     ownerName: '',
     email: '',
@@ -436,7 +450,12 @@ export function GetStarted() {
             value={values[question.id]}
             values={values}
             onChange={(value) => setField(question.id, value)}
-            onNext={() => setStep((s) => s + 1)}
+            onNext={() => {
+              if (question.id === 'restaurantName') {
+                setValues((prev) => ({ ...prev, legalName: prev.legalName.trim() ? prev.legalName : prev.restaurantName }));
+              }
+              setStep((s) => s + 1);
+            }}
             onBack={() => setStep((s) => Math.max(s - 1, 0))}
             showBack={step > 0}
             isLast={step === QUESTIONS.length - 1}

@@ -21,7 +21,7 @@ import { planAllowsAutoStock } from '../../domain/subscription';
 import { useSubscription } from '../../state/SubscriptionContext';
 import { useAsync } from '../../state/useAsync';
 import { formatMoney } from '../../domain/money';
-import type { DietaryType, Dish } from '../../domain/types';
+import type { DietaryType, Dish, KitchenStation } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { DietMarks, DishImage } from '../../components/Bits';
 import { RatingBreakdown } from '../../components/Rating';
@@ -52,6 +52,11 @@ import { PhotoLink, PhotoSuggestions, VariantEditor, VariantOptionFields } from 
  * replaced by space and hairlines, and everything occasional (adding a
  * variant, pasting an image link, archiving) folded until asked for.
  */
+
+const STATIONS: { value: KitchenStation; label: string }[] = [
+  { value: 'KITCHEN', label: 'Kitchen' },
+  { value: 'BAR', label: 'Bar' },
+];
 
 type Spice = 0 | 1 | 2 | 3;
 const SPICE_LABEL = ['Not spicy', 'Mild', 'Hot', 'Very hot'] as const;
@@ -254,6 +259,7 @@ export function DishEditorV2() {
     price: existing?.price ?? 0,
     imageUrl: existing?.imageUrl ?? null,
     dietaryType: existing?.dietaryType ?? 'NON_VEG',
+    station: existing?.station ?? 'KITCHEN',
     spiceLevel: existing?.spiceLevel ?? 0,
     isAvailable: existing?.isAvailable ?? true,
     isFeatured: existing?.isFeatured ?? false,
@@ -343,6 +349,7 @@ export function DishEditorV2() {
     draft.price !== existing.price ||
     draft.imageUrl !== existing.imageUrl ||
     draft.dietaryType !== existing.dietaryType ||
+    draft.station !== (existing.station ?? 'KITCHEN') ||
     draft.spiceLevel !== existing.spiceLevel ||
     draft.isAvailable !== existing.isAvailable ||
     draft.isFeatured !== existing.isFeatured ||
@@ -374,7 +381,6 @@ export function DishEditorV2() {
             });
           }
         },
-        `${draft.name.trim()} added to the menu`,
       ).then((ok) => {
         reloadMenu();
         if (ok) navigate('/admin/menu');
@@ -387,7 +393,6 @@ export function DishEditorV2() {
         await updateDish(staff, existing!.id, draft);
         if (addOnIdsChanged) await setDishAddOns(staff, existing!.id, addOnIds);
       },
-      `${draft.name.trim()} saved`,
     ).then((ok) => {
       reloadMenu();
       if (ok) flashSaved();
@@ -561,6 +566,9 @@ export function DishEditorV2() {
                     </Field>
                     <Field label="Dietary type">
                       <Segmented label="Dietary type" value={draft.dietaryType} onChange={(v) => patch('dietaryType', v)} options={DIET} />
+                    </Field>
+                    <Field label="Prepared at">
+                      <Segmented label="Prepared at" value={draft.station ?? 'KITCHEN'} onChange={(v) => patch('station', v)} options={STATIONS} />
                     </Field>
                   </div>
                 )}

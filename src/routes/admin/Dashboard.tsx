@@ -21,6 +21,7 @@ import { formatMoney } from '../../domain/money';
 import type { Order, OrderStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
+import { useRefreshOnOrderChange } from '../../state/useRefreshOnOrderChange';
 import { useNow } from '../../state/useNow';
 import { Empty, Loading, PageTitle, Panel, Row, Segmented, StatTile, useCommand } from '../../components/admin/kit';
 import { LowStockPanel } from '../../components/admin/LowStockPanel';
@@ -85,6 +86,12 @@ export function Dashboard() {
     [staff, compareBranches, branchesNear],
   );
   // A plan without analytics answers these with FEATURE_LOCKED. That is the plan talking, not something broken.
+  // Today's figures come from the server, so they are re-read as orders move — otherwise a screen left open all shift goes stale.
+  useRefreshOnOrderChange(queue, () => {
+    revenue.reload();
+    orderComparison.reload();
+    topDishes.reload();
+  });
   const analyticsLocked = isFeatureLocked(revenue.error) || isFeatureLocked(orderComparison.error);
   const trendLocked = isFeatureLocked(trend.error);
   const branchesLocked = isFeatureLocked(branchPerformance.error);
@@ -307,7 +314,7 @@ export function Dashboard() {
 
       <div ref={lowerRef} className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <Panel title="Selling today" hint="By dishes served" bare className="animate-rise [animation-delay:340ms]">
-          {topDishes.loading ? (
+          {topDishes.loading && !topDishes.data ? (
             <Loading label="Counting today…" />
           ) : bestSellers.length === 0 ? (
             <p className="px-5 py-8 text-center text-[13.5px] text-ink-3">Nothing has sold yet today.</p>
@@ -380,6 +387,7 @@ export function Dashboard() {
         orders={payingOrder ? [payingOrder] : []}
         dishes={menuDishes}
         restaurantName={menu.restaurant.name}
+        legalName={menu.restaurant.legalName}
         vatPanNumber={menu.restaurant.vatPanNumber}
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}

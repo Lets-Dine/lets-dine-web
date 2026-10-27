@@ -349,7 +349,7 @@ export function fetchOrderComparison(actor: StaffMember, period: Period, branchI
   return IS_LIVE_API ? live.fetchOrderComparison(period, branchId) : mock.fetchOrderComparison(actor, period);
 }
 
-/** §31 — dishes actually paid for, ranked by units sold. No dates: everything to date. */
+/** §31 — dishes served, ranked by units. Counted when handed over, not when paid. No dates: everything to date. */
 export function fetchTopSellingDishes(actor: StaffMember, startDate?: string, endDate?: string, branchId?: string): Promise<TopSellingDish[]> {
   return IS_LIVE_API
     ? live.fetchTopSellingDishes(startDate, endDate, branchId)

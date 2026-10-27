@@ -43,6 +43,8 @@ export interface RegisteredRestaurant {
 
 export interface RegisterRestaurantInput {
   name: string;
+  /** Registered name printed on receipts. */
+  legalName: string;
   slug: string;
   tagline?: string;
   description?: string;

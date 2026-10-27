@@ -297,7 +297,6 @@ export function DishEditor() {
             });
           }
         },
-        `${draft.name.trim()} added to the menu`,
       ).then((ok) => {
         reloadMenu();
         if (ok) navigate('/admin/menu');
@@ -307,7 +306,7 @@ export function DishEditor() {
     void run('save', async () => {
       await updateDish(staff, existing!.id, draft);
       if (addOnIdsChanged) await setDishAddOns(staff, existing!.id, addOnIds);
-    }, `${draft.name.trim()} saved`).then(reloadMenu);
+    }).then(reloadMenu);
   };
 
   return (

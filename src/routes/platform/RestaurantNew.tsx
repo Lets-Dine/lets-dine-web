@@ -29,6 +29,7 @@ type SlugState = 'idle' | 'checking' | 'free' | 'taken';
 
 const blank = {
   name: '',
+  legalName: '',
   slug: '',
   city: '',
   cuisine: '',
@@ -58,6 +59,7 @@ export function PlatformRestaurantNew() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(blank);
   const [slugTouched, setSlugTouched] = useState(false);
+  const [legalTouched, setLegalTouched] = useState(false);
   const [slugState, setSlugState] = useState<SlugState>('idle');
   const [done, setDone] = useState<{ tenant: Tenant; pin: string } | null>(null);
 
@@ -65,6 +67,7 @@ export function PlatformRestaurantNew() {
     setForm((prev) => {
       const next = { ...prev, [key]: value };
       if (key === 'name' && !slugTouched) next.slug = slugify(value as string);
+      if (key === 'name' && !legalTouched) next.legalName = value as string;
       return next;
     });
 
@@ -87,7 +90,7 @@ export function PlatformRestaurantNew() {
 
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.ownerEmail);
   const valid = [
-    form.name.trim().length > 1 && slugValid && slugState === 'free',
+    form.name.trim().length > 1 && form.legalName.trim().length > 1 && slugValid && slugState === 'free',
     form.ownerName.trim().length > 1 && emailOk,
     true,
   ];
@@ -101,6 +104,7 @@ export function PlatformRestaurantNew() {
     void run('create', async () => {
       await registerRestaurant({
         name: form.name.trim(),
+        legalName: form.legalName.trim(),
         slug: form.slug,
         serviceChargeRate: Number(form.service) / 100,
         taxRate: Number(form.tax) / 100,
@@ -126,7 +130,7 @@ export function PlatformRestaurantNew() {
     });
   };
 
-  if (done) return <Handoff done={done} onAnother={() => { setDone(null); setForm(blank); setStep(0); setSlugTouched(false); }} onCopy={(text, what) => copy(text).then(() => toast(`${what} copied.`, <Copy size={16} />))} />;
+  if (done) return <Handoff done={done} onAnother={() => { setDone(null); setForm(blank); setStep(0); setSlugTouched(false); setLegalTouched(false); }} onCopy={(text, what) => copy(text).then(() => toast(`${what} copied.`, <Copy size={16} />))} />;
 
   return (
     <>
@@ -174,8 +178,19 @@ export function PlatformRestaurantNew() {
           >
             {step === 0 && (
               <>
-                <Field label="Restaurant name">
+                <Field label="Restaurant name" hint="What guests see on the menu.">
                   <TextInput value={form.name} onChange={(v) => set('name', v)} maxLength={120} placeholder="Newa Kitchen" autoFocus />
+                </Field>
+                <Field label="Legal business name" hint="The registered name printed on receipts. Starts as the restaurant name — change it if the registered name is different.">
+                  <TextInput
+                    value={form.legalName}
+                    onChange={(v) => {
+                      setLegalTouched(true);
+                      set('legalName', v);
+                    }}
+                    maxLength={120}
+                    placeholder="Newa Kitchen Pvt. Ltd."
+                  />
                 </Field>
                 <Field
                   label="Diner address"
@@ -309,6 +324,7 @@ export function PlatformRestaurantNew() {
           <Panel title="What will be created" variant="subtle">
             <dl className="grid gap-3.5 text-[13.5px]">
               <Row label="Restaurant">{form.name.trim() || <Muted>Not named yet</Muted>}</Row>
+              <Row label="Legal name">{form.legalName.trim() || <Muted>Not named yet</Muted>}</Row>
               <Row label="Diner address">{form.slug ? <span className="break-all">FeastoX.app/r/{form.slug}</span> : <Muted>—</Muted>}</Row>
               <Row label="Owner">{form.ownerName.trim() ? `${form.ownerName.trim()}${emailOk ? ` · ${form.ownerEmail}` : ''}` : <Muted>Added in step 2</Muted>}</Row>
               <Row label="Plan">

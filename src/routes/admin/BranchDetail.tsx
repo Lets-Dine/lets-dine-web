@@ -5,7 +5,7 @@ import { AutoConsumeChoice, AutoConsumeLockedNote } from '../../components/admin
 import { planAllowsAutoStock } from '../../domain/subscription';
 import { useSubscription } from '../../state/SubscriptionContext';
 import { copyBranchMenu, fetchBranch, listBranches, setBranchHours, updateBranch } from '../../api/staff';
-import type { Branch, BranchHours } from '../../domain/types';
+import type { Branch, BranchHours, KitchenStation } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import {
@@ -91,6 +91,9 @@ function DetailsPanel({ branch, canEdit, onSaved }: { branch: Branch; canEdit: b
   const [autoConsume, setAutoConsume] = useState<boolean | null>(branch.autoConsumeStock ?? null);
   const planAllowsStockUse = planAllowsAutoStock(useSubscription().subscription);
   const [active, setActive] = useState(branch.isActive);
+  const [ackStations, setAckStations] = useState<KitchenStation[]>(branch.ackStations ?? []);
+  const toggleStation = (station: KitchenStation, on: boolean) =>
+    setAckStations((prev) => (on ? [...prev.filter((s) => s !== station), station] : prev.filter((s) => s !== station)));
 
   const save = () =>
     void run(
@@ -104,6 +107,7 @@ function DetailsPanel({ branch, canEdit, onSaved }: { branch: Branch; canEdit: b
           serviceChargeRate: fromPercent(service),
           taxRate: fromPercent(tax),
           deliveryFeeAmount: fromMajor(delivery),
+          ackStations,
           ...(INVENTORY_ENABLED && planAllowsStockUse && { autoConsumeStock: autoConsume }),
           ...(branch.isDefault ? {} : { isActive: active }),
         }),
@@ -156,6 +160,13 @@ function DetailsPanel({ branch, canEdit, onSaved }: { branch: Branch; canEdit: b
             {planAllowsStockUse ? <AutoConsumeChoice value={autoConsume} onChange={setAutoConsume} inheritLabel="Restaurant setting" /> : <AutoConsumeLockedNote />}
           </div>
         )}
+        <div>
+          <p className="mb-1 text-[12.5px] leading-snug text-ink-3">
+            Turn on a station once it has a kitchen screen. A ticket nobody there acknowledges within a minute then warns the front of house. A station with an active printer is covered automatically.
+          </p>
+          <Toggle checked={ackStations.includes('KITCHEN')} onChange={(on) => toggleStation('KITCHEN', on)} label="Kitchen has a screen" />
+          <Toggle checked={ackStations.includes('BAR')} onChange={(on) => toggleStation('BAR', on)} label="Bar has a screen" />
+        </div>
         <Toggle
           checked={active}
           onChange={setActive}

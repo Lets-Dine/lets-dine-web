@@ -18,8 +18,10 @@ import { Block } from '../../components/admin/profile';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { ImageUpload } from '../../components/admin/ImageUpload';
 import { LoyaltySettings } from '../../components/admin/Loyalty';
+import { PrinterSettings } from '../../components/admin/PrinterSettings';
 import { RestaurantMark } from '../../components/RestaurantMark';
-import { Bag, Check, History, WhatsApp } from '../../components/icons';
+import { Bag, Bike, Box, Building, Check, History, Photo, Printer, Receipt, Star, WhatsApp } from '../../components/icons';
+import type { ComponentType } from 'react';
 import { useDashboard } from './AdminLayout';
 
 /**
@@ -30,15 +32,16 @@ import { useDashboard } from './AdminLayout';
  * hold a hardcoded copy of it. Changing one is logged, along with every other
  * management action, with the person who made it attached.
  */
-type TabKey = 'restaurant' | 'branding' | 'charges' | 'delivery' | 'loyalty' | 'stock' | 'activity';
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'restaurant', label: 'Restaurant' },
-  { key: 'branding', label: 'Logo & cover' },
-  { key: 'charges', label: 'Tax & charges' },
-  { key: 'delivery', label: 'Delivery' },
-  { key: 'loyalty', label: 'Loyalty' },
-  { key: 'stock', label: 'Stock' },
-  { key: 'activity', label: 'Activity' },
+type TabKey = 'restaurant' | 'branding' | 'charges' | 'delivery' | 'loyalty' | 'stock' | 'printing' | 'activity';
+const TABS: { key: TabKey; label: string; Icon: ComponentType<{ size?: number; className?: string }> }[] = [
+  { key: 'restaurant', label: 'Restaurant', Icon: Building },
+  { key: 'branding', label: 'Logo & cover', Icon: Photo },
+  { key: 'charges', label: 'Tax & charges', Icon: Receipt },
+  { key: 'delivery', label: 'Delivery', Icon: Bike },
+  { key: 'loyalty', label: 'Loyalty', Icon: ({ size, className }) => <Star size={size} className={className} filled={false} /> },
+  { key: 'stock', label: 'Stock', Icon: Box },
+  { key: 'printing', label: 'Printing', Icon: Printer },
+  { key: 'activity', label: 'Activity', Icon: History },
 ];
 
 const CHANNELS = [
@@ -76,6 +79,7 @@ export function Settings() {
   const canEdit = allows('settings:edit');
 
   const [name, setName] = useState(restaurant.name);
+  const [legalName, setLegalName] = useState(restaurant.legalName);
   const [tagline, setTagline] = useState(restaurant.tagline);
   const [description, setDescription] = useState(restaurant.description);
   const [coverImageUrl, setCoverImageUrl] = useState(restaurant.coverImageUrl);
@@ -132,12 +136,14 @@ export function Settings() {
   const needsWhatsapp = deliveryOn && channel === 'WHATSAPP' && !whatsapp;
   const [autoConsume, setAutoConsume] = useState(restaurant.autoConsumeStock ?? true);
   const planAllowsStockUse = planAllowsAutoStock(useSubscription().subscription);
-
+  const [justSaved, setJustSaved] = useState(false);
+  const saveRef = useRef<() => void>(() => {});
 
   // Which tabs hold unsaved edits, so the switcher can say where they are.
   const unsaved: Partial<Record<TabKey, boolean>> = {
     restaurant:
       name !== restaurant.name ||
+      legalName.trim() !== restaurant.legalName ||
       tagline !== restaurant.tagline ||
       description !== restaurant.description ||
       vatPan.trim() !== (restaurant.vatPanNumber ?? '') ||
@@ -156,7 +162,7 @@ export function Settings() {
   const dirty = Object.values(unsaved).some(Boolean);
 
   const tabs = TABS.filter(
-    (t) => (t.key !== 'loyalty' || (IS_LIVE_API && allows('settings:view'))) && (t.key !== 'stock' || INVENTORY_ENABLED),
+    (t) => (t.key !== 'loyalty' || (IS_LIVE_API && allows('settings:view'))) && (t.key !== 'stock' || INVENTORY_ENABLED) && (t.key !== 'printing' || (IS_LIVE_API && allows('settings:view'))),
   );
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
@@ -166,13 +172,33 @@ export function Settings() {
   useEffect(() => {
     if (tab === 'loyalty') setLoyaltySeen(true);
   }, [tab]);
-  const savesHere = tab !== 'loyalty' && tab !== 'activity';
+  const savesHere = tab !== 'loyalty' && tab !== 'activity' && tab !== 'printing';
+  const legalNameError = legalName.trim() ? undefined : 'Enter the legal business name.';
+  const canSave = canEdit && dirty && !busy && !whatsappError && !needsWhatsapp && !legalNameError;
+
+  // ⌘S / Ctrl+S saves, as on a dish.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const flashSaved = () => {
+    setJustSaved(true);
+    window.setTimeout(() => setJustSaved(false), 1800);
+  };
 
   // Only the Activity tab shows the log, so it is only read (fresh) when that tab opens.
   const onActivity = tab === 'activity';
   const audit = useAsync(async () => (onActivity ? (await listAudit(staff, 5)).rows : null), [staff, onActivity]);
 
   const save = () => {
+    if (!canSave) return;
     // The save answers with the restaurant as stored, so that is all the dashboard needs — no re-read of the menu.
     const saved: { restaurant?: Restaurant } = {};
     void run(
@@ -180,6 +206,7 @@ export function Settings() {
       async () => {
         saved.restaurant = await updateSettings(staff, {
           name,
+          legalName: legalName.trim(),
           tagline,
           description,
           coverImageUrl: coverImageUrl.trim() || null,
@@ -197,16 +224,19 @@ export function Settings() {
           ...(INVENTORY_ENABLED && planAllowsStockUse && { autoConsumeStock: autoConsume }),
         });
       },
-      'Settings saved',
     ).then((ok) => {
-      if (ok && saved.restaurant) applyRestaurant(saved.restaurant);
+      if (ok && saved.restaurant) {
+        applyRestaurant(saved.restaurant);
+        flashSaved();
+      }
     });
   };
+  saveRef.current = save;
 
   const locked = canEdit ? undefined : 'Only an owner can change these';
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className={cx('mx-auto max-w-6xl', canEdit && 'pb-28')}>
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Settings</h1>
       <p className="mt-5 max-w-[40ch] animate-rise text-[clamp(18px,2.2vw,24px)] font-medium leading-[1.3] text-ink-2 [animation-delay:120ms]">
         {canEdit ? 'Changes apply to the next order, as soon as you save.' : 'You can look, but only an owner can change these.'}
@@ -221,6 +251,7 @@ export function Settings() {
             className={cx(CHIP, tab === t.key ? CHIP_ON : CHIP_OFF)}
             onClick={() => setParams({ tab: t.key }, { replace: true })}
           >
+            <t.Icon size={15} />
             {t.label}
             {unsaved[t.key] && (
               <>
@@ -242,8 +273,11 @@ export function Settings() {
         {tab === 'restaurant' && (
           <Block title="Restaurant" hint={locked} delay={0}>
             <fieldset disabled={!canEdit} className="grid gap-4 disabled:opacity-60">
-              <Field label="Name">
+              <Field label="Name" hint="What guests see on the menu.">
                 <TextInput value={name} onChange={setName} maxLength={60} />
+              </Field>
+              <Field label="Legal business name" hint="The registered name printed on every receipt." error={legalNameError}>
+                <TextInput value={legalName} onChange={setLegalName} maxLength={120} placeholder="e.g. Sekuwa Ghar Pvt. Ltd." />
               </Field>
               <Field label="Tagline" hint="Shown under the name on the diner menu.">
                 <TextInput value={tagline} onChange={setTagline} maxLength={80} />
@@ -433,6 +467,8 @@ export function Settings() {
           </Block>
         )}
 
+        {tab === 'printing' && <PrinterSettings canEdit={canEdit} />}
+
         {tab === 'activity' && (
           <>
             <Block title="Recent activity" hint="Who changed what" delay={0}>
@@ -464,13 +500,33 @@ export function Settings() {
       </div>
 
       {canEdit && savesHere && (
-        <div className="mt-6 flex max-w-3xl items-center justify-between gap-3 border-t border-hairline pt-4">
-          <span className="text-[13px] text-ink-4" aria-live="polite">
-            {dirty ? 'You have unsaved changes' : 'All changes saved'}
-          </span>
-          <button type="button" className={ADMIN_PRIMARY} disabled={busy || !dirty || Boolean(whatsappError) || needsWhatsapp} onClick={save} data-tour="save-settings">
-            {busy ? 'Saving…' : 'Save changes'}
-          </button>
+        <div
+          className={cx(
+            'fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 transition-[transform,opacity] duration-500 ease-spring',
+            dirty || justSaved || busy ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-8 opacity-0',
+          )}
+          aria-hidden={!dirty && !justSaved && !busy}
+        >
+          <div className="flex w-full max-w-lg items-center gap-3 rounded-full bg-surface-2/90 py-2 pl-5 pr-2 shadow-deep ring-1 ring-hairline-strong ring-inset backdrop-blur-xl">
+            <span className="flex min-w-0 flex-1 items-center gap-2.5 truncate text-[13.5px] text-ink-2" aria-live="polite">
+              <span aria-hidden className={cx('size-2 shrink-0 rounded-full', justSaved ? 'bg-mint' : 'animate-breathe bg-gold')} />
+              {justSaved ? 'Saved' : 'Unsaved changes'}
+            </span>
+            <button type="button" className={cx(ADMIN_PRIMARY, 'relative h-9 overflow-hidden px-4')} disabled={!canSave && !justSaved} onClick={save} data-tour="save-settings">
+              <span aria-hidden className={cx('absolute inset-0 origin-left bg-mint transition-transform duration-500 ease-out-quart', justSaved ? 'scale-x-100' : 'scale-x-0')} />
+              <span className="relative inline-flex items-center gap-1.5">
+                {justSaved ? (
+                  <>
+                    <Check size={15} /> Saved
+                  </>
+                ) : busy ? (
+                  'Saving…'
+                ) : (
+                  'Save'
+                )}
+              </span>
+            </button>
+          </div>
         </div>
       )}
     </div>

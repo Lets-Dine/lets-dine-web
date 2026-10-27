@@ -21,6 +21,7 @@ import type {
   AuditAction,
   AuditEntry,
   DietaryType,
+  KitchenStation,
   DiningSession,
   DiningTable,
   Dish,
@@ -1068,6 +1069,8 @@ export interface DishDraft {
   price: Minor;
   imageUrl: string | null;
   dietaryType: DietaryType;
+  /** Which pass cooks it; absent = KITCHEN. */
+  station?: KitchenStation;
   spiceLevel: 0 | 1 | 2 | 3;
   isAvailable: boolean;
   isFeatured: boolean;
@@ -2020,6 +2023,8 @@ export interface SettingsPatch {
   deliveryEnabled?: boolean;
   deliveryChannel?: DeliveryChannel;
   whatsappNumber?: string | null;
+  /** Registered name printed on receipts. Empty is refused. */
+  legalName?: string;
   /** VAT/PAN number for receipts; `null`/`''` clears it. */
   vatPanNumber?: string | null;
   /** The pinned address; all three together, or all `null` to clear. */
@@ -2046,9 +2051,12 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
   if (deliveryFee !== undefined && deliveryFee !== null && (!Number.isInteger(deliveryFee) || deliveryFee < 0))
     throw new ApiError(400, 'Delivery fee must be a whole, non-negative amount.');
 
+  if (patch.legalName !== undefined && !patch.legalName.trim()) throw new ApiError(400, 'Legal business name is required.');
+
   const after: Restaurant = {
     ...before,
     name: patch.name?.trim() || before.name,
+    legalName: patch.legalName !== undefined ? patch.legalName.trim() : before.legalName,
     tagline: patch.tagline?.trim() ?? before.tagline,
     description: patch.description?.trim() ?? before.description,
     coverImageUrl: patch.coverImageUrl !== undefined ? patch.coverImageUrl?.trim() || '' : before.coverImageUrl,
@@ -2067,6 +2075,7 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
 
   const changes: string[] = [];
   if (after.name !== before.name) changes.push(`Name → ${after.name}`);
+  if (after.legalName !== before.legalName) changes.push(`Legal name ${before.legalName} → ${after.legalName}`);
   if (after.tagline !== before.tagline) changes.push('Tagline edited');
   if (after.description !== before.description) changes.push('Description edited');
   if (after.coverImageUrl !== before.coverImageUrl) changes.push('Cover image changed');
@@ -2090,6 +2099,7 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
     ...store,
     restaurantPatch: {
       name: after.name,
+      legalName: after.legalName,
       tagline: after.tagline,
       description: after.description,
       coverImageUrl: after.coverImageUrl,

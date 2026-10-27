@@ -34,6 +34,8 @@ export interface ReceiptPayment {
 /** What the receipt header needs to know about the restaurant. */
 export interface ReceiptRestaurant {
   name: string;
+  /** Registered name. Omitted or equal to `name` = the heading alone is enough. */
+  legalName?: string | null;
   vatPanNumber?: string | null;
 }
 
@@ -53,6 +55,8 @@ export function printReceipt(
   if (!sheet) return false;
 
   const restaurantName = restaurant.name;
+  const registered = restaurant.legalName?.trim() ?? '';
+  const legalName = registered && registered.toLowerCase() !== restaurantName.trim().toLowerCase() ? registered : '';
   const vatPan = restaurant.vatPanNumber?.trim();
   const { currency, subtotal, serviceCharge, tax, discount, total } = totals;
   const rows = lines
@@ -96,6 +100,7 @@ export function printReceipt(
   <div class="sheet">
     <div class="center">
       <h1 style="font-size:22px;margin:0">${escapeHtml(restaurantName)}</h1>
+      ${legalName ? `<p style="margin:4px 0 0;font-size:13px;font-weight:700">${escapeHtml(legalName)}</p>` : ''}
       ${vatPan ? `<p class="muted" style="margin:4px 0 0">VAT/PAN: ${escapeHtml(vatPan)}</p>` : ''}
       <p class="muted" style="margin:6px 0 0">${escapeHtml(table.name)}${table.capacity ? ` · ${table.capacity} seats` : ''}</p>
     </div>

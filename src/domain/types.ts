@@ -21,10 +21,14 @@ export type OrderType = 'DINE_IN' | 'DELIVERY';
 export type ItemStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
 
 export type DietaryType = 'VEG' | 'NON_VEG' | 'VEGAN' | 'HALAL';
+/** Which pass cooks a dish — decides the kitchen or bar ticket. Absent = KITCHEN. */
+export type KitchenStation = 'KITCHEN' | 'BAR';
 
 export interface Restaurant {
   id: string;
   name: string;
+  /** Registered business name printed on receipts. */
+  legalName: string;
   slug: string;
   tagline: string;
   description: string;
@@ -119,6 +123,8 @@ export interface Branch extends BranchRef {
   deliveryFeeAmount: number | null;
   /** `null` = follow the restaurant. */
   autoConsumeStock?: boolean | null;
+  /** Stations with a screen or printer in use — an unacknowledged ticket for one of them raises a warning. */
+  ackStations?: KitchenStation[];
   isActive: boolean;
   /** Present only on a single-branch read — an empty schedule means "always open". */
   hours?: BranchHours[];
@@ -216,6 +222,7 @@ export interface Dish {
   sortOrder: number;
   spiceLevel: 0 | 1 | 2 | 3;
   dietaryType: DietaryType;
+  station?: KitchenStation;
   stats: DishStats;
   /** Add-ons a diner can pick for this dish — ids into `Menu.addOns`. */
   addOnIds: string[];

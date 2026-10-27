@@ -21,6 +21,7 @@ import { formatMoney } from '../../domain/money';
 import type { Order, OrderStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
+import { useRefreshOnOrderChange } from '../../state/useRefreshOnOrderChange';
 import { useNow } from '../../state/useNow';
 import { Change, Loading, useCommand } from '../../components/admin/kit';
 import { useCountUp } from '../../components/admin/profile';
@@ -81,6 +82,12 @@ export function DashboardV2() {
     [staff, compareBranches, branchesNear],
   );
   // A plan without analytics answers these with FEATURE_LOCKED. That is the plan talking, not something broken.
+  // Today's figures come from the server, so they are re-read as orders move — otherwise a screen left open all shift goes stale.
+  useRefreshOnOrderChange(queue, () => {
+    revenue.reload();
+    orderComparison.reload();
+    topDishes.reload();
+  });
   const analyticsLocked = isFeatureLocked(revenue.error) || isFeatureLocked(orderComparison.error);
   const trendLocked = isFeatureLocked(trend.error);
   const branchesLocked = isFeatureLocked(branchPerformance.error);
@@ -288,7 +295,7 @@ export function DashboardV2() {
 
       <div ref={lowerRef} className="grid gap-x-12 gap-y-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <Block title="Selling today" aside="By dishes served">
-          {topDishes.loading ? (
+          {topDishes.loading && !topDishes.data ? (
             <Loading label="Counting today…" />
           ) : bestSellers.length === 0 ? (
             <p className="text-[14px] text-ink-3">Nothing has sold yet today.</p>
@@ -340,6 +347,7 @@ export function DashboardV2() {
         orders={payingOrder ? [payingOrder] : []}
         dishes={menuDishes}
         restaurantName={menu.restaurant.name}
+        legalName={menu.restaurant.legalName}
         vatPanNumber={menu.restaurant.vatPanNumber}
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}

@@ -27,6 +27,7 @@ export const SESSION_TOKEN_HEADER = 'x-session-token';
 interface ApiRestaurant {
   id: string;
   name: string;
+  legalName?: string | null;
   slug: string;
   tagline: string;
   description: string;
@@ -268,6 +269,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
   return {
     id: api.id,
     name: api.name,
+    legalName: api.legalName?.trim() || api.name,
     slug: api.slug,
     tagline: api.tagline,
     description: api.description,

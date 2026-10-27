@@ -145,6 +145,14 @@ export const Info = ({ size = 16, className }: IconProps) => (
   </svg>
 );
 
+export const Printer = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M7 9V3.5h10V9" />
+    <path d="M7 17H4.5a1.5 1.5 0 01-1.5-1.5v-5A1.5 1.5 0 014.5 9h15a1.5 1.5 0 011.5 1.5v5a1.5 1.5 0 01-1.5 1.5H17" />
+    <path d="M7 14h10v6.5H7z" strokeLinejoin="round" />
+  </svg>
+);
+
 export const Receipt = ({ size = 16, className }: IconProps) => (
   <svg {...base(size)} className={className}>
     <path d="M6 3h12v18l-2.5-1.5L13 21l-2.5-1.5L8 21l-2-1.5V3z" strokeLinejoin="round" />

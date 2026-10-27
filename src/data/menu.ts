@@ -5,6 +5,7 @@ const rs = (rupees: number) => rupees * 100;
 export const RESTAURANT: Restaurant = {
   id: 'rst_01',
   name: 'Sekuwa Ghar',
+  legalName: 'Sekuwa Ghar',
   slug: 'sekuwa-ghar',
   tagline: 'Charcoal grill & Newari kitchen',
   description:
