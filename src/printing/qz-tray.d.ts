@@ -10,6 +10,11 @@ declare module 'qz-tray' {
       isActive(): boolean;
       setClosedCallbacks(callback: (event: unknown) => void): void;
     };
+    security: {
+      setCertificatePromise(handler: (resolve: (certificate: string) => void, reject: (reason: unknown) => void) => void): void;
+      setSignatureAlgorithm(algorithm: 'SHA512' | 'SHA1'): void;
+      setSignaturePromise(handler: (toSign: string) => (resolve: (signature: string) => void, reject: (reason: unknown) => void) => void): void;
+    };
     configs: { create(printer: { host: string; port: number }, options?: Record<string, unknown>): PrintConfig };
     print(config: PrintConfig, data: { type: 'raw'; format: 'command'; flavor: 'base64' | 'plain' | 'hex'; data: string }[]): Promise<void>;
   }

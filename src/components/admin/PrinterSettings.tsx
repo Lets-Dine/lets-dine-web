@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPrinter, deletePrinter, listPrinters, updatePrinter } from '../../api/printers';
+import type { ReactNode } from 'react';
+import { createPrinter, deletePrinter, fetchQzCertificate, listPrinters, updatePrinter } from '../../api/printers';
 import type { PaperWidth, Printer, PrinterDraft } from '../../api/printers';
 import { listFloors, listTables } from '../../api/staff';
 import type { DiningTable, Floor, KitchenStation } from '../../domain/types';
@@ -9,8 +10,8 @@ import { setAgentOn, useStore } from '../../printing/store';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { cx } from '../ui';
-import { ADMIN_GHOST, ADMIN_PRIMARY, Field, Select, TextInput, Toggle, useCommand } from './kit';
-import { Check, Printer as PrinterIcon } from '../icons';
+import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_TINY, Field, Select, TextInput, Toggle, useCommand } from './kit';
+import { Check, Printer as PrinterIcon, X } from '../icons';
 import { Block } from './profile';
 
 const PAPERS: { value: PaperWidth; label: string }[] = [
@@ -223,6 +224,104 @@ function SlipPreview({ draft, printed }: { draft: PrinterDraft; printed: number 
   );
 }
 
+function SetupGuide({ hasCertificate, onClose }: { hasCertificate: boolean; onClose: () => void }) {
+  const steps: { title: string; body: ReactNode }[] = [
+    {
+      title: 'Put the printer on the restaurant network',
+      body: 'Give the thermal printer a fixed IP on the same Wi-Fi or LAN as the laptop that will print. Write that IP down. The port is 9100 unless the printer says otherwise. The printer does not need a computer of its own.',
+    },
+    {
+      title: 'Install QZ Tray on that laptop',
+      body: (
+        <>
+          Download it from{' '}
+          <a href="https://qz.io/download" target="_blank" rel="noreferrer" className="font-medium text-ink underline decoration-hairline-strong underline-offset-2">
+            qz.io/download
+          </a>{' '}
+          and leave it running. The dashboard sends slips to QZ, and QZ sends them to the printer.
+        </>
+      ),
+    },
+    {
+      title: 'Let QZ trust this site',
+      body: hasCertificate ? (
+        <>
+          Download the certificate on this page and save it as override.crt in the QZ Tray folder for this laptop, then restart QZ Tray. Every restaurant uses this same file.
+          <span className="mt-2 grid gap-1">
+            <span>
+              Windows <span className="font-mono text-[12.5px] text-ink-2">C:\Program Files\QZ Tray</span>
+            </span>
+            <span>
+              Mac <span className="font-mono text-[12.5px] break-all text-ink-2">/Applications/QZ Tray.app/Contents/Resources</span>
+            </span>
+            <span>
+              Linux <span className="font-mono text-[12.5px] text-ink-2">/opt/qz-tray</span>
+            </span>
+          </span>
+        </>
+      ) : (
+        'The first time this page connects, QZ asks whether to trust this site. Choose Allow and Remember this decision so it does not ask for every ticket.'
+      ),
+    },
+    {
+      title: 'Turn this laptop on for printing',
+      body: 'Switch on “Use this PC to print” and leave the dashboard open. Slips only come out while it is open here. One laptop is enough. A second one left on still prints each slip only once.',
+    },
+    {
+      title: 'Add the printer',
+      body: 'Name it, enter the IP and port, and pick the paper width. Kitchen tickets are KOT, bar tickets are BOT. Full KOT puts the whole order on one slip. Table assignment limits a printer to the tables or floors you tick.',
+    },
+    {
+      title: 'Print a test slip',
+      body: 'Send a test from the printer form and check the paper. If the line of numbers wraps, switch the paper width and test again.',
+    },
+  ];
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" role="presentation" onClick={onClose}>
+      <div
+        className="animate-pop max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-surface p-5 text-ink shadow-deep ring-1 ring-hairline ring-inset sm:p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="print-setup-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h2 id="print-setup-title" className="font-display text-[22px] leading-tight font-black">
+            Set up printing
+          </h2>
+          <button type="button" aria-label="Close" className={`${ADMIN_TINY} text-ink-3 hover:text-ink`} onClick={onClose}>
+            <X size={16} />
+          </button>
+        </div>
+        <ol className="mt-5 grid list-decimal gap-4 pl-5 marker:text-[13px] marker:font-semibold marker:text-ink-2">
+          {steps.map((step) => (
+            <li key={step.title} className="pl-1.5">
+              <p className="text-[14.5px] font-semibold tracking-tight">{step.title}</p>
+              <p className="mt-0.5 text-[13.5px] leading-relaxed text-ink-3">{step.body}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+function downloadOverride(certificate: string) {
+  const url = URL.createObjectURL(new Blob([certificate], { type: 'text/plain' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'override.crt';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 /**
  * Where the kitchen's and bar's tickets come out. The branch keeps a list of named network printers (so it is
  * the same on every PC); one PC — the one with QZ Tray running — is switched on to actually send to them.
@@ -234,7 +333,10 @@ export function PrinterSettings({ canEdit }: { canEdit: boolean }) {
   // QZ Tray is only touched on a PC that is switched on to print: no connection, prompt or red error for one that isn't.
   const qz: { state: 'idle' | 'connecting' | 'ready' | 'error'; message?: string } = agentOn ? link : { state: 'idle' };
   const [editing, setEditing] = useState<{ id: string | null; draft: PrinterDraft } | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
   const printers = useAsync(() => listPrinters(), []);
+  const certificate = useAsync(() => fetchQzCertificate().catch(() => null), []);
+  const qzCertificatePem = certificate.data;
 
   const attempt = useCallback(() => {
     connect()
@@ -294,6 +396,16 @@ export function PrinterSettings({ canEdit }: { canEdit: boolean }) {
             />
           </div>
         )}
+        {allows('orders:advance') && qzCertificatePem && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <button type="button" className={ADMIN_GHOST} onClick={() => downloadOverride(qzCertificatePem)}>
+              Download certificate
+            </button>
+            <p className="max-w-[62ch] text-[13px] leading-relaxed text-ink-3">
+              The same file for every restaurant. Save it as override.crt, then restart QZ Tray. The setup guide lists the folder for Windows, Mac, and Linux.
+            </p>
+          </div>
+        )}
       </Block>
 
       <Block
@@ -301,11 +413,16 @@ export function PrinterSettings({ canEdit }: { canEdit: boolean }) {
         hint={canEdit ? undefined : 'Only an owner can change these'}
         delay={60}
         action={
-          canEdit && !editing ? (
-            <button type="button" className={ADMIN_GHOST} onClick={() => setEditing({ id: null, draft: BLANK })}>
-              Add printer
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={ADMIN_GHOST} onClick={() => setGuideOpen(true)}>
+              Setup guide
             </button>
-          ) : undefined
+            {canEdit && !editing && (
+              <button type="button" className={ADMIN_GHOST} onClick={() => setEditing({ id: null, draft: BLANK })}>
+                Add printer
+              </button>
+            )}
+          </div>
         }
       >
         {printers.loading && !printers.data ? (
@@ -345,6 +462,7 @@ export function PrinterSettings({ canEdit }: { canEdit: boolean }) {
           }}
         />
       )}
+      {guideOpen && <SetupGuide hasCertificate={Boolean(qzCertificatePem)} onClose={() => setGuideOpen(false)} />}
     </div>
   );
 }

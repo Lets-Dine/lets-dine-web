@@ -51,6 +51,18 @@ export interface PrintJob {
 
 export const listPendingJobs = () => apiRequest<PrintJob[]>('/restaurant/print-jobs/pending', { headers: authHeaders() });
 
+/** Public half of the one certificate every restaurant installs on its printing laptop. */
+export const fetchQzCertificate = () =>
+  apiRequest<{ certificate: string }>('/restaurant/print-jobs/qz-certificate', { headers: authHeaders() }).then((body) => body.certificate);
+
+/** Asks the server to sign the string QZ Tray just handed this page. The private key stays on the server. */
+export const signQzRequest = (request: string) =>
+  apiRequest<{ signature: string }>('/restaurant/print-jobs/qz-sign', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ request }),
+  }).then((body) => body.signature);
+
 /** `claimed: false` means another PC took it — do not print. */
 export const claimJob = (id: string, claimant: string) =>
   apiRequest<{ claimed: boolean }>(`/restaurant/print-jobs/${encodeURIComponent(id)}/claim`, {
