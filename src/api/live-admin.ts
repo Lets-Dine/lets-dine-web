@@ -1,7 +1,7 @@
-import type { BillLine, DeliveryChannel, PaymentRefund, PaymentStatus, PaymentTender, ServiceKind, ServiceRequest } from '../domain/types';
+import type { BilledItem, BillLine, DeliveryChannel, PaymentRefund, PaymentStatus, PaymentTender, ServiceKind, ServiceRequest, SplitLine } from '../domain/types';
 import type { AddOnDraft, DishDraft, ItemOptions, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
-import { nextItemStatus } from '../domain/orderStatus';
+import { STATUS_ORDER, nextItemStatus } from '../domain/orderStatus';
 import type {
   AddOn,
   AuditAction,
@@ -1055,6 +1055,16 @@ export async function endTableSession(tableId: string): Promise<DiningTable> {
   return toTable(table);
 }
 
+/** Moves a table's visit onto another table; if that one already has a visit, the two bills become one. */
+export async function mergeTableSession(sourceTableId: string, targetTableId: string): Promise<DiningTable> {
+  const table = await apiRequest<ApiDiningTable>(`/restaurant/tables/${encodeURIComponent(sourceTableId)}/merge-session`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ targetTableId }),
+  });
+  return toTable(table);
+}
+
 /* ── Floors ────────────────────────────────────────────────────── */
 
 interface ApiFloor {
@@ -1124,17 +1134,23 @@ export async function regenerateFloorQr(floorId: string): Promise<Floor> {
 /* ── Orders ────────────────────────────────────────────────────── */
 
 /**
- * The pass polls this every few seconds, so it reads the most recent slice
- * rather than the whole order history — `allOrders` (still `admin.ts`,
- * reporting only) is the one that needs every order there has ever been.
+ * The pass reads a slice of orders by status rather than the whole history —
+ * `allOrders` (still `admin.ts`, reporting only) is the one that needs every order there has ever been.
  */
 const QUEUE_LIMIT = 100;
+const OPEN_STATUSES = STATUS_ORDER.filter((s) => s !== 'COMPLETED');
 
-export async function listQueue(): Promise<Order[]> {
-  const page = await apiRequest<Paginated<ApiOrder>>(`/restaurant/orders?limit=${QUEUE_LIMIT}`, {
+export async function listOrdersByStatus(statuses: OrderStatus[]): Promise<Order[]> {
+  const query = new URLSearchParams([['limit', String(QUEUE_LIMIT)], ...statuses.map((s) => ['status', s])]);
+  const page = await apiRequest<Paginated<ApiOrder>>(`/restaurant/orders?${query}`, {
     headers: authHeaders(),
   });
   return page.rows.map(toOrder);
+}
+
+/** What the dashboard keeps live: everything still in play, so completed and cancelled orders are not loaded up front. */
+export function listQueue(): Promise<Order[]> {
+  return listOrdersByStatus(OPEN_STATUSES);
 }
 
 /** Every order a table's current visit has placed, settled or not — what the payment sheet bills against. */
@@ -1143,6 +1159,28 @@ export async function fetchOrdersBySession(sessionId: string): Promise<Order[]> 
     headers: authHeaders(),
   });
   return orders.map(toOrder);
+}
+
+export interface StaffOrderInput {
+  type: 'TABLE' | 'FLOOR' | 'DELIVERY';
+  tableId?: string;
+  floorId?: string;
+  lines: { dishId: string; quantity: number; variantId?: string; addOnIds: string[] }[];
+  customer?: { phone: string; name: string };
+  /** Floor only — the cabin/room/spot to bring it to. */
+  floorVisitorName?: string;
+  deliveryAddress?: string;
+  deliveryNote?: string;
+}
+
+/** Staff placing an order at the till. A free table is seated on the way; the order goes straight to the kitchen. */
+export async function createStaffOrder(input: StaffOrderInput, idempotencyKey: string): Promise<Order> {
+  const order = await apiRequest<ApiOrder>('/restaurant/orders', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'idempotency-key': idempotencyKey },
+    body: JSON.stringify(input),
+  });
+  return toOrder(order);
 }
 
 /** Always lands on the table's most recent order, whatever its status — a correction after settling works the same as one mid-service. */
@@ -1200,10 +1238,14 @@ export async function completePayment(
   paidNow = 0,
   /** With `credit`: days until the rest is due. Omitted, the bill counts as due the day it was made. */
   dueInDays?: number,
+  /** A split-by-item share (manager only): sent instead of `items`. */
+  split?: SplitLine[],
+  /** Tells two identical shares apart (same lines, same method) so a retry of one never answers for the other. */
+  shareId?: string,
 ): Promise<Payment> {
   // One key per distinct bill, kept until it lands: a retry after a dropped response (or a double-tap) sends the same key and
   // gets the first bill back, where a fresh key per call would bill again.
-  const fingerprint = JSON.stringify([sessionId, orderId, items, credit ? 'CREDIT' : method, paidNow, discount, endSession, redeemPoints, customerId]);
+  const fingerprint = JSON.stringify([sessionId, orderId, items, credit ? 'CREDIT' : method, paidNow, discount, endSession, redeemPoints, customerId, split, shareId]);
   const idempotencyKey = pendingBillKeys.get(fingerprint) ?? randomId();
   pendingBillKeys.set(fingerprint, idempotencyKey);
   const payment = await apiRequest<ApiPayment>('/restaurant/payments', {
@@ -1212,7 +1254,8 @@ export async function completePayment(
     body: JSON.stringify({
       sessionId,
       orderId,
-      items,
+      items: split ? undefined : items,
+      split,
       method: credit ? undefined : method,
       credit: credit || undefined,
       dueDate: credit && dueInDays ? new Date(Date.now() + dueInDays * 86_400_000).toISOString() : undefined,
@@ -1226,6 +1269,11 @@ export async function completePayment(
   });
   pendingBillKeys.delete(fingerprint);
   return toPayment(payment);
+}
+
+/** What a table's split bills already cover, per order line. */
+export function fetchBilledItems(sessionId: string): Promise<BilledItem[]> {
+  return apiRequest<BilledItem[]>(`/restaurant/payments/billed?sessionId=${encodeURIComponent(sessionId)}`, { headers: authHeaders() });
 }
 
 /** One page of payments, most recent first — what the Payments screen lists, 20 at a time as it scrolls. */

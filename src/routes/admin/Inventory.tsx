@@ -34,6 +34,7 @@ import { useAsync } from '../../state/useAsync';
 import { useAuth } from '../../state/AuthContext';
 import type { Minor, PaymentMethod } from '../../domain/types';
 import { useDashboard } from './AdminLayout';
+import { DatePicker } from '../../components/admin/DatePicker';
 
 const UNITS = [
   { value: 'g', label: 'Weight (grams / kg)' },
@@ -1052,10 +1053,10 @@ function IngredientSheet({
                         <QtyField unit={ing.unit} onChange={setQty} big={big} />
                       </Field>
                       <Field label="Best before (optional)">
-                        <input type="date" value={expiresOn} min={arrivedOn} onChange={(e) => setExpiresOn(e.target.value)} className={cx(INPUT_BOX, 'tnum')} />
+                        <DatePicker value={expiresOn} min={arrivedOn} onChange={setExpiresOn} aria-label="Best before" />
                       </Field>
                       <Field label="Date received">
-                        <input type="date" value={arrivedOn} max={today} onChange={(e) => setArrivedOn(e.target.value || today)} className={cx(INPUT_BOX, 'tnum')} />
+                        <DatePicker value={arrivedOn} max={today} onChange={(v) => setArrivedOn(v || today)} clearable={false} aria-label="Date received" />
                       </Field>
                       <Field label="From">
                         <Select
@@ -1141,7 +1142,7 @@ function IngredientSheet({
                         <QtyField unit={ing.unit} onChange={setQty} big={big} />
                       </Field>
                       <Field label="Date used">
-                        <input type="date" value={usedOn} max={today} onChange={(e) => setUsedOn(e.target.value || today)} className={cx(INPUT_BOX, 'tnum')} />
+                        <DatePicker value={usedOn} max={today} onChange={(v) => setUsedOn(v || today)} clearable={false} aria-label="Date used" />
                       </Field>
                       <Field label="Used for" className={usedFor ? 'sm:col-span-2' : undefined}>
                         <Select value={usedFor} onChange={setUsedFor} options={[{ value: '', label: 'Something else' }, ...dishes.map((d) => ({ value: d.id, label: d.name }))]} />

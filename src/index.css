@@ -110,6 +110,7 @@
   --animate-grow-x: grow-x 700ms var(--ease-out-quart) both;
   --animate-grow-y: grow-y 620ms var(--ease-out-quart) both;
   --animate-dock-in: dock-in 460ms var(--ease-spring) both;
+  --animate-ink: ink 620ms var(--ease-out-quart) both;
   --animate-settle: settle 1.4s var(--ease-out-quart) both;
   --animate-sink: sink 200ms var(--ease-out-quart) both;
   --animate-swap: swap 240ms var(--ease-out-quart) both;
@@ -182,6 +183,11 @@
   @keyframes flash {
     from { background-color: color-mix(in oklab, var(--flash-color, var(--color-mint)) 26%, transparent); }
     to { background-color: transparent; }
+  }
+  /* A value being written onto a docket: revealed left to right, the way a pen crosses the line. */
+  @keyframes ink {
+    from { clip-path: inset(0 100% 0 0); opacity: 0.4; }
+    to { clip-path: inset(0 0 0 0); opacity: 1; }
   }
   /* Things leave the way they arrived — down and small, never sideways. */
   @keyframes sink {
@@ -486,7 +492,8 @@ html[data-page='landing'].lenis-stopped {
   .animate-settle,
   .animate-cover,
   .animate-deal,
-  .animate-grow-x {
+  .animate-grow-x,
+  .animate-ink {
     animation: fade-in-only 180ms linear both !important;
     animation-delay: 0ms !important;
   }

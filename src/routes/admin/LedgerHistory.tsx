@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { fetchCashBook } from '../../api/finance';
 import type { LedgerEntry } from '../../api/ledger';
-import { Empty, INPUT_BOX, Loading, Perforation, DOCKET_CARD, ADMIN_GHOST } from '../../components/admin/kit';
+import { Empty, Loading, Perforation, DOCKET_CARD, ADMIN_GHOST } from '../../components/admin/kit';
 import { Block, Num } from '../../components/admin/profile';
 import { ChevronLeft } from '../../components/icons';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
@@ -13,6 +13,7 @@ import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
 import { FlowDialog, Sum, TapeHeader, TapeLine, Total } from './Ledger';
 import type { Flow } from './Ledger';
+import { DatePicker } from '../../components/admin/DatePicker';
 
 const DAY = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
@@ -112,9 +113,9 @@ export function LedgerHistory() {
             </button>
           ))}
           <span className="mx-1 hidden h-5 w-px bg-hairline sm:block" aria-hidden />
-          <input type="date" aria-label="From day" className={cx(INPUT_BOX, '!h-8.5 !w-auto !py-0')} value={first} max={toInput(today)} onChange={(e) => (setFirst(e.target.value), pickDays(e.target.value, last || e.target.value))} />
+          <DatePicker compact className="w-40" aria-label="From day" placeholder="From" value={first} max={toInput(today)} onChange={(v) => (setFirst(v), pickDays(v, last || v))} />
           <span className="text-[13px] text-ink-3">to</span>
-          <input type="date" aria-label="To day" className={cx(INPUT_BOX, '!h-8.5 !w-auto !py-0')} value={last} max={toInput(today)} onChange={(e) => (setLast(e.target.value), pickDays(first || e.target.value, e.target.value))} />
+          <DatePicker compact className="w-40" aria-label="To day" placeholder="To" value={last} max={toInput(today)} onChange={(v) => (setLast(v), pickDays(first || v, v))} />
           <span className={cx('text-[12.5px]', over ? 'font-semibold text-berry' : 'text-ink-3')} role={over ? 'alert' : undefined}>
             {over ? `Pick ${MAX_DAYS} days or fewer.` : `Up to ${MAX_DAYS} days at a time`}
           </span>

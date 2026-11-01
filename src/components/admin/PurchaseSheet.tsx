@@ -5,10 +5,11 @@ import { cx } from '../ui';
 import { formatMoney } from '../../domain/money';
 import type { Minor, PaymentMethod } from '../../domain/types';
 import { useAsync } from '../../state/useAsync';
-import { ADMIN_GHOST, Field, INPUT_BOX, MoneyInput, Segmented, Select, useCommand } from './kit';
+import { ADMIN_GHOST, Field, MoneyInput, Segmented, Select, useCommand } from './kit';
 import { QtyField } from './QtyField';
 import { FOOT_PRIMARY, SHEET_FOOT, Sheet } from './Sheet';
 import { X } from '../icons';
+import { DatePicker } from './DatePicker';
 
 const localDay = () => new Date().toLocaleDateString('en-CA');
 
@@ -145,7 +146,7 @@ export function PurchaseSheet({ supplier, currency, onClose, onSaved }: { suppli
                     />
                   </Field>
                   <Field label="Date received" className="sm:col-span-2">
-                    <input type="date" value={arrivedOn} max={today} onChange={(e) => setArrivedOn(e.target.value || today)} className={cx(INPUT_BOX, 'tnum')} />
+                    <DatePicker value={arrivedOn} max={today} onChange={(v) => setArrivedOn(v || today)} clearable={false} aria-label="Date received" />
                   </Field>
                 </div>
 

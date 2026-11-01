@@ -11,6 +11,7 @@ import type { PaymentMethod } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
+import { DatePicker } from '../../components/admin/DatePicker';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const FREQUENCIES: { value: Recurrence; label: string }[] = [
@@ -281,7 +282,7 @@ function RecurringForm({ initial, currency, onCancel, onSaved }: { initial: Recu
         <Segmented label="Paid with" value={method} onChange={setMethod} options={METHODS} />
         {!initial && (
           <Field label="First due on or after" className="w-44">
-            <input type="date" className="h-10 w-full rounded-xl bg-surface-2 px-3 text-[14px] ring-1 ring-hairline ring-inset" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} />
+            <DatePicker compact value={startsOn} onChange={setStartsOn} aria-label="First due on or after" />
           </Field>
         )}
       </div>

@@ -4,11 +4,12 @@ import { byUrgencyThenAge, floorBillSubject, focusMap, newestOrderPerTable } fro
 import type { Order, OrderStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useNow } from '../../state/useNow';
-import { Empty, PageTitle, Panel, Segmented, useCommand } from '../../components/admin/kit';
+import { Empty, Loading, PageTitle, Panel, Segmented, useCommand } from '../../components/admin/kit';
 import { PassCard } from '../../components/admin/PassCard';
 import { useOrderSheet } from '../../components/admin/OrderSheet';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { useDashboard } from './AdminLayout';
+import { useLaneOrders } from './useLaneOrders';
 
 /**
  * §27. The pass.
@@ -50,10 +51,12 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
 const TICK_MS = 15_000;
 
 export function Orders() {
-  const { menu, orders, reloadOrders, applyOrder } = useDashboard();
+  const { menu, reloadOrders, applyOrder } = useDashboard();
   const staff = useStaff();
   const now = useNow(TICK_MS);
   const [lane, setLane] = useState<Lane>('new');
+  // Each tab asks the server for its own orders; the live queue is laid over them.
+  const { orders, loading } = useLaneOrders(LANES.find((l) => l.value === lane)!.statuses);
   const { pending, run } = useCommand();
   const [payingId, setPayingId] = useState<string | null>(null);
   const payingOrder = orders.find((o) => o.id === payingId) ?? null;
@@ -75,9 +78,9 @@ export function Orders() {
 
   const counts = useMemo(() => {
     const map = {} as Record<Lane, number>;
-    for (const l of LANES) map[l.value] = orders.filter((o) => inLane(l.value, o)).length;
+    for (const l of LANES) map[l.value] = l.value === 'done' && lane !== 'done' ? 0 : orders.filter((o) => inLane(l.value, o)).length;
     return map;
-  }, [orders, inLane]);
+  }, [orders, inLane, lane]);
 
   const shown = useMemo(() => {
     const list = orders.filter((o) => inLane(lane, o));
@@ -136,7 +139,9 @@ export function Orders() {
         />
       </div>
 
-      {shown.length === 0 ? (
+      {shown.length === 0 && loading ? (
+        <Loading label="Reading the orders…" />
+      ) : shown.length === 0 ? (
         <Panel className="animate-rise [animation-delay:120ms]">
           <Empty
             image="/empty.svg"

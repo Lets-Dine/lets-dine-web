@@ -133,6 +133,8 @@ export interface CustomerProfile {
   offersOk: boolean;
   /** Their most-ordered dishes, worked out from their orders. */
   favourites: string[];
+  /** Where a delivery to them went last. Live only; the offline sample has none. */
+  defaultAddress?: string | null;
 }
 
 /** The customer's newest order the kitchen has not finished with, or null. */

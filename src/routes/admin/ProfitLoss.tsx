@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchProfitLoss } from '../../api/finance';
 import type { ProfitLoss } from '../../api/finance';
-import { Empty, INPUT_BOX, Loading } from '../../components/admin/kit';
+import { Empty, Loading } from '../../components/admin/kit';
 import { Block, Num, Result, Step, useCountUp } from '../../components/admin/profile';
 import { Alert } from '../../components/icons';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
@@ -11,6 +11,7 @@ import { formatMoney } from '../../domain/money';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
+import { DatePicker } from '../../components/admin/DatePicker';
 
 type Preset = 'month' | 'last' | 'custom';
 const PRESETS: { value: Preset; label: string }[] = [
@@ -78,9 +79,9 @@ export function ProfitLossPage() {
         ))}
         {preset === 'custom' && (
           <span className="flex items-center gap-2 text-[13px] text-ink-3">
-            <input type="date" aria-label="From" className={INPUT_BOX} value={custom.from} max={custom.to} onChange={(e) => setCustom({ ...custom, from: e.target.value })} />
+            <DatePicker className="w-40" aria-label="From" value={custom.from} max={custom.to} onChange={(v) => setCustom({ ...custom, from: v })} />
             to
-            <input type="date" aria-label="To" className={INPUT_BOX} value={custom.to} min={custom.from} onChange={(e) => setCustom({ ...custom, to: e.target.value })} />
+            <DatePicker className="w-40" aria-label="To" value={custom.to} min={custom.from} onChange={(v) => setCustom({ ...custom, to: v })} />
           </span>
         )}
       </div>

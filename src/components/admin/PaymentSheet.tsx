@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { isTableOpen } from '../../api/admin';
+import { randomId } from '../../api/store';
 import { fetchCustomerLoyalty, listCustomers } from '../../api/customers';
 import { STATUS_LABEL } from '../../domain/orderStatus';
-import type { BillLine, Dish, Order, OrderStatus, PaymentMethod } from '../../domain/types';
+import type { BilledItem, BillLine, Dish, Order, OrderStatus, PaymentMethod, SplitLine } from '../../domain/types';
 import { formatMoney, percentOf, symbolFor } from '../../domain/money';
 import { can } from '../../domain/permissions';
 import { useStaff } from '../../state/AuthContext';
@@ -75,6 +76,10 @@ interface DraftLine {
 
 interface PendingBillChanges {
   items: BillLine[];
+  /** A split-by-item share: order lines and how many of each, sent instead of `items`. */
+  split?: SplitLine[];
+  /** Fresh per share, so retrying one never answers for another that looks the same. */
+  shareId?: string;
   method: PaymentMethod;
   /** The cashier's own discount only. Points are sent as points, never folded in here: the server prices them. */
   discount: number;
@@ -94,6 +99,8 @@ interface PendingBillChanges {
  *  wait (or the reload that follows a successful cash payment) can never shift the total underfoot. */
 interface CommittedBill {
   items: BillLine[];
+  split?: SplitLine[];
+  shareId?: string;
   lines: ReceiptLine[];
   totals: ReceiptTotals;
   /** The part of `totals.discount` the cashier typed; the rest is points. */
@@ -108,6 +115,11 @@ function lineKey(line: { dishId: string; variantId: string | null; addOnIds: str
   return `${line.dishId}|${line.variantId ?? ''}|${[...line.addOnIds].sort().join(',')}`;
 }
 
+const BILL_PRIMARY =
+  'w-full rounded-[14px] bg-[oklch(0.539_0.163_36)] px-4 py-4 text-[15px] font-bold text-[oklch(0.985_0.01_85)] ring-2 ring-[oklch(0.539_0.163_36)]/30 transition-transform active:translate-y-px disabled:opacity-40';
+const BILL_SECONDARY =
+  'w-full rounded-[14px] bg-[oklch(0.232_0.019_70)] px-4 py-3.5 text-[13px] font-bold text-[oklch(0.943_0.024_85)] transition-transform active:translate-y-px disabled:opacity-40';
+
 type PayStep = 'bill' | 'method' | 'credit' | 'qr' | 'done';
 
 export function PaymentSheet({
@@ -120,6 +132,8 @@ export function PaymentSheet({
   serviceChargeRate,
   taxRate,
   pending,
+  billed,
+  payOrderId,
   onClose,
   onSettle,
   onEndSession,
@@ -133,6 +147,10 @@ export function PaymentSheet({
   serviceChargeRate: number;
   taxRate: number;
   pending: string | null;
+  /** What the table's split bills already cover. Given only where splitting is offered (a live table visit); left out, the sheet bills the whole table as before. */
+  billed?: BilledItem[];
+  /** Opens straight into a split share covering just this order (needs `billed`, and the split permission). */
+  payOrderId?: string | null;
   onClose: () => void;
   onSettle: (changes: PendingBillChanges) => Promise<boolean>;
   onShowQr: () => void;
@@ -140,6 +158,14 @@ export function PaymentSheet({
 }) {
   const staff = useStaff();
   const canDiscount = can(staff.role, 'payments:discount');
+  const canSplit = billed !== undefined && can(staff.role, 'payments:split');
+  const [splitOn, setSplitOn] = useState(false);
+  // Reading the bill is the default; changing the order (± and add item) is a deliberate mode.
+  const [editing, setEditing] = useState(false);
+  // How many of each order line (by item id) the cashier is taking on this share.
+  const [take, setTake] = useState<Record<string, number>>({});
+  // Once part of the table was billed by item the rest has to go the same way: the server refuses a whole-table bill.
+  const inSplit = canSplit && (splitOn || (billed?.length ?? 0) > 0);
 
   // Whoever the table's orders were placed for — a linked customer, a delivery recipient or a floor visitor.
   const orderCustomerName = orders.map((o) => o.customerName ?? o.deliveryCustomerName ?? o.floorVisitorName).find((n) => !!n?.trim()) ?? null;
@@ -176,6 +202,7 @@ export function PaymentSheet({
 
   // The customer the server will spend points for: the most recent order that has one (it reads the session's orders newest first).
   const orderCustomerId = [...orders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).find((o) => o.customerId)?.customerId ?? null;
+  // A split share starts on the table's customer too; the cashier can swap or clear it per share.
   const customerId = picked === undefined ? orderCustomerId : (picked?.id ?? null);
   // Points typed for one customer are not another's to spend.
   useEffect(() => setPointsText(''), [customerId]);
@@ -189,6 +216,9 @@ export function PaymentSheet({
   // or it carries over into whatever opens next.
   useEffect(() => {
     setPicked(undefined);
+    setSplitOn(false);
+    setEditing(false);
+    setTake({});
     setAdding(false);
     setPendingAdds([]);
     setPendingRemoves([]);
@@ -205,6 +235,12 @@ export function PaymentSheet({
     setPaidNowText('');
     setPaidNowQr(false);
     setDueInDays(14);
+    // Opened from one order's "Pay this order": start in split mode with that order's lines taken (clamped to what's unbilled below).
+    const only = payOrderId && canSplit ? orders.find((o) => o.id === payOrderId) : undefined;
+    if (only) {
+      setSplitOn(true);
+      setTake(Object.fromEntries(only.items.filter((i) => i.status !== 'CANCELLED').map((i) => [i.id, i.quantity])));
+    }
   }, [table?.id]);
 
   // `onSettle` runs the real mutation and is closed over freshly every render — a ref keeps the
@@ -214,6 +250,8 @@ export function PaymentSheet({
     setMethod(chosenMethod);
     const ok = await onSettle({
       items: committed.items,
+      split: committed.split,
+      shareId: committed.shareId,
       method: chosenMethod === 'qr' || (chosenMethod === 'credit' && paidNowQr) ? 'QR' : 'CASH',
       credit: chosenMethod === 'credit',
       dueInDays: chosenMethod === 'credit' && dueInDays ? dueInDays : undefined,
@@ -398,8 +436,28 @@ export function PaymentSheet({
   };
 
   const openOrderCount = orders.filter((o) => isTableOpen(o.status)).length;
-  const hasItems = draftLines.length > 0;
-  const subtotal = draftLines.reduce((sum, l) => sum + l.total, 0);
+  // Split mode lists order lines one by one (an order line is what a share names), each with what is still unbilled.
+  const billedBy = new Map((billed ?? []).map((b) => [b.orderItemId, b.quantity]));
+  const splitRows = !inSplit
+    ? []
+    : orders
+        .filter((o) => o.status !== 'CANCELLED')
+        .flatMap((o) => o.items.filter((i) => i.status !== 'CANCELLED'))
+        .map((item) => {
+          const left = item.quantity - (billedBy.get(item.id) ?? 0);
+          return {
+            id: item.id,
+            name: [item.dishNameSnapshot, item.variantNameSnapshot ? ` · ${item.variantNameSnapshot}` : '', item.addOns.length ? ` + ${item.addOns.map((a) => a.nameSnapshot).join(', ')}` : ''].join(''),
+            unitPrice: item.unitPrice,
+            left,
+            taken: Math.min(take[item.id] ?? 0, left),
+          };
+        })
+        .filter((row) => row.left > 0);
+  const takenRows = splitRows.filter((row) => row.taken > 0);
+  const hasItems = inSplit ? splitRows.length > 0 : draftLines.length > 0;
+  const canTake = inSplit ? takenRows.length > 0 : hasItems;
+  const subtotal = inSplit ? takenRows.reduce((sum, r) => sum + r.unitPrice * r.taken, 0) : draftLines.reduce((sum, l) => sum + l.total, 0);
   // Never let a stale discount (typed against a bigger bill, before an item was pulled off) push the subtotal negative.
   const appliedDiscount = canDiscount ? Math.min(discount, subtotal) : 0;
   // Points the customer on this bill can spend: what they hold, or what the restaurant's cap allows if less.
@@ -418,6 +476,59 @@ export function PaymentSheet({
   const tax = percentOf(discountedSubtotal + serviceCharge, taxRate);
   const total = discountedSubtotal + serviceCharge + tax;
   const busy = pending === table.id;
+  const unitsLeft = splitRows.reduce((sum, r) => sum + r.left, 0);
+  const takenUnits = takenRows.reduce((sum, r) => sum + r.taken, 0);
+  // What the rest of the table still owes, before fees: unchanged by this share's discount or points.
+  const unbilledAfter = splitRows.reduce((sum, r) => sum + r.unitPrice * (r.left - r.taken), 0);
+  const takeLabel = `${inSplit ? 'Take this share' : 'Take payment'} · ${formatMoney(total, currency)}`;
+  const billLines: ReceiptLine[] = inSplit
+    ? takenRows.map((r) => ({ dishNameSnapshot: r.name, quantity: r.taken, total: r.unitPrice * r.taken }))
+    : draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total }));
+  const billTotals: ReceiptTotals = { currency, subtotal, serviceCharge, tax, discount: appliedDiscount + pointsDiscount, total };
+  const printBill = () => printReceipt(table, billLines, billTotals, { name: restaurantName, legalName, vatPanNumber }, undefined, customerName);
+
+  // "Take payment" freezes the bill into `committed` and hands off to the method step. Nothing is charged until then.
+  const takePayment = () => {
+    setEditing(false);
+    if (inSplit) {
+      setCommitted({
+        items: [],
+        shareId: randomId(),
+        split: takenRows.map((r) => ({ orderItemId: r.id, quantity: r.taken })),
+        lines: billLines,
+        totals: billTotals,
+        manualDiscount: appliedDiscount,
+        redeemPoints,
+        customerName,
+        // Always explicit: the server never defaults a split share to anyone.
+        customerId,
+      });
+      setStep('method');
+      return;
+    }
+    // The draft, collapsed to what's actually being charged — dish + quantity, nothing tied to a specific order row,
+    // since the cashier's edits are what defines the bill.
+    const merged = new Map<string, BillLine>();
+    for (const line of draftLines) {
+      const key = lineKey(line);
+      const seen = merged.get(key);
+      if (seen) seen.quantity += line.quantity;
+      else merged.set(key, { dishId: line.dishId, variantId: line.variantId, addOnIds: line.addOnIds, quantity: line.quantity });
+    }
+    setCommitted({
+      items: [...merged.values()],
+      lines: billLines,
+      totals: billTotals,
+      manualDiscount: appliedDiscount,
+      redeemPoints,
+      customerName,
+      customerId: picked === undefined ? undefined : (picked?.id ?? null),
+    });
+    setPendingAdds([]);
+    setPendingRemoves([]);
+    setEndSessionOnPay(false);
+    setStep('method');
+  };
   const oldest = orders.reduce<string | null>(
     (min, o) => (min === null || o.createdAt < min ? o.createdAt : min),
     null,
@@ -435,267 +546,372 @@ export function PaymentSheet({
     >
       <HoldBack />
       <div
-        className="animate-pop mx-auto max-h-[85vh] w-full max-w-4xl overflow-y-auto rounded-4xl bg-[oklch(0.943_0.024_85)] px-4 pt-4 pb-6 font-mono shadow-deep"
+        className={cx('animate-pop mx-auto max-h-[90vh] w-full overflow-y-auto rounded-4xl bg-[oklch(0.943_0.024_85)] px-4 pt-4 pb-5 font-mono shadow-deep', step === 'bill' ? 'max-w-5xl' : 'max-w-2xl')}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={`${table.name} bill`}
       >
         {step === 'bill' && (
-        <>
-        <div className="flex items-start justify-between pt-2">
-          <div>
-            <h2 className={cx(DISPLAY, 'mt-1 text-[30px] leading-none font-black text-[oklch(0.232_0.019_70)]')}>{table.name}</h2>
-            <p className="mt-1 text-[10px] tracking-[0.14em] text-[oklch(0.463_0.031_74)] uppercase">
-              {openOrderCount} open order{openOrderCount === 1 ? '' : 's'}
-            </p>
-          </div>
-          <div className="text-right">
-            {table.capacity !== undefined && (
-              <p className="text-[10px] tracking-wide text-[oklch(0.463_0.031_74)] uppercase">
-                {table.capacity} seat{table.capacity === 1 ? '' : 's'}
-              </p>
-            )}
-            <p className="mt-0.5 text-[11px] font-bold text-[oklch(0.539_0.163_36)]">{elapsedMinutes}m elapsed</p>
-          </div>
-        </div>
-
-        <div className="my-3 border-t border-dashed border-[oklch(0.232_0.019_70)]/25" />
-
-        {hasItems && (
-          <div className="space-y-2.5 text-[13px]">
-            {draftLines.map((line) => {
-              return (
-                <div key={line.rowId} className={cx('flex items-center justify-between gap-3', !line.served && 'opacity-60')}>
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="min-w-0 truncate font-semibold text-[oklch(0.232_0.019_70)]">
-                        {line.dishNameSnapshot}
-                        {line.notes && <span className="ml-2 text-[10px] italic text-[oklch(0.463_0.031_74)]">“{line.notes}”</span>}
-                      </span>
-                      {!line.served && (
-                        <span className="shrink-0 rounded-full bg-[oklch(0.539_0.163_36)]/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-[oklch(0.539_0.163_36)] uppercase">
-                          {STATUS_LABEL[line.orderStatus]}
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-[10px] text-[oklch(0.463_0.031_74)] tnum">
-                      {formatMoney(line.unitPrice, currency)} each
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      aria-label={`Remove one ${line.dishNameSnapshot}`}
-                      onClick={() => queueRemove(line)}
-                      className="size-7 rounded-full bg-[oklch(0.879_0.033_85)] text-[15px] leading-none font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
-                    >
-                      −
-                    </button>
-                    <span className="w-4 text-center text-[13px] font-bold text-[oklch(0.232_0.019_70)]">{line.quantity}</span>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      aria-label={`Add one ${line.dishNameSnapshot}`}
-                      onClick={() => queueAdd(line.dishId)}
-                      className="size-7 rounded-full bg-[oklch(0.879_0.033_85)] text-[15px] leading-none font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
-                    >
-                      +
-                    </button>
-                    <span className="w-14 text-right font-bold tnum text-[oklch(0.232_0.019_70)]">
-                      {formatMoney(line.total, currency)}
-                    </span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {!hasItems && (
-          <div className="flex flex-col items-center gap-3 py-6">
-            <p className="text-[12px] text-[oklch(0.463_0.031_74)]">No items on this bill.</p>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onEndSession}
-              className="rounded-full bg-[oklch(0.879_0.033_85)] px-4 py-2 text-[11px] font-bold tracking-wide text-[oklch(0.232_0.019_70)] uppercase active:translate-y-px disabled:opacity-40"
-            >
-              {table.capacity !== undefined ? 'End table session' : 'Close'}
-            </button>
-          </div>
-        )}
-
-        <button
-          type="button"
-          disabled={busy || !latestOrder}
-          onClick={() => setAdding(true)}
-          className="mt-3 w-full rounded-2xl border border-dashed border-[oklch(0.232_0.019_70)]/30 py-2.5 text-[11px] font-bold tracking-[0.14em] text-[oklch(0.463_0.031_74)] uppercase active:translate-y-px disabled:opacity-40"
-        >
-          + Add item
-        </button>
-
-        {adding && (
-          <PickerModal title="Add items" onClose={() => setAdding(false)}>
-            <DishList dishes={dishes} added={pendingAdds} disabled={busy} onAdd={queueAdd} onDone={() => setAdding(false)} />
-          </PickerModal>
-        )}
-
-        <div className="my-3 border-t border-dashed border-[oklch(0.232_0.019_70)]/25" />
-
-        <div className="space-y-1 text-[12px] text-[oklch(0.463_0.031_74)]">
-          <div className="flex items-baseline justify-between">
-            <span>Subtotal</span>
-            <span className="tnum">{formatMoney(subtotal, currency)}</span>
-          </div>
-          {appliedDiscount > 0 && (
-            <div className="flex items-baseline justify-between">
-              <span>Discount</span>
-              <span className="tnum">−{formatMoney(appliedDiscount, currency)}</span>
-            </div>
-          )}
-          {pointsDiscount > 0 && (
-            <div className="flex items-baseline justify-between">
-              <span>{redeemPoints} points</span>
-              <span className="tnum">−{formatMoney(pointsDiscount, currency)}</span>
-            </div>
-          )}
-          <div className="flex items-baseline justify-between">
-            <span>Service</span>
-            <span className="tnum">{formatMoney(serviceCharge, currency)}</span>
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span>Tax</span>
-            <span className="tnum">{formatMoney(tax, currency)}</span>
-          </div>
-          <div className="flex items-baseline justify-between pt-1">
-            <span className={cx(DISPLAY, 'text-[18px] font-black text-[oklch(0.232_0.019_70)]')}>Total</span>
-            <span className={cx(DISPLAY, 'text-[26px] leading-none font-black tnum text-[oklch(0.665_0.111_70)]')}>
-              {formatMoney(total, currency)}
-            </span>
-          </div>
-        </div>
-
-        {hasItems && <CustomerPicker name={customerName} disabled={busy} onPick={setPicked} />}
-
-        {canDiscount && hasItems && (
-          <label className="mt-3 flex items-center justify-between gap-3 text-[12px] font-semibold text-[oklch(0.463_0.031_74)]">
-            Discount
-            <span className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[12px] font-semibold text-[oklch(0.463_0.031_74)]">
-                {symbolFor(currency)}
-              </span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={discountText}
-                disabled={busy}
-                onChange={(e) => {
-                  const next = e.target.value.replace(/[^0-9.]/g, '');
-                  setDiscountText(next);
-                  const parsed = Number.parseFloat(next);
-                  setDiscount(Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100)) : 0);
-                }}
-                onBlur={() => setDiscountText((appliedDiscount / 100).toFixed(2))}
-                className="w-24 rounded-full bg-[oklch(0.879_0.033_85)] py-1.5 pr-3 pl-7 text-right text-[12.5px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none disabled:opacity-40"
-              />
-            </span>
-          </label>
-        )}
-
-        {hasItems && maxPoints > 0 && (
-          <div className="mt-3 flex items-center justify-between gap-3 text-[12px] font-semibold text-[oklch(0.463_0.031_74)]">
-            <label htmlFor={pointsId}>
-              Points
-              <span className="ml-1 font-normal">
-                (up to {maxPoints} · {formatMoney(program?.redeemValue ?? 0, currency)} each)
-              </span>
-            </label>
-            <span className="flex items-center gap-1.5">
+          <>
+            <div className="flex items-start justify-between gap-3 pt-1">
+              <div className="min-w-0">
+                <h2 className={cx(DISPLAY, 'text-[30px] leading-none font-black text-[oklch(0.232_0.019_70)]')}>{table.name}</h2>
+                <p className="mt-1.5 text-[13px] text-[oklch(0.463_0.031_74)]">
+                  {openOrderCount} open order{openOrderCount === 1 ? '' : 's'} · {elapsedMinutes}m elapsed
+                  {table.capacity !== undefined && ` · ${table.capacity} seat${table.capacity === 1 ? '' : 's'}`}
+                </p>
+              </div>
               <button
                 type="button"
-                disabled={busy || redeemPoints === maxPoints}
-                aria-label={`Use the most points, ${maxPoints}`}
-                onClick={() => setPointsText(String(maxPoints))}
-                className="rounded-full px-2.5 py-1.5 text-[11.5px] font-bold text-[oklch(0.539_0.163_36)] disabled:opacity-40"
-              >
-                Max
-              </button>
-              <input
-                id={pointsId}
-                type="text"
-                inputMode="numeric"
-                // Always what is actually spent: the number is held to what the bill can take as it is typed,
-                // and again whenever the bill changes under it.
-                value={pointsText === '' ? '' : String(redeemPoints)}
-                placeholder="0"
-                disabled={busy}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, '').slice(0, 7);
-                  setPointsText(digits === '' ? '' : String(Math.min(Number.parseInt(digits, 10), maxPoints)));
+                aria-label="Close bill"
+                onClick={() => {
+                  setAdding(false);
+                  onClose();
                 }}
-                className="w-20 rounded-full bg-[oklch(0.879_0.033_85)] px-3 py-1.5 text-right text-[12.5px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none disabled:opacity-40"
-              />
-            </span>
-          </div>
-        )}
+                className="grid size-10 shrink-0 place-items-center rounded-full bg-[oklch(0.879_0.033_85)] text-[oklch(0.232_0.019_70)] active:translate-y-px"
+              >
+                <X size={16} />
+              </button>
+            </div>
 
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            disabled={busy || !hasItems}
-            onClick={() => {
-              // The draft, collapsed to what's actually being charged — dish + quantity, nothing
-              // tied to a specific order row, since the cashier's edits are what defines the bill.
-              // Frozen into `committed` rather than settled right away: the next step is picking
-              // cash or QR, and neither should let the live bill shift underneath the total shown.
-              const merged = new Map<string, BillLine>();
-              for (const line of draftLines) {
-                const key = lineKey(line);
-                const seen = merged.get(key);
-                if (seen) seen.quantity += line.quantity;
-                else merged.set(key, { dishId: line.dishId, variantId: line.variantId, addOnIds: line.addOnIds, quantity: line.quantity });
-              }
-              const items = [...merged.values()];
+            <div className="my-3 border-t border-dashed border-[oklch(0.232_0.019_70)]/25" />
 
-              setCommitted({
-                items,
-                lines: draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total })),
-                totals: { currency, subtotal, serviceCharge, tax, discount: appliedDiscount + pointsDiscount, total },
-                manualDiscount: appliedDiscount,
-                redeemPoints,
-                customerName,
-                customerId: picked === undefined ? undefined : (picked?.id ?? null),
-              });
-              setPendingAdds([]);
-              setPendingRemoves([]);
-              setEndSessionOnPay(false);
-              setStep('method');
-            }}
-            className="col-span-2 rounded-[14px] bg-[oklch(0.539_0.163_36)] py-3.5 text-[14px] font-bold tracking-wide text-[oklch(0.943_0.024_85)] ring-2 ring-[oklch(0.539_0.163_36)]/30 transition-transform active:translate-y-px disabled:opacity-40"
-          >
-            Take payment
-          </button>
-          <button
-            type="button"
-            disabled={!hasItems}
-            onClick={() =>
-              printReceipt(
-                table,
-                draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total })),
-                { currency, subtotal, serviceCharge, tax, discount: appliedDiscount + pointsDiscount, total },
-                { name: restaurantName, legalName, vatPanNumber },
-                undefined,
-                customerName,
-              )
-            }
-            className="rounded-[14px] bg-[oklch(0.232_0.019_70)] py-3.5 text-[12px] font-bold tracking-wide text-[oklch(0.943_0.024_85)] transition-transform active:translate-y-px disabled:opacity-40"
-          >
-            Print
-          </button>
-        </div>
-        </>
+            <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start lg:gap-8">
+              {/* Left: what is being paid for. Reading first; changing the order is a separate, deliberate mode. */}
+              <div className="min-w-0">
+                {inSplit && (
+                  <div className="mb-3 rounded-2xl bg-[oklch(0.879_0.033_85)] p-3.5 text-[13px] text-[oklch(0.232_0.019_70)]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-bold">
+                        Splitting by item · {unitsLeft} item{unitsLeft === 1 ? '' : 's'} left
+                      </p>
+                      <span className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={busy || unitsLeft === 0}
+                          onClick={() => setTake(Object.fromEntries(splitRows.map((r) => [r.id, r.left])))}
+                          className="rounded-full px-3 py-1.5 text-[12.5px] font-bold text-[oklch(0.42_0.13_36)] disabled:opacity-40"
+                        >
+                          Select all
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy || takenUnits === 0}
+                          onClick={() => setTake({})}
+                          className="rounded-full px-3 py-1.5 text-[12.5px] font-bold text-[oklch(0.42_0.13_36)] disabled:opacity-40"
+                        >
+                          Clear
+                        </button>
+                      </span>
+                    </div>
+                    <dl className="mt-1.5 grid grid-cols-2 gap-x-4 text-[13px] text-[oklch(0.463_0.031_74)]">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <dt>This share</dt>
+                        <dd className="font-bold tnum text-[oklch(0.232_0.019_70)]">{formatMoney(subtotal, currency)}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <dt>Still unbilled</dt>
+                        <dd className="font-bold tnum text-[oklch(0.232_0.019_70)]">{formatMoney(unbilledAfter, currency)}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                )}
+
+                {hasItems && !inSplit && (
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <h3 className="text-[13px] font-bold text-[oklch(0.463_0.031_74)]">Order</h3>
+                    <button
+                      type="button"
+                      disabled={busy || !latestOrder}
+                      aria-pressed={editing}
+                      onClick={() => {
+                        setEditing((on) => !on);
+                        setAdding(false);
+                      }}
+                      className={cx(
+                        'rounded-full px-3.5 py-1.5 text-[12.5px] font-bold active:translate-y-px disabled:opacity-40',
+                        editing ? 'bg-[oklch(0.232_0.019_70)] text-[oklch(0.943_0.024_85)]' : 'bg-[oklch(0.879_0.033_85)] text-[oklch(0.232_0.019_70)]',
+                      )}
+                    >
+                      {editing ? 'Done editing' : 'Edit items'}
+                    </button>
+                  </div>
+                )}
+
+                {hasItems && inSplit && (
+                  <ul className="divide-y divide-dashed divide-[oklch(0.232_0.019_70)]/20 text-[14px]">
+                    {splitRows.map((row) => (
+                      <li key={row.id} className="flex items-center justify-between gap-3 py-2.5">
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-[oklch(0.232_0.019_70)]">{row.name}</span>
+                          <span className="block text-[12.5px] text-[oklch(0.463_0.031_74)] tnum">
+                            {formatMoney(row.unitPrice, currency)} each · {row.left} left to bill
+                          </span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={busy || row.taken === 0}
+                            aria-label={`Take one fewer ${row.name}`}
+                            onClick={() => setTake((prev) => ({ ...prev, [row.id]: row.taken - 1 }))}
+                            className="size-9 rounded-full bg-[oklch(0.879_0.033_85)] text-[18px] leading-none font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
+                          >
+                            −
+                          </button>
+                          <span className="w-16 text-center leading-tight">
+                            <span className="block text-[15px] font-bold text-[oklch(0.232_0.019_70)] tnum">{row.taken}</span>
+                            <span className="block text-[12px] text-[oklch(0.463_0.031_74)]">of {row.left}</span>
+                          </span>
+                          <button
+                            type="button"
+                            disabled={busy || row.taken >= row.left}
+                            aria-label={`Take one more ${row.name}`}
+                            onClick={() => setTake((prev) => ({ ...prev, [row.id]: row.taken + 1 }))}
+                            className="size-9 rounded-full bg-[oklch(0.879_0.033_85)] text-[18px] leading-none font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
+                          >
+                            +
+                          </button>
+                          <span className="w-20 text-right font-bold tnum text-[oklch(0.232_0.019_70)]">{formatMoney(row.unitPrice * row.taken, currency)}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {hasItems && !inSplit && (
+                  <ul className="divide-y divide-dashed divide-[oklch(0.232_0.019_70)]/20 text-[14px]">
+                    {draftLines.map((line) => (
+                      <li key={line.rowId} className="flex items-center justify-between gap-3 py-2.5">
+                        <span className="min-w-0">
+                          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="font-semibold text-[oklch(0.232_0.019_70)]">
+                              {!editing && <span className="mr-1.5 tnum">{line.quantity}×</span>}
+                              {line.dishNameSnapshot}
+                            </span>
+                            {!line.served && (
+                              <span className="rounded-full bg-[oklch(0.539_0.163_36)]/15 px-2 py-0.5 text-[12px] font-semibold text-[oklch(0.42_0.13_36)]">
+                                {STATUS_LABEL[line.orderStatus]}
+                              </span>
+                            )}
+                          </span>
+                          <span className="block text-[12.5px] text-[oklch(0.463_0.031_74)] tnum">
+                            {formatMoney(line.unitPrice, currency)} each
+                            {line.notes && <span className="ml-2 italic">“{line.notes}”</span>}
+                          </span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          {editing && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                aria-label={`Remove one ${line.dishNameSnapshot}`}
+                                onClick={() => queueRemove(line)}
+                                className="size-9 rounded-full bg-[oklch(0.879_0.033_85)] text-[18px] leading-none font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
+                              >
+                                −
+                              </button>
+                              <span className="w-6 text-center text-[15px] font-bold text-[oklch(0.232_0.019_70)] tnum">{line.quantity}</span>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                aria-label={`Add one ${line.dishNameSnapshot}`}
+                                onClick={() => queueAdd(line.dishId)}
+                                className="size-9 rounded-full bg-[oklch(0.879_0.033_85)] text-[18px] leading-none font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
+                              >
+                                +
+                              </button>
+                            </>
+                          )}
+                          <span className="w-20 text-right font-bold tnum text-[oklch(0.232_0.019_70)]">{formatMoney(line.total, currency)}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {!hasItems && (
+                  <div className="flex flex-col items-center gap-3 py-8">
+                    <p className="text-[13px] text-[oklch(0.463_0.031_74)]">No items on this bill.</p>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={onEndSession}
+                      className="rounded-full bg-[oklch(0.879_0.033_85)] px-5 py-2.5 text-[13px] font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
+                    >
+                      {table.capacity !== undefined ? 'End table session' : 'Close'}
+                    </button>
+                  </div>
+                )}
+
+                {editing && !inSplit && (
+                  <button
+                    type="button"
+                    disabled={busy || !latestOrder}
+                    onClick={() => setAdding(true)}
+                    className="mt-3 w-full rounded-2xl border border-dashed border-[oklch(0.232_0.019_70)]/35 py-3 text-[13px] font-bold text-[oklch(0.463_0.031_74)] active:translate-y-px disabled:opacity-40"
+                  >
+                    + Add item
+                  </button>
+                )}
+
+                {adding && (
+                  <PickerModal title="Add items" onClose={() => setAdding(false)}>
+                    <DishList dishes={dishes} added={pendingAdds} disabled={busy} onAdd={queueAdd} onDone={() => setAdding(false)} />
+                  </PickerModal>
+                )}
+
+                {canSplit && (inSplit || hasItems) && (
+                  <div className="mt-4 flex items-center justify-between gap-3 text-[13px] text-[oklch(0.463_0.031_74)]">
+                    <span>
+                      {(billed?.length ?? 0) > 0 ? 'Shares already paid are off this list.' : inSplit ? 'Pick what this share pays for.' : 'Each guest paying for their own items?'}
+                    </span>
+                    {(billed?.length ?? 0) === 0 && (
+                      <button
+                        type="button"
+                        disabled={busy || pendingAdds.length > 0 || pendingRemoves.length > 0}
+                        onClick={() => {
+                          setSplitOn((on) => !on);
+                          setTake({});
+                          setEditing(false);
+                        }}
+                        className="shrink-0 rounded-full bg-[oklch(0.879_0.033_85)] px-3.5 py-1.5 text-[12.5px] font-bold text-[oklch(0.42_0.13_36)] disabled:opacity-40"
+                      >
+                        {inSplit ? 'Bill the whole table' : 'Split by item'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Right: the figure and what changes it, kept in view while the lines scroll. */}
+              <aside className="mt-5 lg:sticky lg:top-0 lg:mt-0">
+                <div className="rounded-3xl bg-[oklch(0.965_0.016_85)] p-4 ring-1 ring-[oklch(0.232_0.019_70)]/10">
+                  <dl className="space-y-1.5 text-[13px] text-[oklch(0.463_0.031_74)]">
+                    <div className="flex items-baseline justify-between">
+                      <dt>{inSplit ? 'Subtotal (this share)' : 'Subtotal'}</dt>
+                      <dd className="tnum">{formatMoney(subtotal, currency)}</dd>
+                    </div>
+                    {appliedDiscount > 0 && (
+                      <div className="flex items-baseline justify-between">
+                        <dt>Discount</dt>
+                        <dd className="tnum">−{formatMoney(appliedDiscount, currency)}</dd>
+                      </div>
+                    )}
+                    {pointsDiscount > 0 && (
+                      <div className="flex items-baseline justify-between">
+                        <dt>{redeemPoints} points</dt>
+                        <dd className="tnum">−{formatMoney(pointsDiscount, currency)}</dd>
+                      </div>
+                    )}
+                    <div className="flex items-baseline justify-between">
+                      <dt>Service</dt>
+                      <dd className="tnum">{formatMoney(serviceCharge, currency)}</dd>
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <dt>Tax</dt>
+                      <dd className="tnum">{formatMoney(tax, currency)}</dd>
+                    </div>
+                  </dl>
+                  <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-dashed border-[oklch(0.232_0.019_70)]/25 pt-3">
+                    <span className={cx(DISPLAY, 'text-[18px] font-black text-[oklch(0.232_0.019_70)]')}>{inSplit ? 'This share' : 'Total'}</span>
+                    <span className={cx(DISPLAY, 'text-[32px] leading-none font-black tnum text-[oklch(0.5_0.12_70)]')}>{formatMoney(total, currency)}</span>
+                  </div>
+                </div>
+
+                {hasItems && (
+                  <div className="mt-4">
+                    <h3 className="mb-1 text-[13px] font-bold text-[oklch(0.463_0.031_74)]">Adjustments</h3>
+                    <div className="divide-y divide-dashed divide-[oklch(0.232_0.019_70)]/20">
+                      <div className="py-3">
+                        <CustomerPicker name={customerName} disabled={busy} onPick={setPicked} />
+                      </div>
+
+                      {canDiscount && (
+                        <label className="flex items-center justify-between gap-3 py-3 text-[13px] font-semibold text-[oklch(0.463_0.031_74)]">
+                          Discount
+                          <span className="relative">
+                            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[13px] font-semibold text-[oklch(0.463_0.031_74)]">{symbolFor(currency)}</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={discountText}
+                              disabled={busy}
+                              onChange={(e) => {
+                                const next = e.target.value.replace(/[^0-9.]/g, '');
+                                setDiscountText(next);
+                                const parsed = Number.parseFloat(next);
+                                setDiscount(Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100)) : 0);
+                              }}
+                              onBlur={() => setDiscountText((appliedDiscount / 100).toFixed(2))}
+                              className="w-28 rounded-full bg-[oklch(0.879_0.033_85)] py-2 pr-3 pl-7 text-right text-[13.5px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none disabled:opacity-40"
+                            />
+                          </span>
+                        </label>
+                      )}
+
+                      {maxPoints > 0 && (
+                        <div className="flex items-center justify-between gap-3 py-3 text-[13px] font-semibold text-[oklch(0.463_0.031_74)]">
+                          <label htmlFor={pointsId} className="min-w-0">
+                            Points
+                            <span className="block text-[12px] font-normal">
+                              up to {maxPoints} · {formatMoney(program?.redeemValue ?? 0, currency)} each
+                            </span>
+                          </label>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={busy || redeemPoints === maxPoints}
+                              aria-label={`Use the most points, ${maxPoints}`}
+                              onClick={() => setPointsText(String(maxPoints))}
+                              className="rounded-full px-2.5 py-2 text-[12.5px] font-bold text-[oklch(0.42_0.13_36)] disabled:opacity-40"
+                            >
+                              Max
+                            </button>
+                            <input
+                              id={pointsId}
+                              type="text"
+                              inputMode="numeric"
+                              // Always what is actually spent: the number is held to what the bill can take as it is typed,
+                              // and again whenever the bill changes under it.
+                              value={pointsText === '' ? '' : String(redeemPoints)}
+                              placeholder="0"
+                              disabled={busy}
+                              onChange={(e) => {
+                                const digits = e.target.value.replace(/\D/g, '').slice(0, 7);
+                                setPointsText(digits === '' ? '' : String(Math.min(Number.parseInt(digits, 10), maxPoints)));
+                              }}
+                              className="w-20 rounded-full bg-[oklch(0.879_0.033_85)] px-3 py-2 text-right text-[13.5px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none disabled:opacity-40"
+                            />
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Wide screens keep the action in the column; narrow ones get the sticky bar below. */}
+                <div className="mt-4 hidden gap-2 lg:grid">
+                  <button type="button" disabled={busy || !canTake} onClick={takePayment} className={BILL_PRIMARY}>
+                    {takeLabel}
+                  </button>
+                  <button type="button" disabled={!canTake} onClick={printBill} className={BILL_SECONDARY}>
+                    Print bill
+                  </button>
+                </div>
+              </aside>
+            </div>
+
+            <div className="sticky bottom-0 -mx-4 mt-4 flex items-center gap-2 border-t border-dashed border-[oklch(0.232_0.019_70)]/25 bg-[oklch(0.943_0.024_85)] px-4 pt-3 pb-1 lg:hidden">
+              <button type="button" disabled={!canTake} onClick={printBill} className={cx(BILL_SECONDARY, 'w-auto shrink-0 px-5')}>
+                Print
+              </button>
+              <button type="button" disabled={busy || !canTake} onClick={takePayment} className={BILL_PRIMARY}>
+                {takeLabel}
+              </button>
+            </div>
+          </>
         )}
 
         {step === 'method' && committed && (
@@ -703,19 +919,21 @@ export function PaymentSheet({
             <button
               type="button"
               onClick={() => setStep('bill')}
-              className="flex w-fit items-center gap-1 text-[11px] font-bold tracking-wide text-[oklch(0.463_0.031_74)] uppercase active:translate-y-px"
+              className="flex w-fit items-center gap-1 text-[13px] font-bold text-[oklch(0.463_0.031_74)] active:translate-y-px"
             >
               <ChevronLeft size={14} /> Back to bill
             </button>
 
             <div className="flex flex-col items-center gap-1 py-1 text-center">
-              <span className="text-[10px] tracking-[0.14em] text-[oklch(0.463_0.031_74)] uppercase">
-                {table.name} · total due
+              <span className="text-[13px] text-[oklch(0.463_0.031_74)]">
+                {table.name} · {committed.split ? 'this share' : 'total due'}
               </span>
               <span className={cx(DISPLAY, 'text-[34px] leading-none font-black tnum text-[oklch(0.232_0.019_70)]')}>
                 {formatMoney(committed.totals.total, committed.totals.currency)}
               </span>
             </div>
+
+            <CommittedSummary committed={committed} />
 
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -751,7 +969,7 @@ export function PaymentSheet({
                 <Receipt size={20} />
                 <span className="text-[13px] font-bold tracking-wide uppercase">Pay later / on credit</span>
               </button>
-              {!owedBy && <p className="col-span-2 -mt-1 text-center text-[11.5px] text-[oklch(0.463_0.031_74)]">Credit needs a customer — go back and add one to the bill.</p>}
+              {!owedBy && <p className="col-span-2 -mt-1 text-center text-[13px] text-[oklch(0.463_0.031_74)]">Credit needs a customer — go back and add one to the bill.</p>}
               {/* Scan to pay (generated QR with a waiting step), off for now:
               <button
                 type="button"
@@ -777,18 +995,20 @@ export function PaymentSheet({
               type="button"
               disabled={busy}
               onClick={() => setStep('method')}
-              className="flex w-fit items-center gap-1 text-[11px] font-bold tracking-wide text-[oklch(0.463_0.031_74)] uppercase active:translate-y-px disabled:opacity-40"
+              className="flex w-fit items-center gap-1 text-[13px] font-bold text-[oklch(0.463_0.031_74)] active:translate-y-px disabled:opacity-40"
             >
               <ChevronLeft size={14} /> Back to payment methods
             </button>
 
             <div className="flex flex-col items-center gap-1 py-1 text-center">
-              <span className="text-[10px] tracking-[0.14em] text-[oklch(0.463_0.031_74)] uppercase">{owedByName ?? 'Customer'} · on credit</span>
+              <span className="text-[13px] text-[oklch(0.463_0.031_74)]">{owedByName ?? 'Customer'} · on credit</span>
               <span className={cx(DISPLAY, 'text-[34px] leading-none font-black tnum text-[oklch(0.232_0.019_70)]')}>
                 {formatMoney(committed.totals.total, committed.totals.currency)}
               </span>
-              <span className="mt-1 text-[12px] text-[oklch(0.463_0.031_74)]">How much are they paying today? Leave it empty to owe all of it.</span>
+              <span className="mt-1 text-[13px] text-[oklch(0.463_0.031_74)]">How much are they paying today? Leave it empty to owe all of it.</span>
             </div>
+
+            <CommittedSummary committed={committed} />
 
             <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
@@ -881,7 +1101,7 @@ export function PaymentSheet({
               type="button"
               disabled={busy}
               onClick={() => setStep('method')}
-              className="flex w-fit items-center gap-1 self-start text-[11px] font-bold tracking-wide text-[oklch(0.463_0.031_74)] uppercase active:translate-y-px disabled:opacity-40"
+              className="flex w-fit items-center gap-1 self-start text-[13px] font-bold text-[oklch(0.463_0.031_74)] active:translate-y-px disabled:opacity-40"
             >
               <ChevronLeft size={14} /> Choose a different method
             </button>
@@ -963,6 +1183,41 @@ export function PaymentSheet({
 }
 
 /** Mounted only while the bill is open: the browser's back button can't leave the page mid-payment, same as every other sheet. The pickers on top don't add their own hold — two would fight over the history. */
+/** What this payment is for, shown before the money is taken — for a split share, the items it covers. */
+function CommittedSummary({ committed }: { committed: CommittedBill }) {
+  const money = (v: number) => formatMoney(v, committed.totals.currency);
+  const shown = committed.lines.slice(0, 6);
+  const more = committed.lines.length - shown.length;
+  return (
+    <div className="rounded-2xl bg-[oklch(0.965_0.016_85)] p-4 text-[13px] ring-1 ring-[oklch(0.232_0.019_70)]/10">
+      <p className="mb-2 font-bold text-[oklch(0.463_0.031_74)]">{committed.split ? 'Items in this share' : 'Paying for'}</p>
+      <ul className="space-y-1 text-[oklch(0.232_0.019_70)]">
+        {shown.map((l, i) => (
+          <li key={`${l.dishNameSnapshot}-${i}`} className="flex items-baseline justify-between gap-3">
+            <span className="min-w-0 truncate">
+              <span className="tnum">{l.quantity}×</span> {l.dishNameSnapshot}
+            </span>
+            <span className="shrink-0 tnum">{money(l.total)}</span>
+          </li>
+        ))}
+        {more > 0 && <li className="text-[oklch(0.463_0.031_74)]">+ {more} more</li>}
+      </ul>
+      <dl className="mt-3 space-y-1 border-t border-dashed border-[oklch(0.232_0.019_70)]/25 pt-3 text-[oklch(0.463_0.031_74)]">
+        <div className="flex items-baseline justify-between gap-3">
+          <dt>Customer</dt>
+          <dd className="truncate font-semibold text-[oklch(0.232_0.019_70)]">{committed.customerName ?? 'None'}</dd>
+        </div>
+        {committed.totals.discount > 0 && (
+          <div className="flex items-baseline justify-between gap-3">
+            <dt>Discount and points</dt>
+            <dd className="tnum">−{money(committed.totals.discount)}</dd>
+          </div>
+        )}
+      </dl>
+    </div>
+  );
+}
+
 function HoldBack() {
   useDiscardBack();
   return null;
@@ -1030,7 +1285,7 @@ function DishList({ dishes, added, disabled, onAdd, onDone }: { dishes: Dish[]; 
               >
                 <span className="min-w-0 truncate">
                   {dish.name}
-                  {n > 0 && <span className="ml-2 rounded-full bg-[oklch(0.539_0.163_36)] px-2 py-0.5 text-[11px] font-bold text-[oklch(0.943_0.024_85)]">+{n}</span>}
+                  {n > 0 && <span className="ml-2 rounded-full bg-[oklch(0.539_0.163_36)] px-2 py-0.5 text-[12px] font-bold text-[oklch(0.985_0.01_85)]">+{n}</span>}
                 </span>
                 <span className="shrink-0 font-bold tnum">{formatMoney(dish.price, dish.currency)}</span>
               </button>
@@ -1063,7 +1318,7 @@ function CustomerPicker({ name, disabled, onPick }: { name: string | null; disab
   };
 
   return (
-    <div className="mt-3 text-[12px] font-semibold text-[oklch(0.463_0.031_74)]">
+    <div className="text-[13px] font-semibold text-[oklch(0.463_0.031_74)]">
       <div className="flex items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-1.5">
           <Contact size={14} className="shrink-0" />
@@ -1073,7 +1328,7 @@ function CustomerPicker({ name, disabled, onPick }: { name: string | null; disab
           type="button"
           disabled={disabled}
           onClick={() => setOpen(true)}
-          className="shrink-0 rounded-full bg-[oklch(0.879_0.033_85)] px-3 py-1.5 text-[11.5px] font-bold text-[oklch(0.232_0.019_70)] disabled:opacity-40"
+          className="shrink-0 rounded-full bg-[oklch(0.879_0.033_85)] px-3.5 py-2 text-[12.5px] font-bold text-[oklch(0.232_0.019_70)] disabled:opacity-40"
         >
           {name ? 'Change' : 'Add customer'}
         </button>

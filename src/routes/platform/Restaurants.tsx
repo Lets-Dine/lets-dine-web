@@ -16,6 +16,16 @@ const PAGE_SIZE = 25;
 const VIEWS: TenantView[] = ['all', 'active', 'trial', 'attention', 'closed'];
 const SORTS: TenantSort[] = ['active', 'newest', 'name', 'revenue'];
 
+/** "12 days left" / "Ends today" / "3 days overdue", counted in calendar days; null once cancelled. */
+function daysLeft(endsAt: string | null): { text: string; late: boolean; soon: boolean } | null {
+  if (!endsAt) return null;
+  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  const n = Math.round((day(new Date(endsAt)) - day(new Date())) / 86_400_000);
+  if (n < 0) return { text: `${-n} day${n === -1 ? '' : 's'} overdue`, late: true, soon: false };
+  if (n === 0) return { text: 'Ends today', late: false, soon: true };
+  return { text: `${n} day${n === 1 ? '' : 's'} left`, late: false, soon: n <= 3 };
+}
+
 const isBilling = (t: TenantListRow) => t.status === 'ACTIVE' || t.status === 'PAST_DUE' || t.status === 'RESTRICTED';
 
 /** Every restaurant on the service, cut the way an operator asks about them: who is paying, who is on trial, who needs me. Filtering, sorting and paging all happen on the server. */
@@ -191,6 +201,7 @@ export function PlatformRestaurants() {
                         <span className="truncate text-[14.5px] font-semibold">{t.name}</span>
                         <StatusBadge status={t.status} />
                       </span>
+                      <Remaining endsAt={t.endsAt} />
                       <span className="mt-0.5 block truncate text-[12.5px] text-ink-3">
                         {t.owner?.name ?? 'No owner'} · {t.planName} · active {relTime(t.lastActiveAt)}
                       </span>
@@ -222,6 +233,12 @@ export function PlatformRestaurants() {
   );
 }
 
+function Remaining({ endsAt }: { endsAt: string | null }) {
+  const left = daysLeft(endsAt);
+  if (!left) return null;
+  return <div className={cx('mt-1 text-[12px] tnum', left.late ? 'font-semibold text-berry-ink' : left.soon ? 'font-semibold text-gold-ink' : 'text-ink-4')}>{left.text}</div>;
+}
+
 function TenantRow({ t, onOpen }: { t: TenantListRow; onOpen: () => void }) {
   const change = t.ordersLastMonth > 0 ? t.ordersThisMonth / t.ordersLastMonth - 1 : null;
   const closed = t.status === 'SUSPENDED' || t.status === 'CANCELLED';
@@ -242,6 +259,7 @@ function TenantRow({ t, onOpen }: { t: TenantListRow; onOpen: () => void }) {
       </td>
       <td className={TD}>
         <StatusBadge status={t.status} />
+        <Remaining endsAt={t.endsAt} />
       </td>
       <td className={TD}>
         <div className="font-semibold">{t.planName}</div>

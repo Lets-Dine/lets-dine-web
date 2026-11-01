@@ -32,6 +32,7 @@ import { RevenueTrendChart } from '../../components/admin/RevenueTrendChart';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
+import { NewOrderButton } from '../../components/admin/NewOrder';
 
 /** How many of the oldest working tickets the hero grid shows before pointing to the full pass. */
 const PASS_GRID_SIZE = 9;
@@ -46,9 +47,17 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
   { value: 'all', label: 'All', statuses: null },
   { value: 'focus', label: 'Needs you', statuses: null },
   { value: 'new', label: 'New', statuses: ['PENDING'] },
-  { value: 'kitchen', label: 'In the kitchen', statuses: ['ACCEPTED', 'PREPARING'] },
+  {
+    value: 'kitchen',
+    label: 'In the kitchen',
+    statuses: ['ACCEPTED', 'PREPARING'],
+  },
   // Covers a delivery ticket already dispatched too, or it would fall out of every lane once it leaves READY.
-  { value: 'ready', label: 'Ready', statuses: ['READY', 'OUT_FOR_DELIVERY', 'SETTLE'] },
+  {
+    value: 'ready',
+    label: 'Ready',
+    statuses: ['READY', 'OUT_FOR_DELIVERY', 'SETTLE'],
+  },
 ];
 
 /*
@@ -103,17 +112,21 @@ export function DashboardV2() {
   const feedback = useMemo(() => feedbackSummary(menu.dishes), [menu.dishes]);
   const { dishDecisionRate } = funnel();
 
-  const working = useMemo(
-    () => queue.filter((o) => o.status !== 'COMPLETED' && o.status !== 'CANCELLED'),
-    [queue],
-  );
+  const working = useMemo(() => queue.filter((o) => o.status !== 'COMPLETED' && o.status !== 'CANCELLED'), [queue]);
   const waiting = working.filter((o) => o.status === 'PENDING');
   const payingOrder = working.find((o) => o.id === payingId) ?? null;
   const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
 
   /** The same clocks the full pass runs on — one sweep per tick, read by every lane and card. */
   const flags = useMemo(() => focusMap(working, now), [working, now]);
-  const orderSheet = useOrderSheet({ orders: queue, flags, now, onApply: applyOrder, onResync: reloadOrders, onTakePayment: (o) => setPayingId(o.id) });
+  const orderSheet = useOrderSheet({
+    orders: queue,
+    flags,
+    now,
+    onApply: applyOrder,
+    onResync: reloadOrders,
+    onTakePayment: (o) => setPayingId(o.id),
+  });
 
   const inLane = useMemo(
     () => (value: Lane, order: Order) => {
@@ -130,10 +143,7 @@ export function DashboardV2() {
     return counts;
   }, [working, inLane]);
 
-  const filtered = useMemo(
-    () => working.filter((o) => inLane(lane, o)).sort(byUrgencyThenAge(flags)),
-    [working, inLane, lane, flags],
-  );
+  const filtered = useMemo(() => working.filter((o) => inLane(lane, o)).sort(byUrgencyThenAge(flags)), [working, inLane, lane, flags]);
 
   const shown = filtered.slice(0, PASS_GRID_SIZE);
   const hiddenCount = filtered.length - shown.length;
@@ -156,16 +166,23 @@ export function DashboardV2() {
                 : 'Nothing is waiting to be accepted right now.'}
           </p>
         </div>
-        <Link
-          to="/admin/orders"
-          className={cx(
-            'inline-flex h-12 items-center gap-2.5 rounded-full px-6 text-[15px] font-semibold transition-[scale,background-color] duration-200 active:scale-95',
-            waiting.length > 0 ? 'bg-flame text-white shadow-flame' : 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset hover:text-ink',
-          )}
-        >
-          Open the pass
-          {waiting.length > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/25 px-1.5 text-[11.5px] font-bold tnum">{waiting.length}</span>}
-        </Link>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <NewOrderButton />
+          <Link
+            to="/admin/orders"
+            className={cx(
+              'inline-flex h-12 items-center gap-2.5 rounded-full px-6 text-[15px] font-semibold transition-[scale,background-color] duration-200 active:scale-95',
+              waiting.length > 0 ? 'bg-flame text-white shadow-flame' : 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset hover:text-ink',
+            )}
+          >
+            Open the pass
+            {waiting.length > 0 && (
+              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/25 px-1.5 text-[11.5px] font-bold tnum">
+                {waiting.length}
+              </span>
+            )}
+          </Link>
+        </div>
       </header>
 
       {/* ── The pass ── */}
@@ -190,7 +207,13 @@ export function DashboardV2() {
 
         <div className="mb-5 flex flex-wrap items-center gap-2" role="group" aria-label="Lane">
           {LANES.map((l) => (
-            <button key={l.value} type="button" aria-pressed={lane === l.value} className={cx(CHIP, lane === l.value ? CHIP_ON : CHIP_OFF)} onClick={() => setLane(l.value)}>
+            <button
+              key={l.value}
+              type="button"
+              aria-pressed={lane === l.value}
+              className={cx(CHIP, lane === l.value ? CHIP_ON : CHIP_OFF)}
+              onClick={() => setLane(l.value)}
+            >
               {l.label}
               {laneCounts[l.value] > 0 && <span className="tnum"> · {laneCounts[l.value]}</span>}
             </button>
@@ -200,7 +223,9 @@ export function DashboardV2() {
         {working.length === 0 ? (
           <div className="rounded-3xl bg-surface px-6 py-14 text-center ring-1 ring-hairline ring-inset">
             <h3 className={cx(DISPLAY, 'text-[24px]')}>The kitchen is clear</h3>
-            <p className="mx-auto mt-3 max-w-[44ch] text-[14.5px] leading-relaxed text-ink-3">A new ticket will appear here the moment a table orders.</p>
+            <p className="mx-auto mt-3 max-w-[44ch] text-[14.5px] leading-relaxed text-ink-3">
+              A new ticket will appear here the moment a table orders.
+            </p>
           </div>
         ) : filtered.length === 0 ? (
           <p className="py-14 text-center text-[14px] text-ink-3">Nothing in this lane right now.</p>
@@ -334,9 +359,21 @@ export function DashboardV2() {
             value={feedback.restaurantRating ? `${feedback.restaurantRating.toFixed(2)} ★` : '—'}
             sub={`${feedback.reviewCount.toLocaleString()} verified reviews`}
           />
-          <Quiet label="Would order again" value={feedback.recommendRate !== null ? `${Math.round(feedback.recommendRate * 100)}%` : '—'} sub="across rated dishes" />
-          <Quiet label="Dishes without ratings" value={String(feedback.unratedDishes)} sub={`of ${feedback.ratedDishes + feedback.unratedDishes} on the menu`} />
-          <Quiet label="Dish decision rate" value={dishDecisionRate !== null ? `${Math.round(dishDecisionRate * 100)}%` : '—'} sub="dish page → added to cart" />
+          <Quiet
+            label="Would order again"
+            value={feedback.recommendRate !== null ? `${Math.round(feedback.recommendRate * 100)}%` : '—'}
+            sub="across rated dishes"
+          />
+          <Quiet
+            label="Dishes without ratings"
+            value={String(feedback.unratedDishes)}
+            sub={`of ${feedback.ratedDishes + feedback.unratedDishes} on the menu`}
+          />
+          <Quiet
+            label="Dish decision rate"
+            value={dishDecisionRate !== null ? `${Math.round(dishDecisionRate * 100)}%` : '—'}
+            sub="dish page → added to cart"
+          />
         </div>
       </Block>
 
@@ -358,7 +395,19 @@ export function DashboardV2() {
           const order = payingOrder;
           return run(
             order.id,
-            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints, changes.customerId, changes.credit, changes.paidNow, changes.dueInDays),
+            () =>
+              completeOrderPayment(
+                staff,
+                order,
+                changes.items,
+                changes.method,
+                changes.discount,
+                changes.redeemPoints,
+                changes.customerId,
+                changes.credit,
+                changes.paidNow,
+                changes.dueInDays,
+              ),
             `${order.reference} paid up`,
           ).then((ok) => {
             if (ok) reloadOrders();

@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { isTableOpen } from '../../api/admin';
 import { IS_LIVE_API } from '../../api/http';
 import {
   addOrderItem,
   completePayment,
   endTableSession,
+  fetchBilledItems,
   fetchOrdersBySession,
   listTables,
+  mergeTableSession,
   regenerateQr,
+  rejectOrder,
   setTableActive,
   startTableSession,
   updateTable,
 } from '../../api/staff';
-import { STATUS_LABEL } from '../../domain/orderStatus';
+import { STATUS_LABEL, canCancelOrder } from '../../domain/orderStatus';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useToast } from '../../state/ToastContext';
@@ -22,14 +25,13 @@ import { useNow } from '../../state/useNow';
 import { relativeTime } from '../../components/time';
 import { QrDialog, printSingleQr, tableUrl } from '../../components/admin/QrCard';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
-import type { Dish } from '../../domain/types';
-import { DishOptionsDialog, orderableOptions } from '../../components/admin/DishOptionsDialog';
-import type { DishSelection } from '../../components/admin/DishOptionsDialog';
+import type { Order } from '../../domain/types';
+import { DishOptionsDialog } from '../../components/admin/DishOptionsDialog';
 import { ItemRow, Progress } from '../../components/admin/OrderLines';
-import { DishTilePicker } from '../../components/admin/DishTilePicker';
+import { DishTilePicker, useTicketDraft } from '../../components/admin/DishTilePicker';
 import { useCountUp } from '../../components/admin/profile';
 import { formatMoney } from '../../domain/money';
-import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_TINY, Confirm, Empty, Loading, StatusPill, useCommand } from '../../components/admin/kit';
+import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_TINY, Confirm, Empty, Loading, Select, StatusPill, useCommand } from '../../components/admin/kit';
 import { Check, ChevronLeft, Plus, Receipt, X } from '../../components/icons';
 import { QuantityStepper, SessionCode } from '../../components/Bits';
 import { DISPLAY, cx } from '../../components/ui';
@@ -85,72 +87,47 @@ export function TableDetailV2() {
 
   const table = tables.data?.find((t) => t.id === tableId) ?? null;
   const editable = allows('tables:edit');
+  const navigate = useNavigate();
+  const [moveTo, setMoveTo] = useState('');
   const canOrder = allows('orders:advance');
 
   const sessionId = table?.currentSessionId ?? null;
   const visit = useAsync(() => (sessionId ? fetchOrdersBySession(staff, sessionId) : Promise.resolve([])), [sessionId]);
+  const billed = useAsync(() => (sessionId ? fetchBilledItems(sessionId) : Promise.resolve(null)), [sessionId]);
   const visitOrders = visit.data ?? [];
   const openCount = visitOrders.filter((o) => isTableOpen(o.status)).length;
   // Newest round first.
-  const orderedVisitOrders = useMemo(
-    () => [...visitOrders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
-    [visitOrders],
-  );
+  const orderedVisitOrders = useMemo(() => [...visitOrders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)), [visitOrders]);
 
   const [renaming, setRenaming] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [billing, setBilling] = useState(false);
+  // Set when billing was opened from one order's "Pay this order" rather than the table's own button.
+  const [payOrderId, setPayOrderId] = useState<string | null>(null);
   const [pickingDish, setPickingDish] = useState(false);
   const [copied, setCopied] = useState(false);
   // Dishes staff are still lining up for the diner — nothing exists server-side until "Place order".
-  // A line is a dish *and* its variant and extras: a large and a small of the same dish are two lines.
-  const [draft, setDraft] = useState<{ key: string; dish: Dish; variantId: string | null; addOnIds: string[]; qty: number }[]>([]);
-  // A dish with sizes or extras opens the options dialog first; a plain one goes straight on the ticket.
-  const [configuring, setConfiguring] = useState<Dish | null>(null);
-  const addToDraft = (dish: Dish, sel: Partial<DishSelection> = {}) => {
-    const variantId = sel.variantId ?? null;
-    const addOnIds = [...(sel.addOnIds ?? [])].sort();
-    const key = [dish.id, variantId, addOnIds.join(',')].join('|');
-    const qty = sel.quantity ?? 1;
-    setDraft((d) =>
-      d.some((l) => l.key === key) ? d.map((l) => (l.key === key ? { ...l, qty: l.qty + qty } : l)) : [...d, { key, dish, variantId, addOnIds, qty }],
-    );
-    haptic.select();
-  };
-  const pickDish = (dish: Dish) => {
-    const { variants, addOns } = orderableOptions(dish, menu);
-    if (variants.length > 0 || addOns.length > 0) setConfiguring(dish);
-    else addToDraft(dish);
-  };
-  const changeQty = (key: string, by: number) =>
-    setDraft((d) => d.flatMap((l) => (l.key !== key ? [l] : l.qty + by > 0 ? [{ ...l, qty: l.qty + by }] : [])));
-  /** "Large · 2× Extra cheese" — what makes two lines of the same dish tell apart. */
-  const describe = (l: (typeof draft)[number]) => {
-    const parts: string[] = [];
-    const variant = l.dish.variants.find((v) => v.id === l.variantId);
-    if (variant) parts.push(variant.name);
-    for (const id of new Set(l.addOnIds)) {
-      const n = l.addOnIds.filter((a) => a === id).length;
-      const name = menu.addOns.find((a) => a.id === id)?.name ?? 'Extra';
-      parts.push(n > 1 ? `${n}× ${name}` : name);
-    }
-    return parts.join(' · ');
-  };
-
-  // What is already on the ticket, per dish (a large and a small count toward the same tile), and a rough total.
-  // Estimate only — the server prices the order when it is placed.
-  const counts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const l of draft) c[l.dish.id] = (c[l.dish.id] ?? 0) + l.qty;
-    return c;
-  }, [draft]);
-  const draftTotal = draft.reduce((sum, l) => {
-    const unit =
-      (l.variantId ? (l.dish.variants.find((v) => v.id === l.variantId)?.price ?? 0) : l.dish.price) +
-      l.addOnIds.reduce((a, id) => a + (menu.addOns.find((x) => x.id === id)?.price ?? 0), 0);
-    return sum + unit * l.qty;
-  }, 0);
+  const {
+    draft,
+    setDraft,
+    configuring,
+    setConfiguring,
+    add: addToDraft,
+    pick: pickDish,
+    changeQty,
+    describe,
+    counts,
+    total: draftTotal,
+  } = useTicketDraft(menu);
   const shownTotal = useCountUp(draftTotal, 400);
+
+  // Paying one order rides on split billing: live tables only, managers only, and only while it still has an unbilled line.
+  const billedQty = new Map((billed.data ?? []).map((b) => [b.orderItemId, b.quantity]));
+  const canPayOrder = (order: Order) =>
+    billed.data != null &&
+    allows('payments:split') &&
+    order.status !== 'CANCELLED' &&
+    order.items.some((i) => i.status !== 'CANCELLED' && i.quantity > (billedQty.get(i.id) ?? 0));
 
   const act = (key: string, action: () => Promise<unknown>, message: string) =>
     void run(key, action, message).then((ok) => {
@@ -166,7 +143,11 @@ export function TableDetailV2() {
       'place',
       async () => {
         for (const { dish, qty, variantId, addOnIds } of draft)
-          for (let i = 0; i < qty; i++) await addOrderItem(staff, table!.id, dish.id, { variantId, addOnIds });
+          for (let i = 0; i < qty; i++)
+            await addOrderItem(staff, table!.id, dish.id, {
+              variantId,
+              addOnIds,
+            });
       },
       'Order placed for the table',
     );
@@ -178,6 +159,29 @@ export function TableDetailV2() {
       setBilling(false);
       tables.reload();
       visit.reload();
+    });
+  };
+
+  // Moving a visit onto an occupied table merges the two bills, which is why this says so in the choice itself.
+  const moveTargets = (tables.data ?? [])
+    .filter((t) => t.id !== table?.id && t.isActive)
+    .map((t) => ({
+      value: t.id,
+      label: isOccupied(t) ? `${t.name} · busy, merge bills` : t.name,
+    }));
+  const moveVisit = () => {
+    if (!table || !moveTo) return;
+    const target = tables.data?.find((t) => t.id === moveTo);
+    void run(
+      table.id,
+      () => mergeTableSession(table.id, moveTo),
+      `${table.name} ${target && isOccupied(target) ? 'merged into' : 'moved to'} ${target?.name ?? 'the table'}`,
+    ).then((ok) => {
+      if (!ok) return;
+      setMoveTo('');
+      setBilling(false);
+      tables.reload();
+      navigate(`/admin/tables/${moveTo}`);
     });
   };
 
@@ -275,20 +279,16 @@ export function TableDetailV2() {
             <>
               {canOrder && (
                 <Section title="Add to the table" aside={draftCount > 0 ? `${draftCount} on the ticket` : undefined}>
-                  {pickingDish ? (
-                    <DishTilePicker menu={menu} busy={busy} counts={counts} onPick={pickDish} onDone={() => setPickingDish(false)} />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setPickingDish(true)}
-                      className="group flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl border border-dashed border-hairline-strong text-[14.5px] font-semibold text-ink-2 transition-[color,border-color,background-color] duration-200 hover:border-flame-2/60 hover:bg-flame-2/5 hover:text-ink"
-                    >
-                      <span className="grid size-6 place-items-center rounded-full bg-flame-2/15 text-flame-1 transition-transform duration-300 ease-spring group-hover:rotate-90">
-                        <Plus size={14} />
-                      </span>
-                      Add a dish for the diner
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPickingDish(true)}
+                    className="group flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl border border-dashed border-hairline-strong text-[14.5px] font-semibold text-ink-2 transition-[color,border-color,background-color] duration-200 hover:border-flame-2/60 hover:bg-flame-2/5 hover:text-ink"
+                  >
+                    <span className="grid size-6 place-items-center rounded-full bg-flame-2/15 text-flame-1 transition-transform duration-300 ease-spring group-hover:rotate-90">
+                      <Plus size={14} />
+                    </span>
+                    Add a dish for the diner
+                  </button>
 
                   {draft.length > 0 && (
                     <div className="mt-4 animate-rise rounded-2xl bg-surface p-4 ring-1 ring-hairline ring-inset">
@@ -332,7 +332,10 @@ export function TableDetailV2() {
                         >
                           <span className="inline-flex items-center gap-2">
                             {pending === 'place' ? 'Placing…' : 'Place order'}
-                            <span key={draftCount} className="grid min-w-6 animate-bump place-items-center rounded-full bg-white/20 px-1.5 text-[12.5px] tnum">
+                            <span
+                              key={draftCount}
+                              className="grid min-w-6 animate-bump place-items-center rounded-full bg-white/20 px-1.5 text-[12.5px] tnum"
+                            >
                               {draftCount}
                             </span>
                           </span>
@@ -350,7 +353,9 @@ export function TableDetailV2() {
                 {visit.loading && visitOrders.length === 0 ? (
                   <Loading label="Reading the visit…" />
                 ) : visitOrders.length === 0 ? (
-                  <p className="text-[14px] leading-relaxed text-ink-3">Nothing ordered yet. Add dishes above, then place the order when the diner is ready.</p>
+                  <p className="text-[14px] leading-relaxed text-ink-3">
+                    Nothing ordered yet. Add dishes above, then place the order when the diner is ready.
+                  </p>
                 ) : (
                   <div className="grid gap-4">
                     {orderedVisitOrders.map((order, i) => (
@@ -363,10 +368,38 @@ export function TableDetailV2() {
                           <div className="min-w-0">
                             <h3 className={cx(DISPLAY, 'text-[16px] tnum')}>{order.reference}</h3>
                             <p className="mt-0.5 text-[12.5px] text-ink-4">
-                              {relativeTime(order.createdAt)} · {order.items.length} item{order.items.length === 1 ? '' : 's'}
+                              {relativeTime(order.createdAt)} · {order.items.length} item
+                              {order.items.length === 1 ? '' : 's'}
                             </p>
                           </div>
-                          <StatusPill status={order.status} label={STATUS_LABEL[order.status]} />
+                          <div className="flex shrink-0 items-center gap-2">
+                            {canPayOrder(order) && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                className={cx(ADMIN_TINY, 'px-2.5 text-flame-3 ring-1 ring-flame-2/40 ring-inset')}
+                                onClick={() => {
+                                  setPayOrderId(order.id);
+                                  setBilling(true);
+                                }}
+                              >
+                                Pay this order
+                              </button>
+                            )}
+                            {canCancelOrder(order) && allows('orders:cancel') && (
+                              <Confirm
+                                label="Cancel order"
+                                question="Cancel this order?"
+                                confirmLabel="Cancel it"
+                                tone="paper"
+                                disabled={busy}
+                                onConfirm={() =>
+                                  act(order.id, () => rejectOrder(staff, order.id, 'Cancelled from the table'), `${order.reference} cancelled`)
+                                }
+                              />
+                            )}
+                            <StatusPill status={order.status} label={STATUS_LABEL[order.status]} />
+                          </div>
                         </header>
                         <Progress order={order} className="mt-3 rounded-full" />
                         <ul className="mt-2 divide-y divide-hairline">
@@ -379,6 +412,7 @@ export function TableDetailV2() {
                               canEdit={isTableOpen(order.status) && canOrder}
                               onApply={() => {
                                 visit.reload();
+                                billed.reload();
                                 reloadOrders();
                               }}
                               onResync={() => visit.reload()}
@@ -450,14 +484,26 @@ export function TableDetailV2() {
                     onCancel={() => setRenaming(false)}
                     onSave={(nextName, nextCapacity) => {
                       setRenaming(false);
-                      act(table.id, () => updateTable(staff, table.id, { name: nextName, capacity: nextCapacity }), 'Table updated');
+                      act(
+                        table.id,
+                        () =>
+                          updateTable(staff, table.id, {
+                            name: nextName,
+                            capacity: nextCapacity,
+                          }),
+                        'Table updated',
+                      );
                     }}
                   />
                 </div>
               ) : (
                 <ul className="divide-y divide-hairline text-[14px] font-semibold">
                   <li>
-                    <button type="button" className="flex h-11 w-full items-center text-ink-2 transition-colors hover:text-ink" onClick={() => setRenaming(true)}>
+                    <button
+                      type="button"
+                      className="flex h-11 w-full items-center text-ink-2 transition-colors hover:text-ink"
+                      onClick={() => setRenaming(true)}
+                    >
                       Rename / change seats
                     </button>
                   </li>
@@ -478,6 +524,32 @@ export function TableDetailV2() {
                     </button>
                   </li>
                 </ul>
+              )}
+            </div>
+          )}
+
+          {occupied && editable && IS_LIVE_API && (
+            <div className="border-t border-hairline pt-6">
+              <p className="mb-3 text-[12.5px] leading-snug text-ink-4">
+                Move this visit to another table. If that table is busy, both bills become one. Not possible once anything has been paid.
+              </p>
+              <Select
+                value={moveTo}
+                onChange={setMoveTo}
+                options={moveTargets}
+                disabled={busy}
+                placeholder="Move to…"
+                aria-label="Move visit to table"
+              />
+              {moveTo && (
+                <Confirm
+                  label="Move"
+                  question="Move the visit?"
+                  confirmLabel="Move it"
+                  disabled={busy}
+                  className={cx(ADMIN_TINY, 'mt-2 w-full justify-center ring-1 ring-hairline ring-inset')}
+                  onConfirm={moveVisit}
+                />
               )}
             </div>
           )}
@@ -510,6 +582,21 @@ export function TableDetailV2() {
         }}
       />
 
+      {pickingDish && (
+        <DishTilePicker
+          menu={menu}
+          busy={busy}
+          counts={counts}
+          lines={draft}
+          describe={describe}
+          total={shownTotal}
+          onPick={pickDish}
+          onQty={changeQty}
+          // Escape belongs to the options dialog while it is open.
+          onDone={() => !configuring && setPickingDish(false)}
+        />
+      )}
+
       {configuring && (
         <DishOptionsDialog
           dish={configuring}
@@ -531,18 +618,39 @@ export function TableDetailV2() {
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}
         pending={pending}
-        onClose={() => setBilling(false)}
+        billed={billed.data ?? undefined}
+        payOrderId={payOrderId}
+        onClose={() => {
+          setBilling(false);
+          setPayOrderId(null);
+        }}
         onSettle={(changes) => {
           if (!table.currentSessionId) return Promise.resolve(false);
           const currentSessionId = table.currentSessionId;
           return run(
             table.id,
-            () => completePayment(staff, currentSessionId, changes.items, changes.method, changes.discount, changes.endSession, changes.redeemPoints, changes.customerId, changes.credit, changes.paidNow, changes.dueInDays),
-            changes.endSession ? `${table.name} paid up and cleared` : `${table.name} paid up`,
+            () =>
+              completePayment(
+                staff,
+                currentSessionId,
+                changes.items,
+                changes.method,
+                changes.discount,
+                changes.endSession,
+                changes.redeemPoints,
+                changes.customerId,
+                changes.credit,
+                changes.paidNow,
+                changes.dueInDays,
+                changes.split,
+                changes.shareId,
+              ),
+            changes.split ? 'Share paid' : changes.endSession ? `${table.name} paid up and cleared` : `${table.name} paid up`,
           ).then((ok) => {
             if (ok) {
               reloadOrders();
               visit.reload();
+              billed.reload();
               if (changes.endSession) tables.reload();
             }
             return ok;

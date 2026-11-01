@@ -7,7 +7,7 @@ import type { Transaction, TransactionType } from '../../api/finance';
 import { recordSettlement } from '../../api/delivery';
 import { getPayment } from '../../api/staff';
 import { fetchSuppliers, paySupplier } from '../../api/suppliers';
-import { ADMIN_GHOST, ADMIN_PRIMARY, Empty, Field, INPUT_BOX, Loading, MoneyInput, PageTitle, Segmented, Select, TextInput, useCommand } from '../../components/admin/kit';
+import { ADMIN_GHOST, ADMIN_PRIMARY, Empty, Field, Loading, MoneyInput, PageTitle, Segmented, Select, TextInput, useCommand } from '../../components/admin/kit';
 import { METHOD_LABEL, SettleForm, StatusChip } from '../../components/admin/SaleSettle';
 import { cx } from '../../components/ui';
 import { formatMoney } from '../../domain/money';
@@ -16,6 +16,7 @@ import type { Payment, PaymentMethod, PaymentStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
+import { DatePicker } from '../../components/admin/DatePicker';
 
 const PAGE = 25;
 type TypeFilter = 'all' | TransactionType;
@@ -144,9 +145,9 @@ export function Transactions() {
         </div>
         <Select<StatusFilter> className="w-40" aria-label="Filter by payment status" value={status} onChange={setStatus} options={STATUSES} />
         <Select className="w-56" aria-label="Filter by customer or supplier" value={party} onChange={setParty} options={partyOptions} />
-        <input type="date" aria-label="From day" className={cx(INPUT_BOX, '!h-10 !w-auto')} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+        <DatePicker compact className="w-40" aria-label="From day" placeholder="From" value={from} max={to || undefined} onChange={setFrom} />
         <span className="text-[13px] text-ink-3">to</span>
-        <input type="date" aria-label="To day" className={cx(INPUT_BOX, '!h-10 !w-auto')} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+        <DatePicker compact className="w-40" aria-label="To day" placeholder="To" value={to} min={from || undefined} onChange={setTo} />
       </div>
 
       {failed ? (

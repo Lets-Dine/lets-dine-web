@@ -5,7 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { listCustomers } from '../../api/customers';
 import { fetchPaymentsSummary } from '../../api/finance';
 import { getPayment, listPayments, listTables } from '../../api/staff';
-import { ADMIN_GHOST, Empty, INPUT_BOX, Loading, Select } from '../../components/admin/kit';
+import { ADMIN_GHOST, Empty, Loading, Select } from '../../components/admin/kit';
 import { Block, Num, Result, Step, reduced, useCountUp } from '../../components/admin/profile';
 import { printReceipt } from '../../components/admin/receipt';
 import { Collections, METHOD_LABEL, SaleActions, StatusChip, owedOn } from '../../components/admin/SaleSettle';
@@ -16,6 +16,7 @@ import type { Payment, PaymentMethod, PaymentStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
+import { DatePicker } from '../../components/admin/DatePicker';
 
 const PAGE = 25;
 type StatusFilter = 'all' | PaymentStatus;
@@ -174,9 +175,9 @@ export function Sales() {
           options={[{ value: 'all', label: 'Any method' }, ...(Object.keys(METHOD_LABEL) as PaymentMethod[]).map((m) => ({ value: m, label: METHOD_LABEL[m] }))]}
         />
         <Select className="w-48" aria-label="Filter by customer" value={customerId} onChange={setCustomerId} options={customerOptions} />
-        <input type="date" aria-label="From day" className={cx(INPUT_BOX, '!h-10 !w-auto')} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+        <DatePicker compact className="w-40" aria-label="From day" placeholder="From" value={from} max={to || undefined} onChange={setFrom} />
         <span className="text-[13px] text-ink-3">to</span>
-        <input type="date" aria-label="To day" className={cx(INPUT_BOX, '!h-10 !w-auto')} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+        <DatePicker compact className="w-40" aria-label="To day" placeholder="To" value={to} min={from || undefined} onChange={setTo} />
       </div>
 
       {summary && summary.count > 0 && (

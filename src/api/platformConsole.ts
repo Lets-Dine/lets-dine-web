@@ -24,6 +24,12 @@ export const OPERATOR = 'Operator';
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 
+export interface FeatureOverrides {
+  exports?: boolean;
+  autoStockConsumption?: boolean;
+  analyticsTier?: 'basic' | 'full';
+}
+
 export type PlanKey = 'starter' | 'growth' | 'scale';
 export type InvoiceState = 'OPEN' | 'OVERDUE' | 'PAID' | 'VOID';
 export type PayMethod = 'BANK' | 'ESEWA' | 'KHALTI' | 'CASH';
@@ -72,6 +78,12 @@ export interface Tenant {
   seats: number;
   extraBranches: number;
   extraSeats: number;
+  /** Percent off the plan fee, until `discountEndsAt` (forever when null). */
+  discountPercent: number | null;
+  discountEndsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  /** Per-restaurant overrides of the plan's features; a missing key follows the plan. */
+  featureOverrides: FeatureOverrides;
   ordersThisMonth: number;
   ordersLastMonth: number;
   /** Orders per week, oldest first, last 8 weeks. */
@@ -274,6 +286,10 @@ function buildTenant(seed: Seed, index: number): Tenant {
     seats: seed.seats,
     extraBranches: 0,
     extraSeats: 0,
+    discountPercent: null,
+    discountEndsAt: null,
+    cancelAtPeriodEnd: false,
+    featureOverrides: {},
     ordersThisMonth: seed.orders,
     ordersLastMonth: seed.prevOrders,
     weekly: weeklyFrom(seed.orders || seed.prevOrders / 2, index),
@@ -552,6 +568,10 @@ export interface TenantListRow {
   lastActiveAt: string | null;
   /** Monthly recurring revenue; 0 unless the restaurant is billing. */
   mrr: Minor;
+  /** When the trial or the paid period runs out; null once cancelled. */
+  endsAt: string | null;
+  /** The subscription's dates and overrides — live backend only. */
+  sub?: LiveSub;
 }
 
 export interface TenantListQuery {
@@ -564,7 +584,20 @@ export interface TenantListQuery {
   pageSize: number;
 }
 
-interface LiveTenant {
+/** What the backend's tenant list says about the subscription itself. */
+interface LiveSub {
+  trialEndsAt: string | null;
+  currentPeriodEnd: string;
+  pastDueSince: string | null;
+  extraBranches: number;
+  extraSeats: number;
+  discountPercent: number | null;
+  discountEndsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  featureOverrides: FeatureOverrides | null;
+}
+
+interface LiveTenant extends LiveSub {
   id: string;
   name: string;
   slug: string;
@@ -619,6 +652,8 @@ export async function listTenantRows(query: TenantListQuery): Promise<Paginated<
         weekly: t.weekly,
         lastActiveAt: t.lastActiveAt,
         mrr: t.mrr,
+        endsAt: t.status === 'CANCELLED' ? null : t.status === 'TRIAL' ? (t.trialEndsAt ?? t.currentPeriodEnd) : t.currentPeriodEnd,
+        sub: t,
       })),
     };
   }
@@ -658,6 +693,7 @@ export async function listTenantRows(query: TenantListQuery): Promise<Paginated<
       weekly: t.weekly,
       lastActiveAt: t.lastActiveAt,
       mrr: tenantMrr(t),
+      endsAt: t.status === 'CANCELLED' ? null : t.status === 'TRIAL' ? (t.trialEndsAt ?? t.periodEnd) : t.periodEnd,
     })),
   };
 }
@@ -686,6 +722,7 @@ async function adoptLiveTenant(id: string): Promise<Tenant | undefined> {
   const { rows } = await listTenantRows({ view: 'all', sort: 'newest', page: 1, pageSize: 100 });
   const row = rows.find((r) => r.id === id);
   if (!row) return undefined;
+  const real = (await listPlatformRestaurants()).rows.find((r) => r.id === id);
   const owner: Person = { id: `own-${row.id}`, name: row.owner?.name ?? 'No owner', email: row.owner?.email ?? '', role: 'OWNER', lastSignInAt: null, active: true };
   const tenant: Tenant = {
     id: row.id,
@@ -696,25 +733,29 @@ async function adoptLiveTenant(id: string): Promise<Tenant | undefined> {
     planKey: row.planKey as PlanKey,
     status: row.status,
     interval: row.interval,
-    createdAt: ago(30 * DAY),
+    createdAt: real?.createdAt ?? ago(30 * DAY),
     lastActiveAt: row.lastActiveAt ?? ago(30 * DAY),
-    trialEndsAt: null,
-    periodEnd: ahead(30 * DAY),
-    pastDueSince: null,
+    trialEndsAt: row.sub?.trialEndsAt ?? null,
+    periodEnd: row.sub?.currentPeriodEnd ?? ahead(30 * DAY),
+    pastDueSince: row.sub?.pastDueSince ?? null,
     suspendedReason: null,
     branches: row.branches,
     seats: row.seats,
-    extraBranches: 0,
-    extraSeats: 0,
+    extraBranches: row.sub?.extraBranches ?? 0,
+    extraSeats: row.sub?.extraSeats ?? 0,
+    discountPercent: row.sub?.discountPercent ?? null,
+    discountEndsAt: row.sub?.discountEndsAt ?? null,
+    cancelAtPeriodEnd: row.sub?.cancelAtPeriodEnd ?? false,
+    featureOverrides: row.sub?.featureOverrides ?? {},
     ordersThisMonth: row.ordersThisMonth,
     ordersLastMonth: row.ordersLastMonth,
     weekly: row.weekly,
     firstOrderAt: null,
-    currency: 'NPR',
-    timezone: 'Asia/Kathmandu',
-    serviceChargeRate: 0,
-    taxRate: 0,
-    claimed: (await listPlatformRestaurants()).rows.find((r) => r.id === id)?.claimedAt != null,
+    currency: real?.currency ?? 'NPR',
+    timezone: real?.timezone ?? 'Asia/Kathmandu',
+    serviceChargeRate: real?.serviceChargeRate ?? 0,
+    taxRate: real?.taxRate ?? 0,
+    claimed: real?.claimedAt != null,
     owner,
     people: [owner],
     notes: [],
@@ -807,6 +848,10 @@ export async function createTenant(input: NewTenantInput): Promise<Tenant> {
     seats: 1,
     extraBranches: 0,
     extraSeats: 0,
+    discountPercent: null,
+    discountEndsAt: null,
+    cancelAtPeriodEnd: false,
+    featureOverrides: {},
     ordersThisMonth: 0,
     ordersLastMonth: 0,
     weekly: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -855,10 +900,12 @@ export async function changeTenantPlan(id: string, planKey: PlanKey, interval: B
 }
 
 export async function extendTrial(id: string, days: number): Promise<void> {
-  await latency();
   const t = need(id);
   const base = t.trialEndsAt ? Math.max(Date.parse(t.trialEndsAt), Date.now()) : Date.now();
-  t.trialEndsAt = new Date(base + days * DAY).toISOString();
+  const to = new Date(base + days * DAY).toISOString();
+  if (IS_LIVE_API) return editSubscription(id, { trialEndsAt: to, reason: `Extended trial by ${days} days` });
+  await latency();
+  t.trialEndsAt = to;
   t.status = 'TRIAL';
   log('plan', `Extended trial by ${days} days`, t);
 }
@@ -869,6 +916,98 @@ export async function setOverrides(id: string, extraBranches: number, extraSeats
   t.extraBranches = extraBranches;
   t.extraSeats = extraSeats;
   log('plan', 'Adjusted limits', t, `+${extraBranches} branches, +${extraSeats} seats`);
+}
+
+/** What the edit form can change; a null clears that override, an omitted key is left alone. */
+export interface SubscriptionEdit {
+  reason: string;
+  discountPercent?: number | null;
+  discountEndsAt?: string | null;
+  trialEndsAt?: string;
+  currentPeriodEnd?: string;
+  featureOverrides?: { [K in keyof FeatureOverrides]?: FeatureOverrides[K] | null };
+}
+
+export interface SubscriptionChange {
+  id: string;
+  action: string;
+  reason: string;
+  detail: string;
+  createdAt: string;
+}
+
+/** The slice of the backend's subscription view that the console shows. */
+interface SubscriptionView {
+  status: SubscriptionStatus;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string;
+  discountPercent: number | null;
+  discountEndsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  featureOverrides: FeatureOverrides | null;
+}
+
+const subscriptionPath = (id: string, tail = '') => `/platform/billing/subscriptions/${encodeURIComponent(id)}${tail}`;
+
+function applyView(t: Tenant, v: SubscriptionView): void {
+  t.status = v.status;
+  t.trialEndsAt = v.trialEndsAt;
+  t.periodEnd = v.currentPeriodEnd;
+  t.discountPercent = v.discountPercent;
+  t.discountEndsAt = v.discountEndsAt;
+  t.cancelAtPeriodEnd = v.cancelAtPeriodEnd;
+  t.featureOverrides = v.featureOverrides ?? {};
+  if (v.status === 'ACTIVE' || v.status === 'TRIAL') t.pastDueSince = null;
+}
+
+/** Live: the backend decides and returns the new state. Demo: apply it here and keep a local change log. */
+async function mutateSubscription(id: string, tail: string, method: 'PATCH' | 'POST', body: unknown, demo: (t: Tenant) => void, action: string, reason: string, detail: string | null): Promise<void> {
+  const t = need(id);
+  if (IS_LIVE_API) {
+    const view = await apiRequest<SubscriptionView>(subscriptionPath(id, tail), { method, headers: platformHeaders(), body: JSON.stringify(body) });
+    applyView(t, view);
+  } else {
+    await latency();
+    demo(t);
+  }
+  log('plan', action, t, [reason, detail].filter(Boolean).join(' — '));
+}
+
+export async function editSubscription(id: string, edit: SubscriptionEdit): Promise<void> {
+  const { featureOverrides, discountPercent, discountEndsAt, trialEndsAt, currentPeriodEnd } = edit;
+  await mutateSubscription(id, '', 'PATCH', edit, (t) => {
+    if (discountPercent !== undefined) t.discountPercent = discountPercent;
+    if (discountEndsAt !== undefined) t.discountEndsAt = discountEndsAt;
+    if (trialEndsAt) t.trialEndsAt = t.periodEnd = trialEndsAt;
+    if (currentPeriodEnd) t.periodEnd = currentPeriodEnd;
+    for (const [key, value] of Object.entries(featureOverrides ?? {})) {
+      if (value === null) delete t.featureOverrides[key as keyof FeatureOverrides];
+      else Object.assign(t.featureOverrides, { [key]: value });
+    }
+  }, 'Edited subscription', edit.reason, null);
+}
+
+export async function cancelSubscription(id: string, when: 'NOW' | 'PERIOD_END', reason: string): Promise<void> {
+  await mutateSubscription(id, '/cancel', 'POST', { when, reason }, (t) => {
+    if (when === 'NOW') t.status = 'CANCELLED';
+    else t.cancelAtPeriodEnd = true;
+  }, when === 'NOW' ? 'Cancelled subscription' : 'Set to cancel at period end', reason, null);
+}
+
+export async function reactivateSubscription(id: string, reason: string): Promise<void> {
+  await mutateSubscription(id, '/reactivate', 'POST', { reason }, (t) => {
+    t.cancelAtPeriodEnd = false;
+    if (t.status === 'CANCELLED') {
+      t.status = 'ACTIVE';
+      t.periodEnd = ahead(30 * DAY);
+    }
+  }, 'Reactivated subscription', reason, null);
+}
+
+/** Live only — the demo keeps its history in the Activity tab. */
+export async function listSubscriptionChanges(id: string): Promise<SubscriptionChange[]> {
+  if (!IS_LIVE_API) return [];
+  return apiRequest<SubscriptionChange[]>(subscriptionPath(id, '/changes'), { headers: platformHeaders() });
 }
 
 export async function addNote(id: string, text: string): Promise<void> {

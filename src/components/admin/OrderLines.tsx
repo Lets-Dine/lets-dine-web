@@ -15,8 +15,7 @@ import type { Dish, ItemStatus, Menu, Order, OrderItem, OrderItemAddOn } from '.
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { cx } from '../ui';
 import { Minus, Plus } from '../icons';
-// `Confirm` only backs the Void action below, which is commented out for now.
-import { ADMIN_TINY, INPUT_BOX, useCommand } from './kit';
+import { ADMIN_TINY, Confirm, INPUT_BOX, useCommand } from './kit';
 
 /**
  * The line-level half of a ticket, shared by the full pass (`admin/Orders`)
@@ -150,19 +149,19 @@ export function ItemRow({
       if (!ok) onResync();
     });
 
-  // /** Removing takes one plate off; a whole line is just that, repeated. */
-  // const voidLine = () =>
-  //   void run(
-  //     `void:${item.id}`,
-  //     async () => {
-  //       let latest = order;
-  //       for (let i = 0; i < item.quantity; i++) latest = await removeOrderItem(staff, order.id, item.id);
-  //       onApply(latest);
-  //     },
-  //     `${item.dishNameSnapshot} taken off`,
-  //   ).then((ok) => {
-  //     if (!ok) onResync();
-  //   });
+  /** Removing takes one plate off; a whole line is just that, repeated. */
+  const voidLine = () =>
+    void run(
+      `void:${item.id}`,
+      async () => {
+        let latest = order;
+        for (let i = 0; i < item.quantity; i++) latest = await removeOrderItem(staff, order.id, item.id);
+        onApply(latest);
+      },
+      `${item.dishNameSnapshot} taken off`,
+    ).then((ok) => {
+      if (!ok) onResync();
+    });
 
   return (
     <li className={cx('py-2.5', cancelled && 'opacity-40')}>
@@ -213,11 +212,9 @@ export function ItemRow({
             </button>
           )}
 
-          {/* Void, commented out for now — see `voidLine` above.
           {editable && (
             <Confirm label="Void" question="Take it off?" confirmLabel="Void" disabled={pending !== null} onConfirm={voidLine} />
           )}
-          */}
 
           {cancelled ? (
             <span className="text-[12px] font-semibold text-ink-4">Cancelled</span>

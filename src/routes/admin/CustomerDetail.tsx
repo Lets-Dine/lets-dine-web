@@ -25,6 +25,7 @@ import { Alert, Check, ChevronLeft, Contact, Copy, Plate, Send, Sliders } from '
 import { Block, FloatingBar, Num, TiltCard, reduced, useAway, useCountUp } from '../../components/admin/profile';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
+import { DatePicker } from '../../components/admin/DatePicker';
 
 /** Tags the kitchen must hear about before the order is fired, not just nice-to-know. */
 const KITCHEN_FLAGS = ['Nut allergy', 'No onion/garlic'];
@@ -707,7 +708,6 @@ function TabBlock({ customer, sample, currency, canSettle, onSettled }: { custom
   );
 }
 
-const dateInput = 'w-full rounded-xl bg-surface-2 px-3.5 py-2.5 text-[14.5px] text-ink outline-none ring-1 ring-hairline ring-inset focus:ring-[1.5px] focus:ring-flame-2/40 [color-scheme:dark] tnum';
 
 /** Edits everything about the person that isn't visit history. Inline, so the page stays in view while you change it. */
 function EditForm({ detail, lockIdentity, onSave, onCancel }: { detail: Customer; lockIdentity: boolean; onSave: (patch: Partial<NewCustomer>) => void; onCancel: () => void }) {
@@ -742,7 +742,7 @@ function EditForm({ detail, lockIdentity, onSave, onCancel }: { detail: Customer
         <TextInput value={email} onChange={setEmail} type="email" maxLength={180} placeholder="Optional" />
       </Field>
       <Field label="Birthday">
-        <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} className={dateInput} />
+        <DatePicker value={birthday} onChange={setBirthday} max={new Date().toLocaleDateString('en-CA')} startYear={new Date().getFullYear() - 30} aria-label="Birthday" />
       </Field>
       <fieldset>
         <legend className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-4">Good to know</legend>

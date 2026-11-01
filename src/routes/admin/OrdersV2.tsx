@@ -4,12 +4,14 @@ import { byUrgencyThenAge, floorBillSubject, focusMap } from '../../domain/order
 import type { Order, OrderStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useNow } from '../../state/useNow';
-import { useCommand } from '../../components/admin/kit';
+import { Loading, useCommand } from '../../components/admin/kit';
 import { PassCardV2 } from '../../components/admin/PassCardV2';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useOrderSheet } from '../../components/admin/OrderSheet';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
+import { NewOrderButton } from '../../components/admin/NewOrder';
 import { useDashboard } from './AdminLayout';
+import { useLaneOrders } from './useLaneOrders';
 
 /*
  * Orders, take two — the pass with plain stage chips (as Profit & loss's period picker) and
@@ -21,12 +23,24 @@ type Lane = 'focus' | 'new' | 'kitchen' | 'ready' | 'unpaid' | 'done';
 const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = [
   { value: 'focus', label: 'Needs you', statuses: null },
   { value: 'new', label: 'New', statuses: ['PENDING'] },
-  { value: 'kitchen', label: 'In the kitchen', statuses: ['ACCEPTED', 'PREPARING'] },
+  {
+    value: 'kitchen',
+    label: 'In the kitchen',
+    statuses: ['ACCEPTED', 'PREPARING'],
+  },
   // Covers a delivery ticket already dispatched too, or it would fall out of every lane once it leaves READY.
-  { value: 'ready', label: 'Ready to serve', statuses: ['READY', 'OUT_FOR_DELIVERY'] },
+  {
+    value: 'ready',
+    label: 'Ready to serve',
+    statuses: ['READY', 'OUT_FOR_DELIVERY'],
+  },
   // Every dish is out and the money isn't in yet: a dine-in table that hasn't paid (`TableDetail`/`FloorDetail`), or a
   // delivery that has arrived and is waiting to be settled with its courier.
-  { value: 'unpaid', label: 'Awaiting payment', statuses: ['UNPAID', 'SETTLE'] },
+  {
+    value: 'unpaid',
+    label: 'Awaiting payment',
+    statuses: ['UNPAID', 'SETTLE'],
+  },
   { value: 'done', label: 'Finished', statuses: ['COMPLETED', 'CANCELLED'] },
 ];
 
@@ -34,10 +48,12 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
 const TICK_MS = 15_000;
 
 export function OrdersV2() {
-  const { menu, orders, reloadOrders, applyOrder } = useDashboard();
+  const { menu, reloadOrders, applyOrder } = useDashboard();
   const staff = useStaff();
   const now = useNow(TICK_MS);
   const [lane, setLane] = useState<Lane>('new');
+  // Each tab asks the server for its own orders; the live queue is laid over them.
+  const { orders, loading } = useLaneOrders(LANES.find((l) => l.value === lane)!.statuses);
   const { pending, run } = useCommand();
   const [payingId, setPayingId] = useState<string | null>(null);
   const payingOrder = orders.find((o) => o.id === payingId) ?? null;
@@ -45,7 +61,14 @@ export function OrdersV2() {
 
   /** One pass over the queue per tick — every lane, count and card reads its flag from here. */
   const flags = useMemo(() => focusMap(orders, now), [orders, now]);
-  const orderSheet = useOrderSheet({ orders, flags, now, onApply: applyOrder, onResync: reloadOrders, onTakePayment: (o) => setPayingId(o.id) });
+  const orderSheet = useOrderSheet({
+    orders,
+    flags,
+    now,
+    onApply: applyOrder,
+    onResync: reloadOrders,
+    onTakePayment: (o) => setPayingId(o.id),
+  });
 
   const inLane = useMemo(
     () => (value: Lane, order: Order) => {
@@ -57,9 +80,9 @@ export function OrdersV2() {
 
   const counts = useMemo(() => {
     const map = {} as Record<Lane, number>;
-    for (const l of LANES) map[l.value] = orders.filter((o) => inLane(l.value, o)).length;
+    for (const l of LANES) map[l.value] = l.value === 'done' && lane !== 'done' ? 0 : orders.filter((o) => inLane(l.value, o)).length;
     return map;
-  }, [orders, inLane]);
+  }, [orders, inLane, lane]);
 
   const shown = useMemo(() => {
     const list = orders.filter((o) => inLane(lane, o));
@@ -71,17 +94,20 @@ export function OrdersV2() {
 
   return (
     <div className="mx-auto w-full max-w-6xl">
-      <header className="mb-8 animate-rise">
-        <h1 className={cx(DISPLAY, 'text-[clamp(38px,7vw,64px)] leading-[0.98] tracking-[-0.03em]')}>Orders</h1>
-        <p className="mt-3 text-[14px] text-ink-3 tnum">
-          {counts.new > 0 ? (
-            <>
-              <span className="font-semibold text-flame-1">{counts.new} waiting to be accepted</span> · {counts.kitchen} in the kitchen
-            </>
-          ) : (
-            <>Nothing waiting · {counts.kitchen} in the kitchen</>
-          )}
-        </p>
+      <header className="mb-8 flex animate-rise flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="min-w-0">
+          <h1 className={cx(DISPLAY, 'text-[clamp(38px,7vw,64px)] leading-[0.98] tracking-[-0.03em]')}>Orders</h1>
+          <p className="mt-3 text-[14px] text-ink-3 tnum">
+            {counts.new > 0 ? (
+              <>
+                <span className="font-semibold text-flame-1">{counts.new} waiting to be accepted</span> · {counts.kitchen} in the kitchen
+              </>
+            ) : (
+              <>Nothing waiting · {counts.kitchen} in the kitchen</>
+            )}
+          </p>
+        </div>
+        <NewOrderButton />
       </header>
 
       {overdue > 0 && lane !== 'focus' && (
@@ -107,16 +133,26 @@ export function OrdersV2() {
 
       <div className="mb-6 flex animate-rise flex-wrap items-center gap-2 [animation-delay:60ms]" role="group" aria-label="Order stage">
         {LANES.map((l) => (
-          <button key={l.value} type="button" aria-pressed={lane === l.value} className={cx(CHIP, lane === l.value ? CHIP_ON : CHIP_OFF)} onClick={() => setLane(l.value)}>
+          <button
+            key={l.value}
+            type="button"
+            aria-pressed={lane === l.value}
+            className={cx(CHIP, lane === l.value ? CHIP_ON : CHIP_OFF)}
+            onClick={() => setLane(l.value)}
+          >
             {l.label}
             {counts[l.value] > 0 && <span className="tnum"> · {counts[l.value]}</span>}
           </button>
         ))}
       </div>
 
-      {shown.length === 0 ? (
+      {shown.length === 0 && loading ? (
+        <Loading label="Reading the orders…" />
+      ) : shown.length === 0 ? (
         <div className="animate-rise rounded-3xl bg-surface px-6 py-14 text-center ring-1 ring-hairline ring-inset [animation-delay:120ms]">
-          <h2 className={cx(DISPLAY, 'text-[24px]')}>{lane === 'focus' ? 'Nothing is overdue' : lane === 'new' ? 'Nothing waiting' : 'Nothing here'}</h2>
+          <h2 className={cx(DISPLAY, 'text-[24px]')}>
+            {lane === 'focus' ? 'Nothing is overdue' : lane === 'new' ? 'Nothing waiting' : 'Nothing here'}
+          </h2>
           <p className="mx-auto mt-3 max-w-[44ch] text-[14.5px] leading-relaxed text-ink-3">
             {lane === 'focus'
               ? 'Every ticket is inside its clock. Anything that runs late shows up here on its own.'
@@ -161,7 +197,17 @@ export function OrdersV2() {
           const order = payingOrder;
           return run(
             order.id,
-            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints, changes.customerId, changes.credit),
+            () =>
+              completeOrderPayment(
+                staff,
+                order,
+                changes.items,
+                changes.method,
+                changes.discount,
+                changes.redeemPoints,
+                changes.customerId,
+                changes.credit,
+              ),
             `${order.reference} paid up`,
           ).then((ok) => {
             if (ok) reloadOrders();

@@ -189,6 +189,8 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  // Accordion: undefined = follow the group holding the current page, null = all closed, string = the group the user picked.
+  const [pickedGroup, setPickedGroup] = useState<string | null | undefined>(undefined);
   const alive = useRef(true);
   /** `null` until the queue has loaded once — the first load seeds this silently, it never sounds the alert. */
   const knownOrderIds = useRef<Set<string> | null>(null);
@@ -344,6 +346,8 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
     else groups.push([item.group, [item]]);
   }
   const attention = needsAttention(subscription.notice);
+  const activeGroup = groups.find(([group, links]) => group && links.some((item) => location.pathname.startsWith(item.to)))?.[0] ?? null;
+  const openGroup = pickedGroup === undefined ? activeGroup : pickedGroup;
 
   return (
     <div className="min-h-dvh bg-bg lg:bg-room">
@@ -364,7 +368,14 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
           <nav className="flex flex-col gap-0.5 overflow-y-auto no-scrollbar">
             {groups.map(([group, links]) =>
               group ? (
-                <NavGroup key={group} label={group} links={links} pathname={location.pathname} waiting={waiting} />
+                <NavGroup
+                  key={group}
+                  label={group}
+                  links={links}
+                  open={openGroup === group}
+                  onToggle={() => setPickedGroup(openGroup === group ? null : group)}
+                  waiting={waiting}
+                />
               ) : (
                 links.map((item) => <SideLink key={item.to} item={item} badge={item.to === '/admin/orders' ? waiting : 0} />)
               ),
@@ -472,32 +483,34 @@ function Badge({ count }: { count: number }) {
   );
 }
 
-/** A collapsible sidebar section. It opens by itself when the current page lives inside it; the user's own toggle wins after that. */
-function NavGroup({ label, links, pathname, waiting }: { label: string; links: NavItem[]; pathname: string; waiting: number }) {
-  const [toggled, setToggled] = useState<boolean | null>(null);
-  const hasActive = links.some((item) => pathname.startsWith(item.to));
-  const open = toggled ?? hasActive;
+/** A collapsible sidebar section; the parent owns open state so only one group is open at a time. */
+function NavGroup({ label, links, open, onToggle, waiting }: { label: string; links: NavItem[]; open: boolean; onToggle: () => void; waiting: number }) {
   const Icon = GROUP_ICON[label];
   return (
     <div>
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setToggled(!open)}
-        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] font-semibold text-ink-2 transition-colors duration-150 hover:bg-surface/60"
+        onClick={onToggle}
+        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[16px] font-semibold text-ink-2 transition-colors duration-150 hover:bg-surface/60 hover:text-flame-3"
       >
-        {Icon && <Icon size={17} />}
+        {Icon && <Icon size={22} />}
         {label}
         {!open && links.some((item) => item.to === '/admin/orders') && <Badge count={waiting} />}
         <ChevronRight size={13} className={cx('ml-auto text-ink-4 transition-transform duration-150', open && 'rotate-90')} />
       </button>
-      {open && (
-        <div className="ml-4 flex flex-col gap-0.5 border-l border-hairline pl-2">
-          {links.map((item) => (
-            <SideLink key={item.to} item={item} badge={item.to === '/admin/orders' ? waiting : 0} />
-          ))}
+      <div
+        inert={!open}
+        className={cx('grid transition-[grid-template-rows,opacity] duration-200 ease-out-quart', open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}
+      >
+        <div className="overflow-hidden">
+          <div className="ml-4 flex flex-col gap-0.5 border-l border-hairline pl-2">
+            {links.map((item) => (
+              <SideLink key={item.to} item={item} badge={item.to === '/admin/orders' ? waiting : 0} />
+            ))}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -509,12 +522,12 @@ function SideLink({ item, badge }: { item: NavItem; badge: number }) {
       end={item.end}
       className={({ isActive }) =>
         cx(
-          'flex items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] font-semibold transition-colors duration-150',
-          isActive ? 'bg-surface-2 text-flame-3' : 'text-ink-3 hover:bg-surface/60 hover:text-ink-2',
+          'flex items-center gap-2.5 rounded-lg px-3 py-2 text-[15px] font-semibold transition-colors duration-150',
+          isActive ? 'bg-surface-2 text-flame-3' : 'text-ink-2 hover:bg-surface/60 hover:text-flame-3',
         )
       }
     >
-      <item.icon size={17} />
+      <item.icon size={22} />
       {item.label}
       <Badge count={badge} />
     </NavLink>

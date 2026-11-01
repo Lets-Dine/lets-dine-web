@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { isTableOpen } from '../../api/admin';
 import { IS_LIVE_API } from '../../api/http';
-import { completePayment, createTable, endTableSession, fetchOrdersBySession, listTables } from '../../api/staff';
+import { completePayment, createTable, endTableSession, fetchBilledItems, fetchOrdersBySession, listTables } from '../../api/staff';
 import type { DiningTable, Order } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
@@ -113,6 +113,7 @@ export function TablesV2() {
   const billTable = rows.find((t) => t.id === billId) ?? null;
   const sessionId = billTable?.currentSessionId ?? null;
   const bill = useAsync(() => (sessionId ? fetchOrdersBySession(staff, sessionId) : Promise.resolve([])), [sessionId]);
+  const billed = useAsync(() => (sessionId ? fetchBilledItems(sessionId) : Promise.resolve(null)), [sessionId]);
   // The full visit, completed rounds included — a cashier should see what was already served and paid this session.
   const billOrders = bill.data ?? [];
   const menuDishes = menu.dishes.filter((d) => !d.isArchived && d.isAvailable);
@@ -314,18 +315,20 @@ export function TablesV2() {
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}
         pending={pending}
+        billed={billed.data ?? undefined}
         onClose={() => setBillId(null)}
         onSettle={(changes) => {
           if (!billTable || !billTable.currentSessionId) return Promise.resolve(false);
           const currentSessionId = billTable.currentSessionId;
           return run(
             billTable.id,
-            () => completePayment(staff, currentSessionId, changes.items, changes.method, changes.discount, changes.endSession, changes.redeemPoints, changes.customerId, changes.credit, changes.paidNow, changes.dueInDays),
-            changes.endSession ? `${billTable.name} paid up and cleared` : `${billTable.name} paid up`,
+            () => completePayment(staff, currentSessionId, changes.items, changes.method, changes.discount, changes.endSession, changes.redeemPoints, changes.customerId, changes.credit, changes.paidNow, changes.dueInDays, changes.split, changes.shareId),
+            changes.split ? 'Share paid' : changes.endSession ? `${billTable.name} paid up and cleared` : `${billTable.name} paid up`,
           ).then((ok) => {
             if (ok) {
               reloadOrders();
               bill.reload();
+              billed.reload();
               if (changes.endSession) tables.reload();
             }
             return ok;

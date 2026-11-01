@@ -1,4 +1,4 @@
-import type { BillLine, PaymentStatus, ServiceKind, ServiceRequest } from '../domain/types';
+import type { BilledItem, BillLine, PaymentStatus, ServiceKind, ServiceRequest, SplitLine } from '../domain/types';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
 import type {
   AuditEntry,
@@ -11,6 +11,7 @@ import type {
   Menu,
   MenuCategory,
   Order,
+  OrderStatus,
   Payment,
   PaymentMethod,
   Restaurant,
@@ -212,12 +213,28 @@ export function endTableSession(actor: StaffMember, tableId: string): Promise<Di
   return IS_LIVE_API ? live.endTableSession(tableId) : mock.endTableSession(actor, tableId);
 }
 
+/** Live only — the demo has no merge, so its screens don't offer one. */
+export function mergeTableSession(sourceTableId: string, targetTableId: string): Promise<DiningTable> {
+  return live.mergeTableSession(sourceTableId, targetTableId);
+}
+
 export function listQueue(actor: StaffMember): Promise<Order[]> {
   return IS_LIVE_API ? live.listQueue() : mock.listQueue(actor);
 }
 
+/** One stage's orders — the Orders page asks for each lane's own. */
+export function listOrdersByStatus(actor: StaffMember, statuses: OrderStatus[]): Promise<Order[]> {
+  return IS_LIVE_API ? live.listOrdersByStatus(statuses) : mock.listQueue(actor).then((orders) => orders.filter((o) => statuses.includes(o.status)));
+}
+
 export function fetchOrdersBySession(actor: StaffMember, sessionId: string): Promise<Order[]> {
   return IS_LIVE_API ? live.fetchOrdersBySession(sessionId) : mock.fetchOrdersBySession(actor, sessionId);
+}
+
+/** Live only — the offline demo has no staff order path, so the "New order" button hides there. */
+export const STAFF_ORDERS_ENABLED = IS_LIVE_API;
+export function createStaffOrder(input: live.StaffOrderInput, idempotencyKey: string): Promise<Order> {
+  return IS_LIVE_API ? live.createStaffOrder(input, idempotencyKey) : Promise.reject(new Error('Placing orders needs the live backend.'));
 }
 
 export function addOrderItem(actor: StaffMember, tableId: string, dishId: string, options?: ItemOptions): Promise<Order> {
@@ -244,10 +261,17 @@ export function completePayment(
   credit = false,
   paidNow = 0,
   dueInDays?: number,
+  split?: SplitLine[],
+  shareId?: string,
 ): Promise<Payment> {
   return IS_LIVE_API
-    ? live.completePayment(sessionId, items, method, discount, endSession, undefined, redeemPoints, customerId, credit, paidNow, dueInDays)
+    ? live.completePayment(sessionId, items, method, discount, endSession, undefined, redeemPoints, customerId, credit, paidNow, dueInDays, split, shareId)
     : mock.completePayment(actor, sessionId, items, method, discount, endSession);
+}
+
+/** What a table's split bills already cover. `null` in the demo, which has no split billing — the sheet then hides it. */
+export function fetchBilledItems(sessionId: string): Promise<BilledItem[] | null> {
+  return IS_LIVE_API ? live.fetchBilledItems(sessionId) : Promise.resolve(null);
 }
 
 /**

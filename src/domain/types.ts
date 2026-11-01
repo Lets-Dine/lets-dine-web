@@ -320,6 +320,18 @@ export interface BillLine {
   quantity: number;
 }
 
+/** One share of a split-by-item bill: how many of an order line this payer takes. The server prices it from the order. */
+export interface SplitLine {
+  orderItemId: string;
+  quantity: number;
+}
+
+/** How much of an order line the table's split bills already cover. */
+export interface BilledItem {
+  orderItemId: string;
+  quantity: number;
+}
+
 /** CARD stands in for anything off-cash that is not a QR scan; CASH is the drawer, everything else the bank. */
 export type PaymentMethod = 'CASH' | 'CARD' | 'QR';
 
@@ -510,6 +522,7 @@ export type AuditAction =
   | 'table_enabled'
   | 'table_session_started'
   | 'table_session_ended'
+  | 'table_merged'
   | 'qr_regenerated'
   | 'floor_created'
   | 'floor_renamed'

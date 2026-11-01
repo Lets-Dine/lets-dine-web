@@ -13,6 +13,7 @@ import { StatusPill } from './kit';
 import { FocusRibbon, ItemRow } from './OrderLines';
 import { useOrderMoves } from './OrderMoves';
 import { Sheet } from './Sheet';
+import { TablePaySheet, useCanPayTableOrder } from './TablePaySheet';
 
 const stamp = (iso: string) =>
   `${new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · ${relativeTime(iso)}`;
@@ -36,6 +37,7 @@ export function OrderSheet({
   onApply,
   onResync,
   onTakePayment,
+  onPayAtTable,
   onClose,
 }: {
   order: Order;
@@ -44,6 +46,7 @@ export function OrderSheet({
   onApply: (order: Order) => void;
   onResync: () => void;
   onTakePayment: (order: Order) => void;
+  onPayAtTable: (order: Order) => void;
   onClose: () => void;
 }) {
   const { move, cancel, sheets, courierRun, live } = useOrderMoves(
@@ -55,6 +58,8 @@ export function OrderSheet({
       cancelLabel: 'Cancel order',
     },
   );
+
+  const payAtTable = useCanPayTableOrder(order);
 
   const isDelivery = order.orderType === 'DELIVERY';
   const money = (n: number) => formatMoney(n, order.currency);
@@ -202,6 +207,15 @@ export function OrderSheet({
                 {order.status === 'COMPLETED' ? 'This order is complete.' : cancelled ? 'This order was cancelled.' : 'Move each dish above — the order follows.'}
               </span>
             )}
+            {payAtTable && (
+              <button
+                type="button"
+                className="inline-flex h-11 shrink-0 items-center rounded-full px-5 text-[15px] font-semibold text-flame-3 ring-1 ring-flame-2/40 ring-inset transition-transform active:scale-[0.98]"
+                onClick={() => onPayAtTable(order)}
+              >
+                Pay this order
+              </button>
+            )}
             {cancel}
           </div>
 
@@ -254,21 +268,32 @@ export function useOrderSheet({
   onTakePayment: (order: Order) => void;
 }) {
   const [id, setId] = useState<string | null>(null);
+  const [payId, setPayId] = useState<string | null>(null);
   const order = orders.find((o) => o.id === id) ?? null;
-  const sheet = order && (
-    <OrderSheet
-      order={order}
-      focus={flags?.get(order.id) ?? null}
-      now={now}
-      onApply={onApply}
-      onResync={onResync}
-      // Payment has its own sheet — step out of this one rather than stacking two dialogs.
-      onTakePayment={(o) => {
-        setId(null);
-        onTakePayment(o);
-      }}
-      onClose={() => setId(null)}
-    />
+  const payOrder = orders.find((o) => o.id === payId) ?? null;
+  const sheet = (
+    <>
+      {order && (
+        <OrderSheet
+          order={order}
+          focus={flags?.get(order.id) ?? null}
+          now={now}
+          onApply={onApply}
+          onResync={onResync}
+          // Payment has its own sheet — step out of this one rather than stacking two dialogs.
+          onTakePayment={(o) => {
+            setId(null);
+            onTakePayment(o);
+          }}
+          onPayAtTable={(o) => {
+            setId(null);
+            setPayId(o.id);
+          }}
+          onClose={() => setId(null)}
+        />
+      )}
+      {payOrder && <TablePaySheet order={payOrder} onClose={() => setPayId(null)} onPaid={onResync} />}
+    </>
   );
   return { open: (o: Order) => setId(o.id), sheet };
 }
