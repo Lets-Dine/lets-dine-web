@@ -412,7 +412,7 @@ export function DishEditorV2() {
   const hue = [...(category?.name ?? draft.name)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 40);
 
   return (
-    <div className="mx-auto w-full max-w-5xl pb-28">
+    <div className="w-full pb-28">
       <Link to="/admin/menu" className="mb-6 inline-flex items-center gap-1 text-[13px] font-semibold text-ink-3 transition-colors hover:text-ink">
         <ChevronLeft size={15} /> Menu
       </Link>

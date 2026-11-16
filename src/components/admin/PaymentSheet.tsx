@@ -459,7 +459,7 @@ export function PaymentSheet({
   const canTake = inSplit ? takenRows.length > 0 : hasItems;
   const subtotal = inSplit ? takenRows.reduce((sum, r) => sum + r.unitPrice * r.taken, 0) : draftLines.reduce((sum, l) => sum + l.total, 0);
   // Never let a stale discount (typed against a bigger bill, before an item was pulled off) push the subtotal negative.
-  const appliedDiscount = canDiscount ? Math.min(discount, subtotal) : 0;
+  const appliedDiscount = Math.min(discount, subtotal);
   // Points the customer on this bill can spend: what they hold, or what the restaurant's cap allows if less.
   // The server decides again; this only shows the cashier what to expect. A failed lookup just hides the row.
   // `useAsync` keeps the last answer while the next loads or fails, so only trust one that is for this customer.
@@ -828,28 +828,29 @@ export function PaymentSheet({
                         <CustomerPicker name={customerName} disabled={busy} onPick={setPicked} />
                       </div>
 
-                      {canDiscount && (
-                        <label className="flex items-center justify-between gap-3 py-3 text-[13px] font-semibold text-[oklch(0.463_0.031_74)]">
+                      <label className="flex items-center justify-between gap-3 py-3 text-[13px] font-semibold text-[oklch(0.463_0.031_74)]">
+                        <span>
                           Discount
-                          <span className="relative">
-                            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[13px] font-semibold text-[oklch(0.463_0.031_74)]">{symbolFor(currency)}</span>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={discountText}
-                              disabled={busy}
-                              onChange={(e) => {
-                                const next = e.target.value.replace(/[^0-9.]/g, '');
-                                setDiscountText(next);
-                                const parsed = Number.parseFloat(next);
-                                setDiscount(Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100)) : 0);
-                              }}
-                              onBlur={() => setDiscountText((appliedDiscount / 100).toFixed(2))}
-                              className="w-28 rounded-full bg-[oklch(0.879_0.033_85)] py-2 pr-3 pl-7 text-right text-[13.5px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none disabled:opacity-40"
-                            />
-                          </span>
-                        </label>
-                      )}
+                          {!canDiscount && <span className="block text-[11.5px] font-normal">A manager approves it when you take payment</span>}
+                        </span>
+                        <span className="relative">
+                          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[13px] font-semibold text-[oklch(0.463_0.031_74)]">{symbolFor(currency)}</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={discountText}
+                            disabled={busy}
+                            onChange={(e) => {
+                              const next = e.target.value.replace(/[^0-9.]/g, '');
+                              setDiscountText(next);
+                              const parsed = Number.parseFloat(next);
+                              setDiscount(Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100)) : 0);
+                            }}
+                            onBlur={() => setDiscountText((appliedDiscount / 100).toFixed(2))}
+                            className="w-28 rounded-full bg-[oklch(0.879_0.033_85)] py-2 pr-3 pl-7 text-right text-[13.5px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none disabled:opacity-40"
+                          />
+                        </span>
+                      </label>
 
                       {maxPoints > 0 && (
                         <div className="flex items-center justify-between gap-3 py-3 text-[13px] font-semibold text-[oklch(0.463_0.031_74)]">

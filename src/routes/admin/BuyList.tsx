@@ -53,7 +53,7 @@ export function BuyList() {
   const when = days === '1' ? 'tomorrow' : `the next ${days} days`;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <Link to="/admin/inventory" className="mb-4 inline-flex items-center gap-1 text-[13px] font-semibold text-ink-3 hover:text-ink">
         <ChevronLeft size={15} /> Stock
       </Link>

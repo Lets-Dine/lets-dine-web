@@ -37,7 +37,7 @@ export function Waste() {
   const unpriced = (t: WasteTotals) => (t.unpriced > 0 ? ` · ${t.unpriced} not priced` : '');
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Waste</h1>
       <p className="mt-5 max-w-[34ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:80ms] sm:max-w-[40ch]">
         What was thrown away, priced from the delivery it came from. Log waste from an ingredient on the Stock page.

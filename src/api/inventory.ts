@@ -162,6 +162,60 @@ export const fetchIngredientUsage = (id: string, page: number, pageSize: number)
   apiRequest<UsagePage>(`${BASE}/ingredients/${id}/usage?page=${page}&pageSize=${pageSize}`, { headers: authHeaders() });
 
 /** How one ingredient has moved lately, and where it was last bought. */
+export type ConsumptionSource = 'order' | 'manual' | 'waste';
+
+/** One stock-out in the branch-wide feed: a dish started, a manual use, or something thrown away. */
+export interface ConsumptionEntry {
+  id: string;
+  at: string;
+  ingredientId: string;
+  ingredientName: string;
+  unit: string;
+  /** Base units taken, always positive. */
+  quantity: number;
+  source: ConsumptionSource;
+  /** The dish it went into; null for waste, or a use that was not for a dish. */
+  dishName: string | null;
+  /** Portions on the order line (orders only). */
+  portions: number | null;
+  note: string;
+  wasteReason: WasteReason | null;
+  /** Waste only: minor units; null when unpriced. */
+  wasteCost: Minor | null;
+  /** Who recorded it; null when the kitchen started an order line. */
+  byName: string | null;
+}
+
+export interface ConsumptionPage {
+  items: ConsumptionEntry[];
+  /** Matches for the current filters. */
+  total: number;
+  page: number;
+  pageSize: number;
+  /** Matches per source under every filter except `source`, for the tabs. */
+  counts: Record<ConsumptionSource, number>;
+}
+
+export interface ConsumptionQuery {
+  page: number;
+  pageSize: number;
+  source?: ConsumptionSource;
+  ingredientId?: string;
+  /** Inclusive. */
+  from?: Date;
+  /** Exclusive. */
+  to?: Date;
+}
+
+export function fetchConsumption(q: ConsumptionQuery) {
+  const params = new URLSearchParams({ page: String(q.page), pageSize: String(q.pageSize) });
+  if (q.source) params.set('source', q.source);
+  if (q.ingredientId) params.set('ingredientId', q.ingredientId);
+  if (q.from) params.set('from', q.from.toISOString());
+  if (q.to) params.set('to', q.to.toISOString());
+  return apiRequest<ConsumptionPage>(`${BASE}/consumption?${params}`, { headers: authHeaders() });
+}
+
 export interface IngredientSummary {
   days: number;
   stockIn: number;

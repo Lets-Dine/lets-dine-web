@@ -47,7 +47,12 @@ export const TOURS: Record<OnboardingStepKey, { path: string; stops: Stop[] }> =
     path: '/admin/staff',
     stops: [
       { target: 'staff-role', title: 'Pick a role', body: 'Roles decide what each person can see and change. Servers and cooks get the pass; managers also edit the menu.' },
-      { target: 'add-staff', title: 'Add to the team', body: 'They sign in with their own email and PIN.' },
+      {
+        target: 'add-staff',
+        title: 'Add to the team',
+        body: 'They sign in with their own email and PIN.',
+        orElse: { target: 'add-staff-button', title: 'Add to the team', body: 'Press Add a person, then give them a role, an email and a PIN. They sign in with those.' },
+      },
     ],
   },
   'first-order': {

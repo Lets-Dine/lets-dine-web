@@ -42,7 +42,7 @@ export function Payments() {
   const { menu } = useDashboard();
   const tables = useAsync(() => listTables(staff), [staff]);
   const tablesById = useMemo(() => new Map((tables.data ?? []).map((t) => [t.id, t])), [tables.data]);
-  const tableName = (tableId: string | null) => (tableId ? (tablesById.get(tableId)?.name ?? 'Deleted table') : 'Delivery');
+  const tableName = (tableId: string | null) => (tableId ? (tablesById.get(tableId)?.name ?? 'Deleted table') : 'Counter or delivery');
 
   const [tableId, setTableId] = useState('all');
   const [method, setMethod] = useState<MethodFilter>('all');

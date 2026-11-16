@@ -1,3 +1,4 @@
+import { takeApproval } from './approval';
 import type { BilledItem, BillLine, DeliveryChannel, PaymentRefund, PaymentStatus, PaymentTender, ServiceKind, ServiceRequest, SplitLine } from '../domain/types';
 import type { AddOnDraft, DishDraft, ItemOptions, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
@@ -87,6 +88,9 @@ interface ApiAuthProfile {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  hasApprovalPin?: boolean;
   memberId: string;
   restaurantId: string;
   role: StaffRole;
@@ -234,6 +238,8 @@ interface ApiStaffMember {
   isActive: boolean;
   name: string;
   email: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
   branchIds?: string[];
 }
 
@@ -328,6 +334,7 @@ function toStaff(profile: ApiAuthProfile): StaffMember {
     restaurantId: profile.restaurantId,
     name: profile.name,
     email: profile.email,
+    avatarUrl: profile.avatarUrl ?? null,
     role: profile.role,
     branchId: profile.branchId,
     branches: profile.branches,
@@ -426,7 +433,16 @@ function toAddOn(api: ApiAddOn, currency: string): AddOn {
 }
 
 function toStaffMember(api: ApiStaffMember): StaffMember {
-  return { id: api.id, restaurantId: api.restaurantId, name: api.name, email: api.email, role: api.role, branchIds: api.branchIds ?? [] };
+  return {
+    id: api.id,
+    restaurantId: api.restaurantId,
+    name: api.name,
+    email: api.email,
+    phone: api.phone ?? null,
+    avatarUrl: api.avatarUrl ?? null,
+    role: api.role,
+    branchIds: api.branchIds ?? [],
+  };
 }
 
 function toTable(api: ApiDiningTable): DiningTable {
@@ -605,6 +621,25 @@ export async function fetchBranchAccess(): Promise<{ branchId: string; branches:
   return { branchId: profile.branchId, branches: profile.branches };
 }
 
+/** The signed-in person's own details. Phone is only on this read, not on the sign-in snapshot. */
+export async function fetchOwnProfile(): Promise<{ name: string; email: string; phone: string | null; avatarUrl: string | null; hasApprovalPin: boolean }> {
+  const profile = await apiRequest<ApiAuthProfile>('/auth/me', { headers: authHeaders() });
+  return { name: profile.name, email: profile.email, phone: profile.phone ?? null, avatarUrl: profile.avatarUrl ?? null, hasApprovalPin: profile.hasApprovalPin ?? false };
+}
+
+export function updateOwnProfile(patch: { name?: string; phone?: string | null; avatarUrl?: string | null }): Promise<{ name: string; phone: string | null; avatarUrl: string | null }> {
+  return apiRequest('/auth/me', { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(patch) });
+}
+
+/** The PIN a manager or owner approves discounts and changed bills with: a second one, so the sign-in PIN is never typed at a till. */
+export async function setApprovalPin(currentPin: string, approvalPin: string): Promise<void> {
+  await apiRequest('/auth/me/approval-pin', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ currentPin, approvalPin }) });
+}
+
+export async function changeOwnPin(currentPin: string, newPin: string): Promise<void> {
+  await apiRequest('/auth/me/pin', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ currentPin, newPin }) });
+}
+
 /* ── Branches ──────────────────────────────────────────────────── */
 
 export interface BranchDraft {
@@ -719,11 +754,37 @@ export async function createStaffMember(draft: StaffDraft): Promise<StaffMember>
       email: draft.email.trim(),
       pin: draft.pin.trim(),
       role: draft.role,
+      ...(draft.phone && { phone: draft.phone }),
+      ...(draft.avatarUrl && { avatarUrl: draft.avatarUrl }),
       // An owner reaches every branch; anyone else is pinned. Omitted, the server uses the creator's branch.
       ...(draft.role !== 'OWNER' && draft.branchIds?.length && { branchIds: draft.branchIds }),
     }),
   });
   return toStaffMember(member);
+}
+
+/**
+ * Changes someone else's name, phone or photo, and/or their branches, in one call. Details live on the person's
+ * account, so the server refuses them for anybody who also works at another restaurant. `null` clears a field.
+ */
+export async function updateStaffDetails(
+  id: string,
+  patch: { name?: string; phone?: string | null; avatarUrl?: string | null; role?: StaffRole; isActive?: boolean; branchIds?: string[] },
+): Promise<StaffMember> {
+  return toStaffMember(await apiRequest<ApiStaffMember>(`/restaurant/staff/${id}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(patch) }));
+}
+
+/** Sends an order's kitchen tickets to the printers again. Resolves to how many print jobs were queued. */
+export async function reprintKitchenTickets(orderId: string): Promise<{ jobs: number }> {
+  return apiRequest<{ jobs: number }>(`/restaurant/orders/${orderId}/reprint-ticket`, { method: 'POST', headers: authHeaders() });
+}
+
+/** Takes somebody off the team. Their history stays; they can no longer sign in to this restaurant. */
+export const removeStaffMember = (id: string) => updateStaffDetails(id, { isActive: false });
+
+/** A signed slip for uploading a profile photo: open to any signed-in member, unlike the menu and branding ones. */
+export async function getAvatarSignature(): Promise<UploadSignature> {
+  return apiRequest<UploadSignature>('/restaurant/uploads/avatar-signature', { method: 'POST', headers: authHeaders() });
 }
 
 /** Replaces which branches a manager/staff member works at. */
@@ -1162,7 +1223,7 @@ export async function fetchOrdersBySession(sessionId: string): Promise<Order[]> 
 }
 
 export interface StaffOrderInput {
-  type: 'TABLE' | 'FLOOR' | 'DELIVERY';
+  type: 'TABLE' | 'FLOOR' | 'DELIVERY' | 'QUICK';
   tableId?: string;
   floorId?: string;
   lines: { dishId: string; quantity: number; variantId?: string; addOnIds: string[] }[];
@@ -1265,10 +1326,23 @@ export async function completePayment(
       redeemPoints: redeemPoints || undefined,
       customerId,
       idempotencyKey,
+      approval: takeApproval() ?? undefined,
     }),
   });
   pendingBillKeys.delete(fingerprint);
   return toPayment(payment);
+}
+
+export interface PaymentApprover {
+  memberId: string;
+  name: string;
+  role: StaffRole;
+  avatarUrl: string | null;
+}
+
+/** Who a cashier can ask to approve a discount or a changed bill: managers and owners who work at this branch. */
+export function fetchPaymentApprovers(): Promise<PaymentApprover[]> {
+  return apiRequest<PaymentApprover[]>('/restaurant/payments/approvers', { headers: authHeaders() });
 }
 
 /** What a table's split bills already cover, per order line. */

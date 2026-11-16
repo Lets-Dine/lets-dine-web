@@ -131,7 +131,7 @@ export function PlatformLayout() {
             </nav>
           </header>
 
-          <div className="mx-auto w-full max-w-6xl px-4 pt-4 sm:px-6 lg:px-8 lg:pt-7">
+          <div className="mx-auto w-full px-5 pt-4 sm:px-8 lg:max-w-[80%] lg:px-12 lg:pt-7">
             <div className="flex items-center gap-3">
               <GlobalSearch />
               <Link to="/platform/restaurants/new" className={cx(ADMIN_PRIMARY, 'shrink-0')}>
@@ -142,7 +142,7 @@ export function PlatformLayout() {
             </div>
           </div>
 
-          <main id="platform-main" tabIndex={-1} className="mx-auto w-full max-w-6xl px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">
+          <main id="platform-main" tabIndex={-1} className="mx-auto w-full px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">
             <Outlet />
           </main>
         </div>

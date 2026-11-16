@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { cx } from '../ui';
 
 /** Room a tip needs above its trigger: its height, the gap, and a little to spare. */
@@ -35,14 +35,20 @@ export function Tip({ label, tip, className, children }: { label: string; tip: R
       {children}
       <span
         role="tooltip"
+        style={{ '--tip-y': below ? '-6px' : '6px' } as CSSProperties}
         className={cx(
-          'pointer-events-none absolute right-0 z-30 w-max max-w-[16rem] rounded-xl bg-surface-3 px-3 py-2 text-left opacity-0 shadow-deep ring-1 ring-hairline-strong ring-inset transition-[opacity,translate] duration-100 ease-out motion-reduce:transition-none',
-          'group-hover/tip:translate-y-0 group-hover/tip:opacity-100 group-focus/tip:translate-y-0 group-focus/tip:opacity-100',
-          below ? 'top-full mt-2 -translate-y-1' : 'bottom-full mb-2 translate-y-1',
+          'pointer-events-none invisible absolute right-0 z-30 w-max max-w-[16rem] rounded-xl bg-surface-3 px-3.5 py-2.5 text-left opacity-0',
+          'shadow-[0_1px_2px_rgb(0_0_0/0.2),0_16px_32px_-12px_rgb(0_0_0/0.55)] ring-1 ring-hairline-strong ring-inset',
+          'group-hover/tip:visible group-hover/tip:animate-tip-hover group-focus/tip:visible group-focus/tip:animate-tip-in motion-reduce:group-hover/tip:animate-none motion-reduce:group-hover/tip:opacity-100',
+          below ? 'top-full mt-2.5 origin-top-right' : 'bottom-full mb-2.5 origin-bottom-right',
         )}
       >
-        <span className="block text-[11.5px] font-semibold text-ink-3">{label}</span>
-        <span className="mt-0.5 block text-[14px] font-semibold text-ink">{tip}</span>
+        <span aria-hidden className={cx('absolute right-3.5 size-2.5 rotate-45 bg-surface-3 ring-1 ring-hairline-strong', below ? '-top-[5px] [clip-path:polygon(0_0,100%_0,0_100%)]' : '-bottom-[5px] [clip-path:polygon(100%_0,100%_100%,0_100%)]')} />
+        <span className="relative flex items-center gap-1.5 text-[11.5px] leading-tight font-semibold tracking-wide text-ink-3">
+          <span aria-hidden className="size-1.5 rounded-full bg-flame shadow-[0_0_8px_rgb(255_110_50/0.7)]" />
+          {label}
+        </span>
+        <span className="relative mt-1 block text-[13.5px] leading-snug font-semibold text-ink">{tip}</span>
       </span>
     </span>
   );

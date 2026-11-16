@@ -476,6 +476,9 @@ export interface StaffMember {
   restaurantId: string;
   name: string;
   email: string;
+  /** Ten digits. Roster reads and the profile read fill it; the sign-in snapshot may not. */
+  phone?: string | null;
+  avatarUrl?: string | null;
   role: StaffRole;
 }
 
@@ -540,6 +543,9 @@ export type AuditAction =
   | 'order_item_cancelled'
   | 'table_settled'
   | 'payment_completed'
+  | 'payment_override_approved'
+  | 'payment_override_denied'
+  | 'approval_pin_changed'
   | 'settings_updated'
   | 'staff_invited'
   | 'staff_role_changed'

@@ -67,7 +67,7 @@ export function PlatformRestaurantDetail() {
   const first = tenant.owner.name.split(' ')[0];
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div>
       <FloatingBar show={away}>
         <span className="truncate text-[14px] font-semibold">{tenant.name}</span>
         <StatusBadge status={tenant.status} />

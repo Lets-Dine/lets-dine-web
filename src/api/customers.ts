@@ -149,7 +149,7 @@ export async function fetchPendingOrder(customerId: string): Promise<PendingOrde
   if (!o) return null;
   return {
     id: o.id,
-    table: o.tableName ?? 'Delivery',
+    table: o.tableName ?? 'Counter or delivery',
     status: o.status,
     minsAgo: Math.max(0, Math.round((Date.now() - Date.parse(o.createdAt)) / 60_000)),
     total: o.total,

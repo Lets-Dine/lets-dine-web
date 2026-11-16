@@ -231,7 +231,7 @@ export function DishDetailV2() {
         <ChevronLeft size={19} />
       </button>
 
-      <div className="lg:mx-auto lg:max-w-6xl lg:px-8 lg:py-8">
+      <div className="lg:mx-auto  lg:px-8 lg:py-8">
         <button
           type="button"
           onClick={goBack}

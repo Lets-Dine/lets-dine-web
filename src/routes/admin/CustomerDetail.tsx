@@ -127,7 +127,7 @@ function Page({ item: base, profile, reloadProfile }: { item: CustomerListItem; 
   const wa = `https://wa.me/${digits.length === 10 ? '977' + digits : digits}?text=${encodeURIComponent(`Hi ${first}, `)}`;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <FloatingBar show={away}>
         <span className="truncate text-[14px] font-semibold">{item.name}</span>
         <SegmentPill segment={item.segment} />

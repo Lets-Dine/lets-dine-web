@@ -154,7 +154,7 @@ export function DashboardV2() {
   const maxBranch = Math.max(1, ...(branchPerformance.data ?? []).map((b) => b.grossRevenue));
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="mx-auto w-full">
       <header className="mb-10 flex animate-rise flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
           <h1 className={cx(DISPLAY, 'wrap-break-word text-[clamp(34px,6.4vw,60px)] leading-[0.98] tracking-[-0.03em]')}>{greeting(staff.name)}</h1>

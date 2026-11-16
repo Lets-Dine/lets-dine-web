@@ -16,6 +16,7 @@ import type {
   PaymentMethod,
   Restaurant,
   StaffMember,
+  StaffRole,
 } from '../domain/types';
 import * as mock from './admin';
 import type { AddOnDraft, DishDraft, ItemOptions, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
@@ -75,6 +76,24 @@ export function fetchBranchAccess(): Promise<{ branchId: string; branches: Branc
 /** Moves the session to another branch the member may work in; the token is replaced as a side effect. */
 export function switchBranch(branchId: string): Promise<{ branchId: string; branches: BranchRef[] }> {
   return IS_LIVE_API ? live.switchBranch(branchId) : NEEDS_LIVE();
+}
+
+const NEEDS_LIVE_PROFILE = () => Promise.reject(new Error('Editing people needs the live backend.'));
+
+export function fetchOwnProfile(): Promise<{ name: string; email: string; phone: string | null; avatarUrl: string | null; hasApprovalPin: boolean }> {
+  return IS_LIVE_API ? live.fetchOwnProfile() : NEEDS_LIVE_PROFILE();
+}
+
+export function updateOwnProfile(patch: { name?: string; phone?: string | null; avatarUrl?: string | null }): Promise<{ name: string; phone: string | null; avatarUrl: string | null }> {
+  return IS_LIVE_API ? live.updateOwnProfile(patch) : NEEDS_LIVE_PROFILE();
+}
+
+export function setApprovalPin(currentPin: string, approvalPin: string): Promise<void> {
+  return IS_LIVE_API ? live.setApprovalPin(currentPin, approvalPin) : NEEDS_LIVE_PROFILE();
+}
+
+export function changeOwnPin(currentPin: string, newPin: string): Promise<void> {
+  return IS_LIVE_API ? live.changeOwnPin(currentPin, newPin) : NEEDS_LIVE_PROFILE();
 }
 
 /** Clears whatever credential the active source holds. Safe to call from either mode. */
@@ -395,6 +414,23 @@ export function fetchBranchPerformance(from?: string, to?: string): Promise<Bran
 }
 
 /** Replaces which branches a manager/staff member is pinned to. */
+export const reprintKitchenTickets = (orderId: string): Promise<{ jobs: number }> =>
+  IS_LIVE_API ? live.reprintKitchenTickets(orderId) : Promise.reject(new Error('Printing needs the live backend.'));
+
+export const fetchPaymentApprovers = (): Promise<live.PaymentApprover[]> => (IS_LIVE_API ? live.fetchPaymentApprovers() : Promise.resolve([]));
+
+export function updateStaffDetails(
+  id: string,
+  patch: { name?: string; phone?: string | null; avatarUrl?: string | null; role?: StaffRole; isActive?: boolean; branchIds?: string[] },
+): Promise<StaffMember> {
+  return IS_LIVE_API ? live.updateStaffDetails(id, patch) : NEEDS_LIVE_PROFILE();
+}
+
+export const removeStaffMember = (id: string) => updateStaffDetails(id, { isActive: false });
+
+/** The signature a profile-photo upload is signed with; pass it to `ImageUpload` as `signer`. */
+export const getAvatarSignature = (): Promise<UploadSignature> => (IS_LIVE_API ? live.getAvatarSignature() : Promise.reject(new Error('Photos need the live backend.')));
+
 export function updateStaffBranches(id: string, branchIds: string[]): Promise<StaffMember> {
   return IS_LIVE_API ? live.updateStaffBranches(id, branchIds) : NEEDS_LIVE();
 }

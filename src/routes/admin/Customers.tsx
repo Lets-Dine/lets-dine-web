@@ -119,7 +119,7 @@ export function Customers() {
   const filtering = debounced.trim() !== '' || filter !== 'all';
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto w-full">
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Customers</h1>
 
       <div className="mt-5 flex animate-rise flex-wrap items-center gap-2 [animation-delay:80ms]">

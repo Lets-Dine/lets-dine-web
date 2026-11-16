@@ -319,6 +319,32 @@ export const Bell = ({ size = 16, className }: IconProps) => (
   </svg>
 );
 
+export const Maximize = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4" />
+  </svg>
+);
+
+export const Minimize = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M9 4v4a1 1 0 0 1-1 1H4M20 9h-4a1 1 0 0 1-1-1V4M15 20v-4a1 1 0 0 1 1-1h4M4 15h4a1 1 0 0 1 1 1v4" />
+  </svg>
+);
+
+export const Volume = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 9.5v5h3.5l5 4v-13l-5 4z" />
+    <path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11" />
+  </svg>
+);
+
+export const VolumeOff = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 9.5v5h3.5l5 4v-13l-5 4z" />
+    <path d="m16 9.5 5 5M21 9.5l-5 5" />
+  </svg>
+);
+
 export const Shield = ({ size = 16, className }: IconProps) => (
   <svg {...base(size)} className={className}>
     <path d="M12 3.2 4.8 6v5.6c0 4.3 2.9 7.6 7.2 9.2 4.3-1.6 7.2-4.9 7.2-9.2V6z" />

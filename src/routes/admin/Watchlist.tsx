@@ -173,7 +173,7 @@ export function Watchlist() {
   const headline = issues.length === 0 ? (incomplete ? 'Nothing flagged in what loaded' : 'Nothing needs attention') : `${issues.length} thing${issues.length === 1 ? '' : 's'} need${issues.length === 1 ? 's' : ''} attention`;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Watchlist</h1>
       <div className="mt-5 flex animate-rise flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-ink-3 [animation-delay:80ms]">
         <label className="flex items-center gap-2">

@@ -53,7 +53,7 @@ export function DishDetail() {
     return (
       <main className={SHELL}>
         <Skeleton className="h-85 rounded-none lg:hidden" />
-        <div className={cx(COL, 'flex flex-col gap-3.5 pt-5 lg:mx-auto lg:max-w-6xl lg:px-8')}>
+        <div className={cx(COL, 'flex flex-col gap-3.5 pt-5 lg:mx-auto lg:px-8')}>
           <Skeleton className="h-7 w-2/3" />
           <Skeleton className="h-4 w-2/5" />
           <Skeleton className="h-24" />
@@ -104,7 +104,7 @@ export function DishDetail() {
         <ChevronLeft size={19} />
       </button>
 
-      <div className="lg:mx-auto lg:max-w-6xl lg:px-8 lg:py-8">
+      <div className="lg:mx-auto lg:px-8 lg:py-8">
         <button
           type="button"
           onClick={goBack}
@@ -266,7 +266,7 @@ export function DishDetail() {
           'shadow-[0_-1px_0_var(--color-hairline),0_-18px_34px_-26px_rgb(0_0_0/0.95)]',
         )}
       >
-        <div className="mx-auto w-full max-w-[620px]">
+        <div className="mx-auto w-full">
           <DishAddForm
             dish={dish}
             quantity={quantity}

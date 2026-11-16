@@ -115,7 +115,7 @@ export function floorBillSubject(order: Pick<Order, 'id' | 'floorName' | 'floorV
   name: string;
   qrToken: string;
 } {
-  return { id: order.id, name: order.floorVisitorName || order.floorName || 'Floor order', qrToken: order.id };
+  return { id: order.id, name: order.floorVisitorName || order.floorName || 'Quick sale', qrToken: order.id };
 }
 
 /**

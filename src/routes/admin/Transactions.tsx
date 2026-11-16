@@ -16,7 +16,7 @@ import type { Payment, PaymentMethod, PaymentStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
-import { DatePicker } from '../../components/admin/DatePicker';
+import { DateRangePicker } from '../../components/admin/DateRangePicker';
 
 const PAGE = 25;
 type TypeFilter = 'all' | TransactionType;
@@ -145,9 +145,7 @@ export function Transactions() {
         </div>
         <Select<StatusFilter> className="w-40" aria-label="Filter by payment status" value={status} onChange={setStatus} options={STATUSES} />
         <Select className="w-56" aria-label="Filter by customer or supplier" value={party} onChange={setParty} options={partyOptions} />
-        <DatePicker compact className="w-40" aria-label="From day" placeholder="From" value={from} max={to || undefined} onChange={setFrom} />
-        <span className="text-[13px] text-ink-3">to</span>
-        <DatePicker compact className="w-40" aria-label="To day" placeholder="To" value={to} min={from || undefined} onChange={setTo} />
+        <DateRangePicker compact className="w-60" aria-label="Filter by dates" from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} />
       </div>
 
       {failed ? (

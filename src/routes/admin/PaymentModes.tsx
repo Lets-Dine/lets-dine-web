@@ -31,7 +31,7 @@ export function PaymentModes() {
         <PageTitle title="Payment modes" subtitle="How your guests can pay the bill" />
       </div>
 
-      <div className="max-w-3xl animate-rise [animation-delay:120ms]">
+      <div className="animate-rise [animation-delay:120ms]">
         <Panel bare>
           <ul className="divide-y divide-hairline">
             <ModeRow icon={<Cash size={18} />} name="Cash" detail="Staff record it at the till. Nothing to set up." status="On" tone="on" delay={200} />

@@ -36,7 +36,7 @@ export function Referrals() {
   const rewarded = referrals.filter((row) => row.rewardedAt).length;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Referrals</h1>
       <p className="mt-5 max-w-[34ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:120ms] sm:max-w-[40ch]">
         {referrals.length === 0

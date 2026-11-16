@@ -2,6 +2,8 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import type { ChangeEvent, CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isPlanError } from '../../api/subscription';
+import { APPROVAL_INVALID, APPROVAL_REQUIRED, askForApproval, setApproval } from '../../api/approval';
+import type { ApprovalDetails, ApprovalGrant } from '../../api/approval';
 import { ApiError } from '../../api/store';
 import { formatMoney, symbolFor } from '../../domain/money';
 import type { Minor, OrderStatus } from '../../domain/types';
@@ -198,6 +200,50 @@ export function Perforation({ label, thick = false }: { label?: string; thick?: 
 /** The rounded slip a docket-styled listing (Payments' ledger, the audit log) renders each section in. */
 export const DOCKET_CARD = 'overflow-hidden rounded-[28px] bg-docket-surface text-docket-ink ring-1 ring-docket-line';
 
+/** A docket slip with a display-face heading: the section container for pages that read as one printed ticket per topic. */
+export function DocketSection({
+  title,
+  hint,
+  action,
+  children,
+  className,
+}: {
+  title: string;
+  hint?: string;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cx(DOCKET_CARD, className)}>
+      <header className="flex items-start justify-between gap-4 px-6 pt-6">
+        <div className="min-w-0">
+          <h2 className={cx(DISPLAY, 'text-[21px]')}>{title}</h2>
+          {hint && <p className="mt-1 max-w-[60ch] text-[13.5px] leading-relaxed text-docket-inksoft">{hint}</p>}
+        </div>
+        {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+      </header>
+      <div className="px-6 pt-5 pb-6">{children}</div>
+    </section>
+  );
+}
+
+/** Small status pill: "Main", "Disabled", "Working here". */
+export function Chip({ children, tone = 'plain' }: { children: ReactNode; tone?: 'plain' | 'warn' | 'flame' }) {
+  return (
+    <span
+      className={cx(
+        'inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[12px] font-semibold ring-1 ring-inset',
+        tone === 'warn' && 'bg-berry/10 text-berry ring-berry/25',
+        tone === 'flame' && 'bg-flame/12 text-flame-2 ring-flame/25',
+        tone === 'plain' && 'bg-surface-2 text-docket-inksoft ring-docket-line',
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 /** One figure in a docket ledger's header stats row — the count, the average, the flagged total. */
 export function LedgerStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -345,6 +391,8 @@ export function TextInput({
   type = 'text',
   autoFocus,
   disabled,
+  inputMode,
+  autoComplete,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -354,6 +402,8 @@ export function TextInput({
   type?: 'text' | 'email' | 'password' | 'tel';
   autoFocus?: boolean;
   disabled?: boolean;
+  inputMode?: 'numeric' | 'tel' | 'email' | 'text';
+  autoComplete?: string;
 }) {
   return (
     <input
@@ -364,6 +414,8 @@ export function TextInput({
       maxLength={maxLength}
       autoFocus={autoFocus}
       disabled={disabled}
+      inputMode={inputMode}
+      autoComplete={autoComplete}
       onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
     />
   );
@@ -837,7 +889,25 @@ export function useCommand() {
     async (key: string, action: () => Promise<unknown>, success?: string): Promise<boolean> => {
       setPending(key);
       try {
-        await action();
+        // A payment the person at the till may not make alone comes back asking for a manager. Ask, then try the same thing
+        // again with their PIN; a wrong PIN asks again. Giving up is not a failure, so it shows nothing.
+        let grant: ApprovalGrant | null = null;
+        for (;;) {
+          try {
+            setApproval(grant);
+            await action();
+            break;
+          } catch (error) {
+            const refused = error instanceof ApiError && grant !== null && error.key === APPROVAL_INVALID;
+            const needed = error instanceof ApiError && error.key === APPROVAL_REQUIRED;
+            if (!refused && !needed) throw error;
+            const detail = (error.details ?? {}) as ApprovalDetails & { reasons?: string[] };
+            grant = await askForApproval({ reasons: detail.reasons ?? [], details: detail, note: refused ? error.message : undefined });
+            if (!grant) return false;
+          } finally {
+            setApproval(null);
+          }
+        }
         if (success) {
           haptic.success();
           push(success);

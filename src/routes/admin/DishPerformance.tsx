@@ -39,7 +39,7 @@ export function DishPerformance() {
   const idle = rows.filter((r) => r.units === 0).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <Hero rows={rows} days={days} setDays={setDays} currency={currency} />
 
       <div className={cx('mt-12 grid gap-6 transition-opacity duration-200', sales.loading && 'opacity-50')}>

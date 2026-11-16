@@ -14,8 +14,10 @@ import { AdminThemeToggle } from '../../state/AdminTheme';
 import { usePageTitle } from '../../state/usePageTitle';
 import { BranchSwitcher } from '../../components/admin/BranchSwitcher';
 import { FEEDBACK_ENABLED } from '../../api/feedback';
-import { FeedbackDialog } from '../../components/admin/FeedbackDialog';
+import { UserMenu } from '../../components/admin/UserMenu';
+import { FeedbackDialog }from '../../components/admin/FeedbackDialog';
 import { Loading } from '../../components/admin/kit';
+import { ApprovalHost } from '../../components/admin/ApprovalHost';
 import { PrintAgent } from '../../components/admin/PrintAgent';
 import { KitchenWatch } from '../../components/admin/KitchenWatch';
 import { ServiceRequests } from '../../components/admin/ServiceRequests';
@@ -82,6 +84,7 @@ const NAV: NavItem[] = [
   { to: '/admin/tables', label: 'Table', icon: Table, permission: 'tables:view', group: 'Table & spaces' },
   { to: '/admin/floors', label: 'Floor', icon: Layers, permission: 'tables:view', group: 'Table & spaces' },
   { to: '/admin/inventory', label: 'Stock', icon: Box, permission: 'inventory:view', end: true, liveOnly: true, group: 'Inventory' },
+  { to: '/admin/inventory/consumption', label: 'Consumption', icon: History, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/inventory/buy-list', label: 'Buy list', icon: Receipt, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/waste', label: 'Waste', icon: Alert, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
   { to: '/admin/dish-margins', label: 'Dish margins', icon: Cash, permission: 'inventory:view', liveOnly: true, group: 'Inventory' },
@@ -133,6 +136,7 @@ const RESTAURANT_ONLY = [
   '/admin/suppliers',
   '/admin/transactions',
   '/admin/waste',
+  '/admin/inventory/consumption',
   '/admin/inventory/count',
   '/admin/inventory/buy-list',
   '/admin/staff',
@@ -151,6 +155,7 @@ function routeNeedsOrders(pathname: string): boolean {
   return (
     pathname === '/admin' ||
     pathname === '/admin/orders' ||
+    pathname === '/admin/pos' ||
     pathname.startsWith('/admin/tables') ||
     pathname.startsWith('/admin/floors')
   );
@@ -349,11 +354,35 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
   const activeGroup = groups.find(([group, links]) => group && links.some((item) => location.pathname.startsWith(item.to)))?.[0] ?? null;
   const openGroup = pickedGroup === undefined ? activeGroup : pickedGroup;
 
+  // POS mode swaps the sidebar for a full-screen frame; the queue, kitchen alerts and ticket printing stay mounted beneath it.
+  if (location.pathname === '/admin/pos' && !locked) {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-bg text-ink">
+        <ApprovalHost />
+        {dashboard ? (
+          <DashboardContext.Provider value={dashboard}>
+            <PrintAgent />
+            <Outlet />
+            {/* Alerts float over the screen: in the flow they would shove the header down and shrink the terminal mid-service. */}
+            <div className="pointer-events-none absolute top-[calc(76px+var(--safe-t))] right-4 z-30 w-[min(440px,calc(100vw-2rem))] [&>*]:pointer-events-auto">
+              <KitchenWatch />
+              <ServiceRequests />
+            </div>
+          </DashboardContext.Provider>
+        ) : error ? (
+          <p className="m-6 rounded-2xl bg-berry/10 px-4 py-3 text-[14px] text-berry ring-1 ring-berry/25 ring-inset">{error}</p>
+        ) : (
+          <Loading label="Opening POS…" />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-dvh bg-bg lg:bg-room">
       <div className="lg:grid lg:grid-cols-[244px_1fr]">
         {/* ── Sidebar, laptops and up ─────────────────────────────── */}
-        <aside className="sticky top-0 hidden h-dvh flex-col border-r border-hairline bg-surface/40 px-3 py-5 lg:flex">
+        <aside className="sticky top-0 z-30 hidden h-dvh flex-col border-r border-hairline bg-surface/40 px-3 py-5 lg:flex">
           <div className="px-3 pb-5">
             <RestaurantCard
               restaurant={menu?.restaurant}
@@ -382,25 +411,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
             )}
           </nav>
 
-          <div className="mt-auto border-t border-hairline pt-4">
-            <div className="px-3">
-              <div className="truncate text-[13.5px] font-semibold">{staff.name}</div>
-              <div className="text-[12px] text-ink-4">{ROLE_LABEL[staff.role]}</div>
-            </div>
-            {FEEDBACK_ENABLED && (
-              <button type="button" onClick={() => setFeedbackOpen(true)} className="mt-2 w-full rounded-lg px-3 py-2 text-left text-[13px] font-semibold text-ink-3 transition-colors hover:text-ink">
-                Send feedback
-              </button>
-            )}
-            <AdminThemeToggle className="mt-1 w-full justify-start" />
-            <button
-              type="button"
-              onClick={signOut}
-              className="mt-1 w-full rounded-lg px-3 py-2 text-left text-[13px] font-semibold text-ink-3 transition-colors hover:text-ink"
-            >
-              Sign out
-            </button>
-          </div>
+          <UserMenu name={staff.name} role={ROLE_LABEL[staff.role]} avatarUrl={staff.avatarUrl} onFeedback={() => setFeedbackOpen(true)} onSignOut={signOut} />
         </aside>
 
         {/* ── Phone and tablet chrome ─────────────────────────────── */}
@@ -439,7 +450,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
             </nav>
           </header>
 
-          <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
+          <main className="mx-auto w-full px-5 py-6 sm:px-8 lg:max-w-[80%] lg:px-12 lg:py-9">
             {!locked && !onPlanPage && subscription.notice && <SubscriptionBanner notice={subscription.notice} onDismiss={subscription.dismissNotice} />}
             {locked ? (
               canManagePlan ? (
@@ -468,6 +479,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
           </main>
         </div>
       </div>
+      <ApprovalHost />
       {feedbackOpen && <FeedbackDialog onClose={() => setFeedbackOpen(false)} />}
       {!locked && <SetupGuide />}
     </div>
@@ -506,7 +518,7 @@ function NavGroup({ label, links, open, onToggle, waiting }: { label: string; li
         <div className="overflow-hidden">
           <div className="ml-4 flex flex-col gap-0.5 border-l border-hairline pl-2">
             {links.map((item) => (
-              <SideLink key={item.to} item={item} badge={item.to === '/admin/orders' ? waiting : 0} />
+              <SideLink key={item.to} item={item} badge={item.to === '/admin/orders' ? waiting : 0} sub />
             ))}
           </div>
         </div>
@@ -515,19 +527,21 @@ function NavGroup({ label, links, open, onToggle, waiting }: { label: string; li
   );
 }
 
-function SideLink({ item, badge }: { item: NavItem; badge: number }) {
+/** `sub` is a link nested under a group: a step smaller than the group headings and top-level links. */
+function SideLink({ item, badge, sub = false }: { item: NavItem; badge: number; sub?: boolean }) {
   return (
     <NavLink
       to={item.to}
       end={item.end}
       className={({ isActive }) =>
         cx(
-          'flex items-center gap-2.5 rounded-lg px-3 py-2 text-[15px] font-semibold transition-colors duration-150',
+          'flex items-center gap-2.5 rounded-lg px-3 py-2 font-semibold transition-colors duration-150',
+          sub ? 'text-[13px]' : 'text-[15px]',
           isActive ? 'bg-surface-2 text-flame-3' : 'text-ink-2 hover:bg-surface/60 hover:text-flame-3',
         )
       }
     >
-      <item.icon size={22} />
+      <item.icon size={sub ? 18 : 22} />
       {item.label}
       <Badge count={badge} />
     </NavLink>

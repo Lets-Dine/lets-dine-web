@@ -11,7 +11,7 @@ import { formatMoney } from '../../domain/money';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
-import { DatePicker } from '../../components/admin/DatePicker';
+import { DateRangePicker } from '../../components/admin/DateRangePicker';
 
 type Preset = 'month' | 'last' | 'custom';
 const PRESETS: { value: Preset; label: string }[] = [
@@ -68,7 +68,7 @@ export function ProfitLossPage() {
   const nothing = r && r.sales + r.tax === 0 && r.expenses.length === 0 && r.stockPurchases === 0 && r.stockOpening === 0 && r.stockClosing === 0;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Profit &amp; loss</h1>
 
       <div className="mt-5 flex animate-rise flex-wrap items-center gap-2 [animation-delay:80ms]" role="group" aria-label="Period">
@@ -78,11 +78,7 @@ export function ProfitLossPage() {
           </button>
         ))}
         {preset === 'custom' && (
-          <span className="flex items-center gap-2 text-[13px] text-ink-3">
-            <DatePicker className="w-40" aria-label="From" value={custom.from} max={custom.to} onChange={(v) => setCustom({ ...custom, from: v })} />
-            to
-            <DatePicker className="w-40" aria-label="To" value={custom.to} min={custom.from} onChange={(v) => setCustom({ ...custom, to: v })} />
-          </span>
+          <DateRangePicker className="w-64" aria-label="Custom dates" from={custom.from} to={custom.to} clearable={false} onChange={(from, to) => setCustom({ from, to })} />
         )}
       </div>
 

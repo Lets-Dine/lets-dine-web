@@ -113,7 +113,7 @@ export function PassCard({
                 </span>
               )}
               {!isDelivery && (
-                <span className="truncate text-[13px] font-semibold text-ink-2">{order.tableName ?? order.floorVisitorName ?? 'Floor order'}</span>
+                <span className="truncate text-[13px] font-semibold text-ink-2">{order.tableName ?? order.floorVisitorName ?? (order.floorName ? 'Floor order' : 'Quick sale')}</span>
               )}
             </div>
             {isDelivery && (

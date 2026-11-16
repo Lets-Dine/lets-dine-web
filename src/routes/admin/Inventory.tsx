@@ -478,7 +478,7 @@ export function Inventory() {
 
   if (list.loading && !list.data)
     return (
-      <div className="mx-auto max-w-6xl">
+      <div className="w-full">
         <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Stock</h1>
         <div role="status" aria-label="Loading stock" className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,15.5rem),1fr))] mt-10 gap-3">
           {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -496,7 +496,7 @@ export function Inventory() {
   const expiringCount = expiring.data?.length ?? 0;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Stock</h1>
 
       <div className="mt-5 flex animate-rise flex-wrap items-center gap-2 [animation-delay:80ms]">

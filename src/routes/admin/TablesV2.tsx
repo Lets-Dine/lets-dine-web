@@ -119,7 +119,7 @@ export function TablesV2() {
   const menuDishes = menu.dishes.filter((d) => !d.isArchived && d.isAvailable);
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full">
       <header className="mb-8 flex animate-rise flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div>
           <h1 className={cx(DISPLAY, 'text-[clamp(38px,7vw,64px)] leading-[0.98] tracking-[-0.03em]')}>Tables</h1>

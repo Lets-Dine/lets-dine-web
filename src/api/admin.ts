@@ -102,6 +102,9 @@ export interface StaffDraft {
    */
   pin: string;
   role: StaffRole;
+  /** Ten digits, as on sign-up. Only used when this creates a new account. */
+  phone?: string;
+  avatarUrl?: string;
   /** Live backend only: the branches a manager/staff member is pinned to. The offline demo has no branches. */
   branchIds?: string[];
 }
@@ -2127,7 +2130,7 @@ function percent(rate: number): string {
 
 /* ── Uploads ───────────────────────────────────────────────────────── */
 
-export type UploadTarget = 'dish' | 'restaurant-cover' | 'restaurant-logo';
+export type UploadTarget = 'dish' | 'restaurant-cover' | 'restaurant-logo' | 'staff-avatar';
 
 export interface UploadSignature {
   cloudName: string;

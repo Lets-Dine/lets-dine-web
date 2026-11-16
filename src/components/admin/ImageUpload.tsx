@@ -24,7 +24,11 @@ const MAX_OUTPUT_WIDTH: Record<UploadTarget, number> = {
   dish: 900,
   'restaurant-cover': 1600,
   'restaurant-logo': 512,
+  'staff-avatar': 384,
 };
+
+/** Shown as a circle wherever they appear, so the crop window is a circle too. The saved file is still the square behind it. */
+const ROUND_TARGETS: UploadTarget[] = ['restaurant-logo', 'staff-avatar'];
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
@@ -43,6 +47,7 @@ interface CropDialogProps {
   src: string;
   aspect: number;
   maxOutputWidth: number;
+  round?: boolean;
   onCancel: () => void;
   onConfirm: (blob: Blob) => void;
 }
@@ -54,11 +59,12 @@ interface CropDialogProps {
  * everything outside it dimmed — shows. No cropping library, just the
  * canvas and pointer events the platform already gives us.
  */
-function CropDialog({ src, aspect, maxOutputWidth, onCancel, onConfirm }: CropDialogProps) {
+function CropDialog({ src, aspect, maxOutputWidth, round = false, onCancel, onConfirm }: CropDialogProps) {
   const push = useToast();
   const cropHeight = CROP_WIDTH / aspect;
   const stageWidth = CROP_WIDTH + STAGE_MARGIN * 2;
   const stageHeight = cropHeight + STAGE_MARGIN * 2;
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
@@ -189,10 +195,25 @@ function CropDialog({ src, aspect, maxOutputWidth, onCancel, onConfirm }: CropDi
     }
   };
 
+  // A native modal, so it stacks above any other modal it was opened from (a sheet): a plain fixed
+  // div on <body> would sit beneath that sheet's top layer, unreachable.
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (el && !el.open) el.showModal();
+  }, []);
+
   // Portaled to <body> — this can be opened from inside a <Field>'s <label>, and a dialog left
   // inside that label would forward every click/drag to the hidden file input, reopening the picker.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal>
+    <dialog
+      ref={dialogRef}
+      aria-label="Crop photo"
+      onCancel={(e) => {
+        e.preventDefault();
+        onCancel();
+      }}
+      className="fixed inset-0 m-0 h-dvh max-h-none w-dvw max-w-none items-center justify-center border-0 bg-black/60 p-4 text-ink outline-none backdrop:bg-transparent open:flex"
+    >
       <div className="w-full max-w-xl rounded-2xl bg-surface p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-[14px] font-semibold text-ink">Crop photo</p>
@@ -224,14 +245,30 @@ function CropDialog({ src, aspect, maxOutputWidth, onCancel, onConfirm }: CropDi
           />
 
           {/* Everything outside the crop window stays visible but dimmed, so panning past the edge reads as "excluded" rather than vanishing. */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 bg-ink/55" style={{ height: STAGE_MARGIN }} />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/55" style={{ height: STAGE_MARGIN }} />
-          <div className="pointer-events-none absolute left-0 bg-ink/55" style={{ top: STAGE_MARGIN, bottom: STAGE_MARGIN, width: STAGE_MARGIN }} />
-          <div className="pointer-events-none absolute right-0 bg-ink/55" style={{ top: STAGE_MARGIN, bottom: STAGE_MARGIN, width: STAGE_MARGIN }} />
-          <div
-            className="pointer-events-none absolute ring-2 ring-bg/90"
-            style={{ left: STAGE_MARGIN, top: STAGE_MARGIN, width: CROP_WIDTH, height: cropHeight }}
-          />
+          {round ? (
+            // One window, with a shadow big enough to dim the whole stage around it (the stage clips the rest).
+            <div
+              className="pointer-events-none absolute rounded-full ring-2 ring-bg/90"
+              style={{
+                left: STAGE_MARGIN,
+                top: STAGE_MARGIN,
+                width: CROP_WIDTH,
+                height: cropHeight,
+                boxShadow: '0 0 0 9999px rgb(0 0 0 / 0.75)',
+              }}
+            />
+          ) : (
+            <>
+              <div className="pointer-events-none absolute inset-x-0 top-0 bg-black/75" style={{ height: STAGE_MARGIN }} />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/75" style={{ height: STAGE_MARGIN }} />
+              <div className="pointer-events-none absolute left-0 bg-black/75" style={{ top: STAGE_MARGIN, bottom: STAGE_MARGIN, width: STAGE_MARGIN }} />
+              <div className="pointer-events-none absolute right-0 bg-black/75" style={{ top: STAGE_MARGIN, bottom: STAGE_MARGIN, width: STAGE_MARGIN }} />
+              <div
+                className="pointer-events-none absolute ring-2 ring-bg/90"
+                style={{ left: STAGE_MARGIN, top: STAGE_MARGIN, width: CROP_WIDTH, height: cropHeight }}
+              />
+            </>
+          )}
 
           <div
             className="pointer-events-none absolute flex items-center justify-center p-2"
@@ -272,7 +309,7 @@ function CropDialog({ src, aspect, maxOutputWidth, onCancel, onConfirm }: CropDi
           </button>
         </div>
       </div>
-    </div>,
+    </dialog>,
     document.body,
   );
 }
@@ -343,6 +380,7 @@ export function ImageUpload({ target, aspect, onUploaded, signer, disabled, labe
           src={source}
           aspect={aspect}
           maxOutputWidth={MAX_OUTPUT_WIDTH[target]}
+          round={ROUND_TARGETS.includes(target)}
           onCancel={closeSource}
           onConfirm={(blob) => void finish(blob)}
         />

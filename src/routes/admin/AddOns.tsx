@@ -42,7 +42,7 @@ export function AddOns() {
     void run(key, action, message).then(reloadMenu);
 
   return (
-    <div className="mx-auto w-full max-w-3xl">
+    <div className="w-full">
       <header className="mb-10 animate-rise">
         <h1 className={cx(DISPLAY, 'text-[clamp(38px,7vw,64px)] leading-[0.98] tracking-[-0.03em]')}>Add-ons</h1>
         <p className="mt-3 text-[14px] text-ink-3 tnum">

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { addExpense, closeLedger, deleteExpense, fetchCloses, fetchEntries, fetchLedger, reopenLedger } from '../../api/ledger';
 import type {  LedgerEntry } from '../../api/ledger';
@@ -21,6 +22,18 @@ const DIRECTIONS: { value: 'DEPOSIT' | 'WITHDRAWAL'; label: string }[] = [
   { value: 'DEPOSIT', label: 'Drawer → Bank' },
   { value: 'WITHDRAWAL', label: 'Bank → Drawer' },
 ];
+/**
+ * The three ways to put a line on the tape, each wearing what it does to the money. Mint for money in and berry for
+ * money out are the tape's own language — an expense already prints in berry a few lines up — so the button that
+ * records one is the same colour as the line it will make. A transfer stays in plain ink on purpose: it moves money
+ * between the drawer and the bank and changes neither total, and a third colour would claim a meaning it hasn't got.
+ */
+const COMPOSERS = [
+  { key: 'INCOME', label: '+ Income', idle: 'text-mint-ink ring-mint/25 hover:bg-mint/10', on: 'bg-mint/15 text-mint-ink ring-mint/45' },
+  { key: 'EXPENSE', label: '+ Expense', idle: 'text-berry-ink ring-berry/25 hover:bg-berry/10', on: 'bg-berry/15 text-berry-ink ring-berry/45' },
+  { key: 'TRANSFER', label: 'Transfer', idle: 'text-ink-3 ring-hairline hover:text-ink hover:bg-surface-2', on: 'bg-surface-2 text-ink ring-hairline-strong' },
+] as const satisfies readonly { key: Panel; label: string; idle: string; on: string }[];
+
 const CATEGORY_HINTS = {
   EXPENSE: ['Stock', 'Salaries', 'Rent', 'Utilities', 'Maintenance', 'Other'],
   INCOME: ['Deposit', 'Cash top-up', 'Supplier refund', 'Other'],
@@ -127,6 +140,24 @@ export function Ledger() {
     reload();
   };
 
+  /** Dismissing a composer without recording the line. Nothing half-typed survives, so reopening it is a fresh form rather than yesterday's amount. */
+  const cancelComposer = () => {
+    setPanel(null);
+    setAmount(0);
+    setCategory('');
+    setNote('');
+    setFormKey((k) => k + 1);
+  };
+
+  /** Dismissing the close dialog without closing. The counts go back to what the books expect, so reopening it never starts from a half-finished count. */
+  const closeDialog = () => {
+    setPanel(null);
+    setCounted(0);
+    setBankCounted(0);
+    setCloseNote('');
+    setFormKey((k) => k + 1);
+  };
+
   const submitClose = async () => {
     const ok = await run('close', () => closeLedger(counted, bankCounted, closeNote.trim()), s.needsOpening ? 'Opening balances saved' : 'Books closed');
     if (!ok) return;
@@ -144,7 +175,8 @@ export function Ledger() {
     </p>
   );
 
-  const closeForm = (
+  /** The counting form. `onCancel` is passed only when it is in the dialog: the first-run opening screen has nowhere to go back to. */
+  const closeForm = (onCancel?: () => void) => (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -163,9 +195,16 @@ export function Ledger() {
       <Field label="Note">
         <TextInput value={closeNote} onChange={setCloseNote} maxLength={300} placeholder="Optional" />
       </Field>
-      <button type="button" className={ADMIN_PRIMARY} disabled={busy || (s.needsOpening && counted + bankCounted <= 0)} onClick={submitClose}>
-        {s.needsOpening ? 'Open the day' : 'Close & start next period'}
-      </button>
+      <div className={onCancel ? 'flex flex-wrap items-center justify-end gap-3 pt-1' : undefined}>
+        {onCancel && (
+          <button type="button" className={ADMIN_GHOST} onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+        <button type="button" className={ADMIN_PRIMARY} disabled={busy || (s.needsOpening && counted + bankCounted <= 0)} onClick={submitClose}>
+          {s.needsOpening ? 'Open the day' : 'Close & start next period'}
+        </button>
+      </div>
     </div>
   );
 
@@ -176,7 +215,7 @@ export function Ledger() {
           <PageTitle title="Cash book" subtitle="Start with what is in the drawer and the bank — every sale, expense and transfer after it is tracked line by line, against both." />
         </div>
         <Panel title="Open the day" className="max-w-md animate-rise [animation-delay:80ms]">
-          {closeForm}
+          {closeForm()}
         </Panel>
       </>
     );
@@ -251,19 +290,13 @@ export function Ledger() {
 
       {/* Secondary: the cashier reads the tape first; adding a line or closing is one quiet step away. */}
       <div className="mt-3 flex animate-rise flex-wrap items-center gap-1.5 [animation-delay:300ms]">
-        {(
-          [
-            ['INCOME', '+ Income'],
-            ['EXPENSE', '+ Expense'],
-            ['TRANSFER', 'Transfer'],
-          ] as const
-        ).map(([k, label]) => (
+        {COMPOSERS.map(({ key, label, idle, on }) => (
           <button
-            key={k}
+            key={key}
             type="button"
-            aria-pressed={panel === k}
-            className={`${ADMIN_TINY} ring-1 ring-hairline ring-inset ${panel === k ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:text-ink'}`}
-            onClick={() => setPanel(panel === k ? null : k)}
+            aria-pressed={panel === key}
+            className={cx(ADMIN_TINY, 'ring-1 ring-inset transition-colors', panel === key ? on : idle)}
+            onClick={() => setPanel(panel === key ? null : key)}
           >
             {label}
           </button>
@@ -277,16 +310,17 @@ export function Ledger() {
         ) : (
           <button
             type="button"
-            aria-pressed={panel === 'close'}
-            className={`${ADMIN_TINY} ${panel === 'close' ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:text-ink'}`}
+            aria-haspopup="dialog"
+            aria-expanded={panel === 'close'}
+            // Flame, the one house primary, because ending the period is the only thing on this row that is not just
+            // another line on the tape — and it sits apart from the three that are.
+            className={cx(ADMIN_TINY, 'ring-1 ring-flame/30 ring-inset text-flame-3 transition-colors hover:bg-flame/10')}
             onClick={() => {
-              if (panel !== 'close') {
-                // Start from what the books say; the cashier only edits if the real count differs.
-                setCounted(s.closingExpected);
-                setBankCounted(s.bankExpected);
-                setFormKey((k) => k + 1);
-              }
-              setPanel(panel === 'close' ? null : 'close');
+              // Start from what the books say; the cashier only edits if the real count differs.
+              setCounted(s.closingExpected);
+              setBankCounted(s.bankExpected);
+              setFormKey((k) => k + 1);
+              setPanel('close');
             }}
           >
             Close the books…
@@ -335,23 +369,27 @@ export function Ledger() {
       )}
 
       {(panel === 'INCOME' || panel === 'EXPENSE') && (
-        <Panel className="mt-3 animate-rise" variant="subtle" title={panel === 'INCOME' ? 'Add income' : 'Add expense'} hint="Money in that isn't a table sale, or money out. It lands on the tape as the next line.">
+        <LedgerDialog
+          title={panel === 'INCOME' ? 'Add income' : 'Add expense'}
+          hint="Money in that isn't a table sale, or money out. It lands on the tape as the next line."
+          onClose={cancelComposer}
+        >
           <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-[11rem_1fr_1fr]">
+            {/* Two across, not three: a dialog is narrower than the page the three-column row was laid out for. */}
+            <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
               <Field label="Amount">
                 <MoneyInput key={`e${formKey}${panel}`} value={amount || ''} onChange={setAmount} currency={currency} />
               </Field>
               <Field label="Category">
-                <Select value={category} onChange={setCategory} maxLength={60} allowNew autoFocus placeholder={CATEGORY_HINTS[panel].slice(0, 3).join(', ')} options={CATEGORY_HINTS[panel].map((c) => ({ value: c, label: c }))} />
-              </Field>
-              <Field label="Note">
-                <TextInput value={note} onChange={setNote} maxLength={300} placeholder="Optional" />
+                <Select value={category} onChange={setCategory} maxLength={60} allowNew placeholder={CATEGORY_HINTS[panel].slice(0, 3).join(', ')} options={CATEGORY_HINTS[panel].map((c) => ({ value: c, label: c }))} />
               </Field>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Segmented label={panel === 'INCOME' ? 'Received as' : 'Paid with'} value={method} onChange={setMethod} options={METHODS} />
-              <span className="flex-1" />
-              <button type="button" className={ADMIN_GHOST} onClick={() => setPanel(null)}>
+            <Field label="Note">
+              <TextInput value={note} onChange={setNote} maxLength={300} placeholder="Optional" />
+            </Field>
+            <Segmented label={panel === 'INCOME' ? 'Received as' : 'Paid with'} value={method} onChange={setMethod} options={METHODS} />
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
+              <button type="button" className={ADMIN_GHOST} onClick={cancelComposer}>
                 Cancel
               </button>
               <button type="button" className={ADMIN_PRIMARY} disabled={busy || amount <= 0 || !category.trim()} onClick={submitExpense}>
@@ -359,13 +397,13 @@ export function Ledger() {
               </button>
             </div>
           </div>
-        </Panel>
+        </LedgerDialog>
       )}
 
       {panel === 'close' && (
-        <Panel className="mt-3 animate-rise" variant="subtle" title="Close the books" hint="Count the drawer and read the bank balance to end this period. The next one opens with what you enter.">
-          {closeForm}
-        </Panel>
+        <LedgerDialog title="Close the books" hint="Count the drawer and read the bank balance to end this period. The next one opens with what you enter." onClose={closeDialog}>
+          {closeForm(closeDialog)}
+        </LedgerDialog>
       )}
 
       <Panel className="mt-5 animate-rise [animation-delay:360ms]" title="Past closes" bare>
@@ -416,6 +454,59 @@ export function Ledger() {
         )}
       </Panel>
     </>
+  );
+}
+
+/**
+ * Writing to the books, in a dialog rather than a panel unrolled below the tape. Each of these asks for money and a
+ * reason and then changes what the day holds, so it takes the screen while it is being answered: the tape behind it
+ * stays the thing being read against, instead of something the form pushes off the bottom.
+ */
+function LedgerDialog({ title, hint, onClose, children }: { title: string; hint: string; onClose: () => void; children: ReactNode }) {
+  const panel = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  // The parent passes a fresh onClose every render, so the key listener reads it through a ref and focus is taken once.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+  useEffect(() => {
+    // Straight into the amount: it is what the cashier opened this to type, and it is the first field.
+    const returnTo = document.activeElement as HTMLElement | null;
+    (panel.current?.querySelector('input') ?? panel.current)?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      returnTo?.focus?.();
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" role="presentation" onClick={onClose}>
+      <div
+        ref={panel}
+        tabIndex={-1}
+        className="animate-pop max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-surface p-5 text-ink shadow-deep ring-1 ring-hairline ring-inset outline-none sm:p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id={titleId} className="font-display text-[20px] leading-tight font-black">
+              {title}
+            </h2>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{hint}</p>
+          </div>
+          <button type="button" aria-label="Close" className={`${ADMIN_TINY} shrink-0 text-ink-3 hover:text-ink`} onClick={onClose}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className="mt-4">{children}</div>
+      </div>
+    </div>
   );
 }
 

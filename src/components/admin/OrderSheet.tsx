@@ -20,7 +20,7 @@ const stamp = (iso: string) =>
 
 /** The stages this kind of ticket actually passes through — a table never goes out for delivery, a delivery never sits unpaid. */
 function stagesFor(order: Order): OrderStatus[] {
-  const skip: OrderStatus[] = order.orderType === 'DELIVERY' ? ['UNPAID'] : order.floorVisitorName ? ['OUT_FOR_DELIVERY', 'SETTLE'] : ['OUT_FOR_DELIVERY', 'SETTLE', 'UNPAID'];
+  const skip: OrderStatus[] = order.orderType === 'DELIVERY' ? ['UNPAID'] : order.floorVisitorName || order.floorName || order.tableId === null ? ['OUT_FOR_DELIVERY', 'SETTLE'] : ['OUT_FOR_DELIVERY', 'SETTLE', 'UNPAID'];
   return STATUS_ORDER.filter((s) => !skip.includes(s));
 }
 
@@ -63,7 +63,7 @@ export function OrderSheet({
 
   const isDelivery = order.orderType === 'DELIVERY';
   const money = (n: number) => formatMoney(n, order.currency);
-  const place = isDelivery ? order.deliveryCustomerName || 'Guest' : (order.tableName ?? order.floorVisitorName ?? 'Floor order');
+  const place = isDelivery ? order.deliveryCustomerName || 'Guest' : (order.tableName ?? order.floorVisitorName ?? (order.floorName ? 'Floor order' : 'Quick sale'));
   const kind = isDelivery ? 'Delivery' : order.floorName || (order.floorVisitorName ? 'Floor' : 'Dine-in');
   const cancelled = order.status === 'CANCELLED';
   const stages = stagesFor(order);

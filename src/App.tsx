@@ -60,9 +60,14 @@ import { Plan } from './routes/admin/Plan';
 import { Referrals } from './routes/admin/Referrals';
 import { Reviews } from './routes/admin/Reviews';
 import { Settings } from './routes/admin/Settings';
+import { Profile } from './routes/admin/Profile';
 import { SignIn } from './routes/admin/SignIn';
 import { Kitchen } from './routes/Kitchen';
+import { Consumption } from './routes/admin/Consumption';
+import { Pos } from './routes/admin/Pos';
+import { PosV2 } from './routes/admin/PosV2';
 import { Staff } from './routes/admin/Staff';
+import { StaffDetail } from './routes/admin/StaffDetail';
 import { Tables } from './routes/admin/Tables';
 import { TablesV2 } from './routes/admin/TablesV2';
 import { Floors } from './routes/admin/Floors';
@@ -168,6 +173,11 @@ function DashboardPage() {
   return new URLSearchParams(useLocation().search).get('v') === '1' ? <Dashboard /> : <DashboardV2 />;
 }
 
+/** The redesigned POS terminal is the default; `?v=1` brings back the original. */
+function PosPage() {
+  return new URLSearchParams(useLocation().search).get('v') === '1' ? <Pos /> : <PosV2 />;
+}
+
 /** The redesigned categories page is the default; `?v=1` brings back the original. */
 function CategoriesPage() {
   return new URLSearchParams(useLocation().search).get('v') === '1' ? <Categories /> : <CategoriesV2 />;
@@ -258,6 +268,7 @@ export default function App() {
                 <Route path="ledger/transactions" element={<LedgerHistory />} />
                 <Route path="inventory" element={<Inventory />} />
                 <Route path="inventory/count" element={<StockTake />} />
+                <Route path="inventory/consumption" element={<Consumption />} />
                 <Route path="inventory/buy-list" element={<BuyList />} />
                 <Route path="inventory/watchlist" element={<Watchlist />} />
                 <Route path="suppliers" element={<Suppliers />} />
@@ -270,11 +281,14 @@ export default function App() {
                 <Route path="recurring" element={<Recurring />} />
                 <Route path="branches" element={<Branches />} />
                 <Route path="branches/:branchId" element={<BranchDetail />} />
+                <Route path="pos" element={<PosPage />} />
                 <Route path="staff" element={<Staff />} />
+                <Route path="staff/:memberId" element={<StaffDetail />} />
                 <Route path="audit" element={<AuditLog />} />
                 <Route path="plan" element={<Plan />} />
                 <Route path="referrals" element={<Referrals />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="profile" element={<Profile />} />
               </Route>
 
               <Route path="/platform/signin" element={<PlatformSignIn />} />

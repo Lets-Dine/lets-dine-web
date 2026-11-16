@@ -60,7 +60,7 @@ export function DishMargins() {
   const attention = rows.filter((r) => ['plowhorse', 'dog'].includes(groups.get(r.dishId) ?? '')).length;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Dish margins</h1>
       <p className="mt-5 max-w-[34ch] animate-rise text-[clamp(20px,2.6vw,28px)] font-medium leading-[1.3] text-ink-2 [animation-delay:80ms] sm:max-w-[40ch]">
         Food cost against price, from the stock your orders actually used. Labour, rent, discounts and tax are not included.

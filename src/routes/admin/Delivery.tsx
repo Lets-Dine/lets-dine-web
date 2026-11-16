@@ -58,7 +58,7 @@ export function Delivery() {
 
   if (book.loading && !book.data)
     return (
-      <div className="mx-auto max-w-6xl">
+      <div className="w-full">
         <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Delivery</h1>
         <div role="status" aria-label="Loading delivery" className="mt-10 grid gap-3">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -75,7 +75,7 @@ export function Delivery() {
 
   if (book.error && !book.data)
     return (
-      <div className="mx-auto max-w-6xl">
+      <div className="w-full">
         <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Delivery</h1>
         <p role="alert" className="mt-10 rounded-2xl bg-berry/10 px-4 py-3 text-[14px] text-berry-ink ring-1 ring-berry/25 ring-inset">
           {book.error.message}{' '}
@@ -101,7 +101,7 @@ export function Delivery() {
   const money = (m: number) => formatMoney(m, currency);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Delivery</h1>
 
       {canManage && !first && (

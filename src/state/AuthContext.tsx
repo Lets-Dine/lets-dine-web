@@ -26,6 +26,8 @@ interface AuthValue {
   switchBranch: (branchId: string) => Promise<void>;
   /** Re-reads the branches this person may work in. Call after anything that adds, renames or disables one. */
   refreshBranches: () => Promise<void>;
+  /** Reflects a saved profile edit in the sidebar and header without signing in again. */
+  applyProfile: (patch: { name?: string; avatarUrl?: string | null }) => void;
   allows: (permission: Permission) => boolean;
 }
 
@@ -96,6 +98,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [persist]);
 
+  const applyProfile = useCallback(
+    (patch: { name?: string; avatarUrl?: string | null }) => {
+      const current = staffRef.current;
+      if (!current) return;
+      const member: StaffMember = { ...current, ...patch };
+      persist(member);
+      setStaff(member);
+    },
+    [persist],
+  );
+
   const signOut = useCallback(() => {
     try {
       localStorage.removeItem(KEY);
@@ -128,9 +141,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       switchBranch,
       refreshBranches,
+      applyProfile,
       allows: (permission) => (staff ? can(staff.role, permission) : false),
     }),
-    [staff, signIn, signOut, switchBranch, refreshBranches],
+    [staff, signIn, signOut, switchBranch, refreshBranches, applyProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -13,7 +13,7 @@ import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
 import { FlowDialog, Sum, TapeHeader, TapeLine, Total } from './Ledger';
 import type { Flow } from './Ledger';
-import { DatePicker } from '../../components/admin/DatePicker';
+import { DateRangePicker } from '../../components/admin/DateRangePicker';
 
 const DAY = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
@@ -87,7 +87,7 @@ export function LedgerHistory() {
   const loaded = Boolean(lines.data);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <Link to="/admin/ledger" className="mb-4 inline-flex items-center gap-1 text-[13px] font-semibold text-ink-3 hover:text-ink">
         <ChevronLeft size={15} /> Cash book
       </Link>
@@ -113,9 +113,7 @@ export function LedgerHistory() {
             </button>
           ))}
           <span className="mx-1 hidden h-5 w-px bg-hairline sm:block" aria-hidden />
-          <DatePicker compact className="w-40" aria-label="From day" placeholder="From" value={first} max={toInput(today)} onChange={(v) => (setFirst(v), pickDays(v, last || v))} />
-          <span className="text-[13px] text-ink-3">to</span>
-          <DatePicker compact className="w-40" aria-label="To day" placeholder="To" value={last} max={toInput(today)} onChange={(v) => (setLast(v), pickDays(first || v, v))} />
+          <DateRangePicker compact className="w-60" aria-label="Pick dates" from={first} to={last} max={toInput(today)} onChange={(f, t) => (setFirst(f), setLast(t), pickDays(f, t))} />
           <span className={cx('text-[12.5px]', over ? 'font-semibold text-berry' : 'text-ink-3')} role={over ? 'alert' : undefined}>
             {over ? `Pick ${MAX_DAYS} days or fewer.` : `Up to ${MAX_DAYS} days at a time`}
           </span>

@@ -48,7 +48,7 @@ export function PassCardV2({
   const progress = itemStatusSummary(order);
   const where = isDelivery
     ? order.deliveryCustomerName || 'Guest'
-    : (order.tableName ?? order.floorVisitorName ?? 'Floor order');
+    : (order.tableName ?? order.floorVisitorName ?? (order.floorName ? 'Floor order' : 'Quick sale'));
 
   return (
     <article

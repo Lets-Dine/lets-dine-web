@@ -135,7 +135,7 @@ function CourierPage({ kind, id }: { kind: 'partner' | 'rider'; id: string }) {
   const dutyLabel = subject.isActive ? (partner ? 'Pause' : 'Off duty') : partner ? 'Resume' : 'On duty';
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <FloatingBar show={away}>
         <span className="truncate text-[14px] font-semibold">{subject.name}</span>
         <span className="shrink-0 text-[12.5px] text-ink-3">{status}</span>

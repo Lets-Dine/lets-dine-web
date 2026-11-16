@@ -91,7 +91,7 @@ export function Recurring() {
     });
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Recurring expenses</h1>
 
       {list.data && (

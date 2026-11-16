@@ -27,9 +27,10 @@ export function useCanPayTableOrder(order: Order): boolean {
   return order.items.some((i) => i.status !== 'CANCELLED' && i.quantity > (paid.get(i.id) ?? 0));
 }
 
-/** The split-bill sheet for `order`'s table visit, opened on that order's lines. Mount it only while paying. */
-export function TablePaySheet({ order, onClose, onPaid }: { order: Order; onClose: () => void; onPaid: () => void }) {
+/** The split-bill sheet for `order`'s table visit, opened on that order's lines (or, with `wholeVisit`, on everything not yet paid). Mount it only while paying. */
+export function TablePaySheet({ order, onClose, onPaid, wholeVisit = false }: { order: Order; onClose: () => void; onPaid: () => void; wholeVisit?: boolean }) {
   const staff = useStaff();
+  const { allows } = useAuth();
   const { menu } = useDashboard();
   const { pending, run } = useCommand();
   const visit = useAsync(() => fetchOrdersBySession(staff, order.sessionId), [staff, order.sessionId]);
@@ -57,7 +58,7 @@ export function TablePaySheet({ order, onClose, onPaid }: { order: Order; onClos
       taxRate={menu.restaurant.taxRate}
       pending={pending}
       billed={billed.data}
-      payOrderId={order.id}
+      payOrderId={wholeVisit ? undefined : order.id}
       onClose={onClose}
       onSettle={(c) =>
         run(
@@ -69,13 +70,15 @@ export function TablePaySheet({ order, onClose, onPaid }: { order: Order; onClos
           return ok;
         })
       }
-      onEndSession={() =>
+      onEndSession={() => {
+        // Ending a visit is a tables permission the till role may not have: for them this button only closes the sheet.
+        if (!allows('tables:edit')) return onClose();
         void run(table.id, () => endTableSession(staff, table.id), `${table.name}'s visit ended`).then((ok) => {
           if (!ok) return;
           settled();
           onClose();
-        })
-      }
+        });
+      }}
       onShowQr={onClose}
     />
   );

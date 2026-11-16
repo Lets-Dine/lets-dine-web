@@ -10,6 +10,7 @@ import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useOrderSheet } from '../../components/admin/OrderSheet';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { NewOrderButton } from '../../components/admin/NewOrder';
+import { PosModeButton } from '../../components/admin/PosModeButton';
 import { useDashboard } from './AdminLayout';
 import { useLaneOrders } from './useLaneOrders';
 
@@ -93,7 +94,7 @@ export function OrdersV2() {
   const overdue = counts.focus;
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="mx-auto w-full">
       <header className="mb-8 flex animate-rise flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
           <h1 className={cx(DISPLAY, 'text-[clamp(38px,7vw,64px)] leading-[0.98] tracking-[-0.03em]')}>Orders</h1>
@@ -107,7 +108,10 @@ export function OrdersV2() {
             )}
           </p>
         </div>
-        <NewOrderButton />
+        <div className="flex flex-wrap items-center gap-2">
+          <PosModeButton />
+          <NewOrderButton />
+        </div>
       </header>
 
       {overdue > 0 && lane !== 'focus' && (

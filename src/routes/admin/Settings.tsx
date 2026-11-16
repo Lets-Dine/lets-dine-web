@@ -236,7 +236,7 @@ export function Settings() {
   const locked = canEdit ? undefined : 'Only an owner can change these';
 
   return (
-    <div className={cx('mx-auto max-w-6xl', canEdit && 'pb-28')}>
+    <div className={cx('w-full', canEdit && 'pb-28')}>
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Settings</h1>
       <p className="mt-5 max-w-[40ch] animate-rise text-[clamp(18px,2.2vw,24px)] font-medium leading-[1.3] text-ink-2 [animation-delay:120ms]">
         {canEdit ? 'Changes apply to the next order, as soon as you save.' : 'You can look, but only an owner can change these.'}
@@ -264,12 +264,12 @@ export function Settings() {
       </div>
 
       {tabs.some((t) => t.key === 'loyalty') && (loyaltySeen || tab === 'loyalty') && (
-        <div className={cx('mt-8 max-w-3xl', tab !== 'loyalty' && 'hidden')}>
+        <div className={cx('mt-8', tab !== 'loyalty' && 'hidden')}>
           <LoyaltySettings currency={restaurant.currency} canEdit={canEdit} />
         </div>
       )}
 
-      <div className={cx('mt-8 grid max-w-3xl gap-6', tab === 'loyalty' && 'hidden')} key={tab}>
+      <div className={cx('mt-8 grid gap-6', tab === 'loyalty' && 'hidden')} key={tab}>
         {tab === 'restaurant' && (
           <Block title="Restaurant" hint={locked} delay={0}>
             <fieldset disabled={!canEdit} className="grid gap-4 disabled:opacity-60">

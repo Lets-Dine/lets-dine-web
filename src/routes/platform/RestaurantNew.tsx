@@ -369,7 +369,7 @@ function Handoff({ done, onAnother, onCopy }: { done: { tenant: Tenant; pin: str
     [tenant, pin],
   );
   return (
-    <div className="mx-auto max-w-[620px]">
+    <div>
       <div className="mb-6 text-center">
         <span className="mx-auto mb-3 grid size-12 place-items-center rounded-full bg-mint/16 text-mint-ink">
           <Check size={22} />

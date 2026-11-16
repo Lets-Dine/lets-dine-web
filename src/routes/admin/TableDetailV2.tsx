@@ -218,7 +218,7 @@ export function TableDetailV2() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full">
       <Link to="/admin/tables" className="mb-6 inline-flex items-center gap-1 text-[13px] font-semibold text-ink-3 transition-colors hover:text-ink">
         <ChevronLeft size={15} /> All tables
       </Link>

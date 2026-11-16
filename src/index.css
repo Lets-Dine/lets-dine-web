@@ -118,6 +118,21 @@
   --animate-flash: flash 1300ms var(--ease-out-quart) both;
   --animate-cover: focus-in 1100ms var(--ease-out-quart) both, drift 28s ease-in-out 1100ms infinite alternate;
   --animate-deal: deal 560ms var(--ease-out-quart) both;
+  --animate-tip-in: tip-in 260ms var(--ease-spring) both;
+  /* Hover waits a beat, so passing over a control doesn't flash its tooltip; keyboard focus shows it at once. */
+  --animate-tip-hover: tip-in 260ms var(--ease-spring) 450ms both;
+  --animate-menu-in: menu-in 260ms var(--ease-out-quart) both;
+  --animate-menu-out: menu-out 160ms var(--ease-out-quart) both;
+
+  /* Sidebar user menu: grows out of the row it was opened from (bottom-left) and shrinks back into it. */
+  @keyframes menu-in {
+    from { opacity: 0; transform: translate3d(-10px, 6px, 0) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes menu-out {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translate3d(-8px, 4px, 0) scale(0.97); }
+  }
 
   /* The cover comes into focus as the page opens — blur is bounded to this one image, once. */
   @keyframes focus-in {
@@ -142,6 +157,12 @@
     from { opacity: 0; transform: translate3d(0, 14px, 0); }
     to { opacity: 1; transform: none; }
   }
+  /* Tooltips: rise out of the control they describe (--tip-y is set per side), with a touch of overshoot. */
+  @keyframes tip-in {
+    0% { opacity: 0; transform: translateY(var(--tip-y, 6px)) scale(0.88); filter: blur(3px); }
+    100% { opacity: 1; transform: none; filter: blur(0); }
+  }
+
   @keyframes pop {
     0% { opacity: 0; transform: scale(0.8); }
     60% { transform: scale(1.06); }

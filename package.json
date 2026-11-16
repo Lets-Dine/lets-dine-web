@@ -17,7 +17,8 @@
     "test:performance": "esbuild tests/dish-performance.smoke.ts --bundle --platform=node --format=esm --external:socket.io-client --outfile=node_modules/.tmp/dp.mjs --log-level=error && node node_modules/.tmp/dp.mjs",
     "test:margins": "esbuild tests/margins.smoke.ts --bundle --platform=node --format=esm --external:socket.io-client --outfile=node_modules/.tmp/margins.mjs --log-level=error && node node_modules/.tmp/margins.mjs",
     "test:subscription": "esbuild tests/subscription.smoke.ts --bundle --platform=node --format=esm --outfile=node_modules/.tmp/subscription.mjs --log-level=error && node node_modules/.tmp/subscription.mjs",
-    "test:escpos": "esbuild tests/escpos.smoke.ts --bundle --platform=node --format=esm --external:socket.io-client --outfile=node_modules/.tmp/escpos.mjs --log-level=error && node node_modules/.tmp/escpos.mjs"
+    "test:escpos": "esbuild tests/escpos.smoke.ts --bundle --platform=node --format=esm --external:socket.io-client --outfile=node_modules/.tmp/escpos.mjs --log-level=error && node node_modules/.tmp/escpos.mjs",
+    "test:posboard": "esbuild tests/posboard.smoke.ts --bundle --platform=node --format=esm --external:socket.io-client --outfile=node_modules/.tmp/posboard.mjs --log-level=error && node node_modules/.tmp/posboard.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

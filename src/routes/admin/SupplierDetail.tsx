@@ -107,12 +107,12 @@ function Page({ item, reload }: { item: Detail; reload: () => void }) {
   const issueTotal = ISSUES.reduce((n, i) => n + item.issueCounts[i.kind], 0);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <Link to="/admin/suppliers" className="mb-4 inline-flex items-center gap-1 text-[13px] font-semibold text-ink-3 hover:text-ink">
         ← Suppliers
       </Link>
 
-      <section className="max-w-3xl">
+      <section>
         <h1 className={cx(DISPLAY, 'animate-rise wrap-break-word text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>{item.name}</h1>
 
         <p className="mt-5 max-w-[36ch] animate-rise text-[clamp(20px,2.6vw,28px)] leading-[1.3] font-medium text-ink-2 [animation-delay:80ms]">

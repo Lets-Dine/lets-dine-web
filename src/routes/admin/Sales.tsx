@@ -16,7 +16,7 @@ import type { Payment, PaymentMethod, PaymentStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
-import { DatePicker } from '../../components/admin/DatePicker';
+import { DateRangePicker } from '../../components/admin/DateRangePicker';
 
 const PAGE = 25;
 type StatusFilter = 'all' | PaymentStatus;
@@ -102,7 +102,7 @@ export function Sales() {
     setLinked((prev) => (prev?.id === next.id ? next : prev));
   };
 
-  const tableName = (id: string | null) => (id ? (tables.data?.find((t) => t.id === id)?.name ?? 'Table') : 'Delivery');
+  const tableName = (id: string | null) => (id ? (tables.data?.find((t) => t.id === id)?.name ?? 'Table') : 'Counter or delivery');
   const currency = rows[0]?.currency ?? menu?.restaurant.currency ?? '';
   const money = (v: number) => formatMoney(v, currency);
 
@@ -145,7 +145,7 @@ export function Sales() {
   const owedNow = useCountUp(summary?.owed ?? 0);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.03em]')}>Sales</h1>
 
       {summary && summary.count > 0 && (
@@ -175,9 +175,7 @@ export function Sales() {
           options={[{ value: 'all', label: 'Any method' }, ...(Object.keys(METHOD_LABEL) as PaymentMethod[]).map((m) => ({ value: m, label: METHOD_LABEL[m] }))]}
         />
         <Select className="w-48" aria-label="Filter by customer" value={customerId} onChange={setCustomerId} options={customerOptions} />
-        <DatePicker compact className="w-40" aria-label="From day" placeholder="From" value={from} max={to || undefined} onChange={setFrom} />
-        <span className="text-[13px] text-ink-3">to</span>
-        <DatePicker compact className="w-40" aria-label="To day" placeholder="To" value={to} min={from || undefined} onChange={setTo} />
+        <DateRangePicker compact className="w-60" aria-label="Filter by dates" from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} />
       </div>
 
       {summary && summary.count > 0 && (

@@ -4,7 +4,7 @@ import type { Dish, Menu } from '../../domain/types';
 import { formatMoney } from '../../domain/money';
 import { haptic } from '../../platform/haptics';
 import { DietMarks, DishImage, QuantityStepper } from '../Bits';
-import { Check, Minus, Plus, Search, Star, X } from '../icons';
+import { Check, Minus, Plus, Search, X } from '../icons';
 import { CHIP, CHIP_OFF, CHIP_ON, cx } from '../ui';
 import { orderableOptions } from './DishOptionsDialog';
 import type { DishSelection } from './DishOptionsDialog';
@@ -100,6 +100,8 @@ export function DishMenu({
   onQty,
   onClose,
   heading,
+  autoFocusSearch = true,
+  pos = false,
 }: {
   menu: Menu;
   busy: boolean;
@@ -111,6 +113,10 @@ export function DishMenu({
   onQty: (key: string, by: number) => void;
   onClose?: () => void;
   heading?: ReactNode;
+  /** Off on a tablet, where focusing the search box would throw the keyboard up over the menu. */
+  autoFocusSearch?: boolean;
+  /** POS terminal look: category chips and search share one row. */
+  pos?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -139,12 +145,24 @@ export function DishMenu({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {heading}
-      <div className="flex items-center gap-2 border-b border-hairline p-3 sm:p-4">
-        <div className="relative min-w-0 flex-1">
+      <div className={cx('flex items-center gap-2', pos ? 'px-3 pt-2 pb-1 sm:px-4' : 'border-b border-hairline p-3 sm:p-4')}>
+        {pos && (
+          <div className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto" role="group" aria-label="Category">
+            <button type="button" aria-pressed={categoryId === null} className={cx(CHIP, 'h-9 px-3.5 text-[13px]', categoryId === null ? CHIP_ON : CHIP_OFF)} onClick={() => setCategoryId(null)}>
+              All Categories
+            </button>
+            {categories.map((c) => (
+              <button key={c.id} type="button" aria-pressed={categoryId === c.id} className={cx(CHIP, 'h-9 px-3.5 text-[13px]', categoryId === c.id ? CHIP_ON : CHIP_OFF)} onClick={() => setCategoryId(c.id)}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className={cx('relative min-w-0', pos ? 'w-36 shrink-0 sm:w-44' : 'flex-1')}>
           <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-4" />
           <input
             value={query}
-            autoFocus
+            autoFocus={autoFocusSearch}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && matches[0]) {
@@ -152,9 +170,9 @@ export function DishMenu({
                 pick(matches[0]);
               }
             }}
-            placeholder="Search the menu — Enter adds the first"
+            placeholder={pos ? 'Search' : 'Search the menu — Enter adds the first'}
             aria-label="Search the menu"
-            className="h-11 w-full rounded-full bg-surface-2 pl-10 pr-9 text-[14.5px] text-ink outline-none ring-1 ring-hairline ring-inset placeholder:text-ink-4 focus:ring-[1.5px] focus:ring-flame-2/40"
+            className={cx('w-full rounded-full bg-surface-2 text-ink outline-none ring-1 ring-hairline ring-inset placeholder:text-ink-4 focus:ring-[1.5px] focus:ring-flame-2/40', pos ? 'h-9 pl-9 pr-8 text-[13px]' : 'h-11 pl-10 pr-9 text-[14.5px]')}
           />
           {query && (
             <button
@@ -179,7 +197,7 @@ export function DishMenu({
         )}
       </div>
 
-      {categories.length > 1 && (
+      {!pos && categories.length > 1 && (
         <div className="no-scrollbar flex gap-2 overflow-x-auto border-b border-hairline px-3 py-2.5 sm:px-4">
           <button type="button" className={cx(CHIP, categoryId === null ? CHIP_ON : CHIP_OFF)} onClick={() => setCategoryId(null)}>
             All
@@ -199,96 +217,90 @@ export function DishMenu({
         {matches.length === 0 ? (
           <p className="py-16 text-center text-[13.5px] text-ink-3">Nothing on the menu matches that.</p>
         ) : (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3 sm:grid-cols-[repeat(auto-fill,minmax(164px,1fr))]">
+          <ul className={cx('grid', pos ? 'grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-x-3 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(176px,1fr))]' : 'grid-cols-[repeat(auto-fill,minmax(164px,1fr))] gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fill,minmax(192px,1fr))]')}>
             {matches.map((dish) => {
               const n = counts[dish.id] ?? 0;
               const { variants, addOns } = orderableOptions(dish, menu);
               const prices = variants.map((v) => v.price);
               const price = prices.length > 0 ? `from ${formatMoney(Math.min(...prices), currency)}` : formatMoney(dish.price, currency);
               const hasOptions = variants.length > 0 || addOns.length > 0;
-              // A rating never shows without its count, and never before there is one.
-              const rated = dish.stats.avgRating !== null && dish.stats.ratingCount > 0;
               return (
-                <li key={dish.id} className="relative">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => pick(dish)}
-                    aria-label={`${dish.name}, ${price}${n ? `, ${n} on the ticket` : ''}`}
+                <li key={dish.id}>
+                  <div
                     className={cx(
-                      'group relative isolate block aspect-[5/4] w-full overflow-hidden rounded-[18px] text-left outline-none',
-                      'transition-[translate,box-shadow,scale] duration-300 ease-out-quart hover:-translate-y-0.5 hover:shadow-lift active:scale-[0.97] disabled:opacity-50',
-                      'focus-visible:ring-2 focus-visible:ring-flame focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
-                      n > 0 && 'shadow-flame ring-2 ring-flame ring-offset-2 ring-offset-surface',
+                      'group relative flex h-full flex-col bg-surface ring-1 ring-hairline ring-inset',
+                      pos ? 'rounded-[22px] p-3' : 'rounded-[28px] p-4',
+                      'shadow-[0_1px_2px_rgb(0_0_0/0.06),0_14px_26px_-20px_rgb(0_0_0/0.5)] transition-[translate,box-shadow,background-color] duration-300 ease-out-quart',
+                      'hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgb(0_0_0/0.08),0_22px_34px_-22px_rgb(0_0_0/0.55)]',
+                      n > 0 && 'bg-flame/[0.07] ring-2 ring-flame',
                     )}
                   >
-                    <span className="absolute inset-0 -z-10 overflow-hidden" aria-hidden>
-                      <DishImage
-                        dish={dish}
-                        monogram="text-[52px]"
-                        className="size-full transition-transform duration-700 ease-out-quart group-hover:scale-[1.06]"
-                      />
-                    </span>
-                    {/* The plate's caption is set on its own shadow, so it reads on any photo. */}
-                    <span
-                      className="absolute inset-x-0 bottom-0 -z-10 h-[85%] bg-gradient-to-t from-black/90 via-black/55 to-transparent"
-                      aria-hidden
-                    />
-                    {n > 0 && <span className="absolute inset-0 -z-10 bg-flame/12" aria-hidden />}
-
-                    {/* Once it is on the ticket the count takes the top edge; on a narrow card the two would collide. */}
-                    {rated && n === 0 && (
-                      <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-[3px] text-[11px] font-semibold leading-none text-white tnum">
-                        <Star size={10} className="text-gold" />
-                        {dish.stats.avgRating!.toFixed(1)}
-                        <span className="font-medium text-white/60">· {dish.stats.ratingCount.toLocaleString('en-US')}</span>
-                      </span>
-                    )}
-                    {n === 0 && (
-                      <span
-                        className="absolute right-2 top-2 grid size-8 scale-75 place-items-center rounded-full bg-white text-black opacity-0 shadow-lift transition-[opacity,scale] duration-200 ease-out-quart group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100"
-                        aria-hidden
-                      >
-                        <Plus size={16} />
-                      </span>
-                    )}
-
-                    <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
-                      <span className="line-clamp-2 font-display text-[15px] font-semibold leading-[1.15] tracking-[-0.01em] text-balance text-white">
-                        {dish.name}
-                      </span>
-                      <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12.5px] text-white/70">
-                        <span className="font-semibold text-white tnum">{price}</span>
-                        {hasOptions && <span>· options</span>}
-                        <DietMarks dish={dish} />
-                      </span>
-                    </span>
-                  </button>
-                  {n > 0 && (
-                    <span className="absolute right-1.5 top-1.5 flex animate-pop items-center rounded-full bg-flame text-white shadow-deep">
-                      <button
-                        type="button"
-                        aria-label={`One fewer ${dish.name}`}
-                        disabled={busy}
-                        onClick={() => lessOf(dish)}
-                        className="grid size-8 place-items-center rounded-full transition-transform active:scale-90"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <span key={n} className="min-w-5 animate-bump text-center text-[13.5px] font-bold tnum">
-                        {n}
+                    {/* The whole card takes the tap, padding included. The plate and its add control sit above this; the photo's own button is the one assistive tech sees. */}
+                    <button type="button" tabIndex={-1} aria-hidden disabled={busy} onClick={() => pick(dish)} className="absolute inset-0 rounded-[inherit] outline-none disabled:opacity-50" />
+                    {/* The plate, seen from above. The tap target covers it; the add control straddles its foot. */}
+                    <div className={cx('relative aspect-square shrink-0', pos && 'mx-auto w-[68%]')}>
+                      <span className="absolute inset-0 overflow-hidden rounded-full bg-surface-2 ring-1 ring-black/5 ring-inset" aria-hidden>
+                        <DishImage dish={dish} monogram="text-[48px]" className="size-full transition-transform duration-700 ease-out-quart group-hover:scale-[1.05]" />
                       </span>
                       <button
                         type="button"
-                        aria-label={`One more ${dish.name}`}
                         disabled={busy}
                         onClick={() => pick(dish)}
-                        className="grid size-8 place-items-center rounded-full transition-transform active:scale-90"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </span>
-                  )}
+                        aria-label={`${dish.name}, ${price}${n ? `, ${n} on the ticket` : ''}`}
+                        className="absolute inset-0 rounded-full outline-none transition-transform duration-200 ease-out-quart focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame active:scale-[0.98] disabled:opacity-50"
+                      />
+                      {n === 0 ? (
+                        // A real button, not a drawing on top of one: half of it hangs below the photo, where the photo's own tap
+                        // target stops, so it has to take the tap itself.
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => pick(dish)}
+                          aria-label={`Add ${dish.name}`}
+                          className={cx('absolute left-1/2 grid -translate-x-1/2', pos ? '-bottom-3.5 size-8' : '-bottom-4 size-11', ' place-items-center rounded-full bg-flame text-white shadow-[0_4px_10px_-2px_rgb(0_0_0/0.4)] ring-4 ring-surface outline-none transition-transform duration-200 ease-out-quart group-hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame active:scale-95 disabled:opacity-50')}
+                        >
+                          <Plus size={pos ? 15 : 18} />
+                        </button>
+                      ) : (
+                        <span className={cx('absolute left-1/2 flex -translate-x-1/2 animate-pop items-center rounded-full bg-flame text-white shadow-[0_4px_12px_-2px_rgb(0_0_0/0.45)] ring-4 ring-surface', pos ? '-bottom-3.5' : '-bottom-4')}>
+                          <button
+                            type="button"
+                            aria-label={`One fewer ${dish.name}`}
+                            disabled={busy}
+                            onClick={() => lessOf(dish)}
+                            className={cx('grid place-items-center rounded-full transition-transform active:scale-90', pos ? 'size-8' : 'size-11')}
+                          >
+                            <Minus size={pos ? 13 : 15} />
+                          </button>
+                          <span key={n} className="min-w-6 animate-bump text-center text-[15px] font-bold tnum">
+                            {n}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`One more ${dish.name}`}
+                            disabled={busy}
+                            onClick={() => pick(dish)}
+                            className={cx('grid place-items-center rounded-full transition-transform active:scale-90', pos ? 'size-8' : 'size-11')}
+                          >
+                            <Plus size={pos ? 13 : 15} />
+                          </button>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* The caption taps like the photo does; the photo's button is the one assistive tech sees. */}
+                    <button type="button" tabIndex={-1} aria-hidden disabled={busy} onClick={() => pick(dish)} className={cx(pos ? 'mt-5' : 'mt-7', 'block flex-1 text-center outline-none')}>
+                      <span className="line-clamp-2 font-display text-[17px] leading-[1.2] font-semibold tracking-[-0.01em] text-balance text-ink">{dish.name}</span>
+                      <span aria-hidden className="mx-auto mt-2.5 block h-px w-8 bg-gold/70" />
+                      <span className={cx('mt-2.5 block tnum', pos ? 'font-display text-[17px] leading-none font-bold text-flame-3' : 'font-mono text-[13px] tracking-wide text-ink-2')}>{price}</span>
+                      {(hasOptions || dish.dietaryType) && (
+                        <span className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-[12px] text-ink-3">
+                          {hasOptions && <span className="italic">sizes &amp; extras</span>}
+                          <DietMarks dish={dish} />
+                        </span>
+                      )}
+                    </button>
+                  </div>
                 </li>
               );
             })}
@@ -339,7 +351,7 @@ export function DishTilePicker({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-3 backdrop-blur-sm sm:p-6" role="presentation" onClick={onDone}>
       <div
-        className="animate-pop flex h-[min(92dvh,860px)] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-surface text-ink shadow-deep ring-1 ring-hairline ring-inset lg:flex-row"
+        className="animate-pop flex h-[min(92dvh,860px)] w-full flex-col overflow-hidden rounded-3xl bg-surface text-ink shadow-deep ring-1 ring-hairline ring-inset lg:flex-row"
         role="dialog"
         aria-modal="true"
         aria-label="Add dishes for the diner"

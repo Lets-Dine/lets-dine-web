@@ -24,9 +24,22 @@ export function orderableOptions(dish: Dish, menu: Menu) {
  * Staff picking a size and extras for a dish they're adding for the diner — the same form the
  * diner sees, minus the kitchen note (the staff order API has no field for one).
  */
-export function DishOptionsDialog({ dish, menu, onAdd, onClose }: { dish: Dish; menu: Menu; onAdd: (s: DishSelection) => void; onClose: () => void }) {
+export function DishOptionsDialog({
+  dish,
+  menu,
+  onAdd,
+  onClose,
+  startQuantity = 1,
+}: {
+  dish: Dish;
+  menu: Menu;
+  onAdd: (s: DishSelection) => void;
+  onClose: () => void;
+  /** What the form opens on — a till where the quantity was typed before the dish has already been told how many. */
+  startQuantity?: number;
+}) {
   const { variants, addOns } = orderableOptions(dish, menu);
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(startQuantity);
   const [variantId, setVariantId] = useState<string | null>(null);
   const [addOnIds, setAddOnIds] = useState<string[]>([]);
 

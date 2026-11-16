@@ -4,14 +4,14 @@ import { ChevronDown, ChevronLeft, ChevronRight, X } from '../icons';
 import { DISPLAY, cx } from '../ui';
 import { INPUT_BOX } from './kit';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const WEEK = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const WEEK = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const WIDTH = 304;
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const iso = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
-const daysIn = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
-const parse = (v: string) => {
+export const iso = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
+export const daysIn = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
+export const parse = (v: string) => {
   const hit = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
   return hit ? { y: +hit[1], m: +hit[2] - 1, d: +hit[3] } : null;
 };
@@ -44,12 +44,12 @@ const shape = (raw: string) => {
   // A separator typed after the last part stays, so `01/` does not lose its slash.
   return parts.join('/') + (/[/.\- ]$/.test(t) && parts.length < 3 ? '/' : '');
 };
-const longDay = new Intl.DateTimeFormat(undefined, {
+export const longDay = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
   month: 'long',
   year: 'numeric',
 });
-const NAV =
+export const NAV =
   'grid size-9 shrink-0 place-items-center rounded-full text-ink-3 transition-move hover:bg-surface-2 hover:text-ink active:scale-90 disabled:pointer-events-none disabled:opacity-25';
 
 type Place = { left: number; top?: number; bottom?: number };
