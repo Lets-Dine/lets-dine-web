@@ -66,6 +66,7 @@ type Target =
   | { kind: 'TABLE'; table: DiningTable }
   | { kind: 'FLOOR'; floor: Floor }
   | { kind: 'DELIVERY' }
+  | { kind: 'PICKUP' }
   | { kind: 'QUICK' };
 
 /**
@@ -73,7 +74,7 @@ type Target =
  * first order seats it, a settled bill ends its visit — so holding the `DiningTable` that was clicked would freeze
  * `currentSessionId` at whatever it was then, and the ticket would go on showing the party that has already left.
  */
-type Opened = { kind: 'TABLE' | 'FLOOR'; id: string } | { kind: 'DELIVERY' | 'QUICK' };
+type Opened = { kind: 'TABLE' | 'FLOOR'; id: string } | { kind: 'DELIVERY' | 'PICKUP' | 'QUICK' };
 
 const openedOf = (t: Target): Opened => (t.kind === 'TABLE' ? { kind: 'TABLE', id: t.table.id } : t.kind === 'FLOOR' ? { kind: 'FLOOR', id: t.floor.id } : { kind: t.kind });
 
@@ -420,7 +421,6 @@ function ServiceBoard({
 
   const needle = find.trim().toLowerCase();
   const shown = needle ? tables.filter((t) => t.name.toLowerCase().includes(needle)) : tables;
-  const floor = floors[0] ?? null;
 
   // The keyboard owns this screen: type to narrow, Enter to open, a function key for each counter target.
   useEffect(() => {
@@ -448,7 +448,8 @@ function ServiceBoard({
       const quick = () => onOpen({ kind: 'QUICK' });
       const delivery = () => onOpen({ kind: 'DELIVERY' });
       if (on('F2', quick) || alt('KeyQ', quick)) return;
-      if (floor && (on('F3', () => onOpen({ kind: 'FLOOR', floor })) || alt('KeyT', () => onOpen({ kind: 'FLOOR', floor })))) return;
+      const pickup = () => onOpen({ kind: 'PICKUP' });
+      if (on('F3', pickup) || alt('KeyP', pickup)) return;
       if (on('F4', delivery) || alt('KeyD', delivery)) return;
       if (on('F8', onParked) || alt('KeyK', onParked)) return;
       if (e.altKey) return;
@@ -464,7 +465,7 @@ function ServiceBoard({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [blocked, shown, floor, find, onOpen, onParked, onExit]);
+  }, [blocked, shown, find, onOpen, onParked, onExit]);
 
   if (error && tables.length === 0 && floors.length === 0) {
     return (
@@ -566,9 +567,10 @@ function ServiceBoard({
         )}
       </section>
 
-      <section aria-label="Counter" className="flex min-h-0 flex-col xl:overflow-hidden xl:border-l xl:border-hairline xl:pl-4">
+      {/* Below xl the board stacks: the counter comes first, so ringing a sale never means scrolling past every table. */}
+      <section aria-label="Counter" className="order-first flex min-h-0 flex-col xl:order-none xl:overflow-hidden xl:border-l xl:border-hairline xl:pl-4">
         <h2 className={cx(DISPLAY, 'py-3 text-[19px]')}>Counter</h2>
-        <div className="grid gap-2.5">
+        <div className="grid gap-2.5 sm:grid-cols-3 xl:grid-cols-1">
           <CounterCard
             title="Quick bill"
             detail="Rung up and paid on the spot"
@@ -577,12 +579,11 @@ function ServiceBoard({
             onClick={() => onOpen({ kind: 'QUICK' })}
           />
           <CounterCard
-            title={floor ? floor.name : 'Takeaway'}
-            detail={floor ? 'A spot with no table — billed on its own' : 'Add a floor under Table & spaces first'}
+            title="Pick up"
+            detail="Collected at the counter — paid then"
             shortcut="F3"
             icon={<Ticket size={17} />}
-            disabled={!floor}
-            onClick={() => floor && onOpen({ kind: 'FLOOR', floor })}
+            onClick={() => onOpen({ kind: 'PICKUP' })}
           />
           <CounterCard
             title="Delivery"
@@ -687,6 +688,7 @@ function Terminal({
   const currency = menu.restaurant.currency;
   const isTable = target.kind === 'TABLE';
   const isDelivery = target.kind === 'DELIVERY';
+  const isPickup = target.kind === 'PICKUP';
   const tableId = target.kind === 'TABLE' ? target.table.id : null;
   const session = target.kind === 'TABLE' ? target.table.currentSessionId : null;
 
@@ -707,9 +709,9 @@ function Terminal({
   const [spot, setSpot] = useState('');
   const [guest, setGuest] = useState<Guest | null>(null);
   const [address, setAddress] = useState('');
-  const deliveryReady = !isDelivery || (guest !== null && address.trim() !== '');
+  const deliveryReady = isPickup ? guest !== null : !isDelivery || (guest !== null && address.trim() !== '');
   /** Floor and quick orders are each billed on their own; a table settles as a whole. */
-  const billedAlone = target.kind === 'FLOOR' || target.kind === 'QUICK';
+  const billedAlone = target.kind === 'FLOOR' || target.kind === 'QUICK' || target.kind === 'PICKUP';
   /** The shelf only holds tickets that have somewhere to go back to, so a delivery or a counter sale cannot park. */
   const canPark = target.kind === 'TABLE' || target.kind === 'FLOOR';
   /** Orders placed from this screen. The live queue catches up a moment later; until then these are what is on the ticket. */
@@ -737,7 +739,9 @@ function Terminal({
         ? o.tableId === target.table.id && (!session || o.sessionId === session)
         : target.kind === 'FLOOR'
           ? o.floorName !== null
-          : target.kind === 'QUICK' && o.tableId === null && o.floorName === null && o.orderType === 'DINE_IN',
+          : target.kind === 'PICKUP'
+            ? o.orderType === 'PICKUP'
+            : target.kind === 'QUICK' && o.tableId === null && o.floorName === null && o.orderType === 'DINE_IN',
     );
     const all = new Map<string, Order>();
     for (const o of [...fromHere.map((p) => live.get(p.id) ?? p), ...mine]) all.set(o.id, o);
@@ -779,13 +783,14 @@ function Terminal({
 
   // Tell the screen when walking away would cost something. A table or floor ticket parks itself on the way out, so the only
   // things worth a dialog are the two kinds with no shelf to park on, and money nobody has taken.
-  const unpaid = !isTable ? owing.map((o) => o.reference).join(', ') : '';
+  // A pick-up is paid when it is collected, so leaving with one still owing is expected, not a slip.
+  const unpaid = !isTable && !isPickup ? owing.map((o) => o.reference).join(', ') : '';
   const parkOnLeave = useRef<() => boolean>(() => false);
   parkOnLeave.current = () => park(true);
   useEffect(() => {
     if (busy) onGuard({ busy: true, reason: 'An order is being sent.' });
     else if (unpaid) onGuard({ busy: false, reason: `${unpaid} hasn't been paid. Once it's served you can take payment from Orders.` });
-    else if (unsent > 0 && !canPark) onGuard({ busy: false, reason: `${unsent} item${unsent === 1 ? '' : 's'} on the ticket haven't been sent, and a ${isDelivery ? 'delivery' : 'counter sale'} can't be parked — they will be lost.` });
+    else if (unsent > 0 && !canPark) onGuard({ busy: false, reason: `${unsent} item${unsent === 1 ? '' : 's'} on the ticket haven't been sent, and a ${isDelivery ? 'delivery' : isPickup ? 'pick-up' : 'counter sale'} can't be parked — they will be lost.` });
     else onGuard(null);
     return () => onGuard(null);
   }, [busy, unsent, unpaid, canPark, isDelivery, onGuard]);
@@ -1107,7 +1112,7 @@ function Terminal({
                 aria-label="Floor"
               />
             ) : (
-              <span className={cx(DISPLAY, 'min-w-0 flex-1 truncate text-[19px]')}>{target.kind === 'DELIVERY' ? 'Delivery' : target.kind === 'FLOOR' ? target.floor.name : 'Quick bill'}</span>
+              <span className={cx(DISPLAY, 'min-w-0 flex-1 truncate text-[19px]')}>{target.kind === 'DELIVERY' ? 'Delivery' : target.kind === 'PICKUP' ? 'Pick up' : target.kind === 'FLOOR' ? target.floor.name : 'Quick bill'}</span>
             )}
           </div>
           {target.kind === 'FLOOR' && (
@@ -1120,7 +1125,7 @@ function Terminal({
               <TextInput value={address} onChange={setAddress} maxLength={200} placeholder="Delivery address" autoComplete="off" />
             </div>
           )}
-          {guestShown && <PosCustomer value={guest} onChange={setGuest} required={isDelivery} disabled={busy} />}
+          {guestShown && <PosCustomer value={guest} onChange={setGuest} required={isDelivery || isPickup} disabled={busy} />}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
@@ -1222,9 +1227,9 @@ function Terminal({
             </div>
           </dl>
 
-          {isDelivery && !deliveryReady && (
+          {(isDelivery || isPickup) && !deliveryReady && (
             <p role="status" className="rounded-lg bg-flame/10 px-3 py-2 text-[12.5px] text-flame-3 ring-1 ring-flame/30 ring-inset">
-              A delivery needs a customer and an address before it can go.
+              {isPickup ? 'A pick-up needs a customer to call when it is ready.' : 'A delivery needs a customer and an address before it can go.'}
             </p>
           )}
 
@@ -1320,7 +1325,7 @@ const KEYS: { group: string; rows: [string[], string][] }[] = [
       [['type'], 'narrow the tables'],
       [['Enter'], 'open the first table'],
       [['F2', '⌥Q'], 'quick bill'],
-      [['F3', '⌥T'], 'takeaway or floor'],
+      [['F3', '⌥P'], 'pick up'],
       [['F4', '⌥D'], 'delivery'],
       [['F8', '⌥K'], 'parked tickets'],
       [['Esc'], 'leave POS mode'],

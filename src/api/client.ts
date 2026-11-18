@@ -448,6 +448,8 @@ export interface CreateOrderInput {
   /** Delivery only — the exact spot, when the diner shared their device's location. */
   deliveryLocation?: LatLng;
   deliveryNote?: string;
+  /** A delivery session's customer chooses: brought to the address (the default) or collected at the counter. */
+  fulfilment?: 'DELIVERY' | 'PICKUP';
   /** Dine-in only (table or floor, §16b) — identity captured at checkout, upserted into a `Customer` by phone. */
   customer?: { phone: string; name: string };
   /** Floor orders only (§16b) — which cabin/room/spot on the floor to bring this order to, typed in at checkout. Distinct from `customer`: this is where the order goes, not who it's for. */

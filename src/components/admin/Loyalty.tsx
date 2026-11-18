@@ -174,8 +174,8 @@ export function LoyaltySettings({ currency, canEdit, onSaved }: { currency: stri
       </Block>
     );
   }
-  // Keyed on the saved rules so the form starts again from what is saved after every save.
-  return <LoyaltyRules key={JSON.stringify(loaded)} saved={loaded} currency={currency} canEdit={canEdit} onSaved={(next) => {
+  // Not keyed on the saved rules: remounting after a save would throw away the "Saved" flash. The fields already hold what was saved.
+  return <LoyaltyRules saved={loaded} currency={currency} canEdit={canEdit} onSaved={(next) => {
       setSaved(next);
       onSaved?.();
     }} />;
@@ -188,6 +188,14 @@ function LoyaltyRules({ saved, currency, canEdit, onSaved }: { saved: LoyaltyPro
   const [value, setValue] = useState(saved.redeemValue);
   const [pct, setPct] = useState(String(saved.maxRedeemPct));
   const [bonus, setBonus] = useState(String(saved.reviewBonus ?? 0));
+
+  const discard = () => {
+    setEnabled(saved.enabled);
+    setSpend(saved.spendPerPoint);
+    setValue(saved.redeemValue);
+    setPct(String(saved.maxRedeemPct));
+    setBonus(String(saved.reviewBonus ?? 0));
+  };
 
   const maxRedeemPct = Number(pct);
   const wholePct = /^\d+$/.test(pct);
@@ -263,6 +271,9 @@ function LoyaltyRules({ saved, currency, canEdit, onSaved }: { saved: LoyaltyPro
               <span aria-hidden className={cx('size-2 shrink-0 rounded-full', justSaved ? 'bg-mint' : 'animate-breathe bg-gold')} />
               {justSaved ? 'Saved' : 'Unsaved changes'}
             </span>
+            <button type="button" className={cx(ADMIN_GHOST, 'h-9 px-3.5')} disabled={busy || justSaved} onClick={discard}>
+              Discard
+            </button>
             <button type="button" className={cx(ADMIN_PRIMARY, 'relative h-9 overflow-hidden px-4')} disabled={!canSave && !justSaved} onClick={save}>
               <span aria-hidden className={cx('absolute inset-0 origin-left bg-mint transition-transform duration-500 ease-out-quart', justSaved ? 'scale-x-100' : 'scale-x-0')} />
               <span className="relative inline-flex items-center gap-1.5">

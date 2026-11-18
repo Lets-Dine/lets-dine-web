@@ -49,6 +49,9 @@ export function SignIn() {
       <AdminThemeToggle className="absolute right-4 top-[calc(12px+var(--safe-t))]" />
       <div className="w-full max-w-[440px]">
         <div className="mb-6 text-center">
+          <Link to="/" aria-label="FeastoX home" className="mb-4 inline-block font-display text-[24px] font-semibold tracking-[-0.03em] text-ink">
+            FeastoX<span className="text-flame-1">.</span>
+          </Link>
           <h1 className={cx(DISPLAY, 'text-[28px]')}>Restaurant dashboard</h1>
           <p className="mt-1.5 text-[14px] text-ink-3">Sign in to work the pass, the menu and the numbers.</p>
         </div>

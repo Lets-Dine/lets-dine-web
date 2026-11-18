@@ -1,3 +1,5 @@
+import { BranchAddressMap } from '../../components/admin/BranchAddressMap';
+import type { LatLng } from '../../domain/location';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createBranch, listBranches } from '../../api/staff';
@@ -156,6 +158,7 @@ function AddBranchSheet({ branches, onClose }: { branches: { id: string; name: s
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState<LatLng | null>(null);
   /** Where the new branch's menu starts from. Empty string = a blank menu. */
   const [copyFrom, setCopyFrom] = useState('');
   const ready = name.trim().length >= 2;
@@ -176,6 +179,8 @@ function AddBranchSheet({ branches, onClose }: { branches: { id: string; name: s
                   const created = await createBranch({
                     name,
                     address,
+                    latitude: pin?.lat ?? null,
+                    longitude: pin?.lng ?? null,
                     phone,
                     timezone: 'Asia/Kathmandu',
                     serviceChargeRate: null,
@@ -197,6 +202,7 @@ function AddBranchSheet({ branches, onClose }: { branches: { id: string; name: s
             <Field label="Address">
               <TextInput value={address} onChange={setAddress} maxLength={200} placeholder="Lazimpat Road, Kathmandu" />
             </Field>
+            <BranchAddressMap pin={pin} onPick={setPin} onAddress={setAddress} />
             <Field label="Phone" hint="Optional.">
               <TextInput value={phone} onChange={setPhone} maxLength={30} placeholder="01-4000000" />
             </Field>

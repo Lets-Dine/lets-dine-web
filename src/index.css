@@ -848,13 +848,62 @@ body.driver-active:has([role='dialog']:not(.driver-popover)) .driver-popover { d
   [data-reveal='hidden'] { transform: none; filter: none; }
 }
 
-/* The checkout pin map, themed to the diner's warm dark surfaces. OpenStreetMap's tiles are light, so the tile
-   pane alone is inverted and warmed; the pin, controls and attribution are drawn from the palette instead. */
-.pin-map.leaflet-container { background: var(--color-surface-2); font-family: inherit; }
-.pin-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) sepia(0.3) saturate(1.1) brightness(0.9) contrast(0.92); }
-.pin-map .leaflet-bar { border: 0; box-shadow: var(--shadow-lift); }
-.pin-map .leaflet-bar a,
-.pin-map .leaflet-bar a:hover { background-color: var(--color-surface-3); color: var(--color-ink); border-bottom-color: var(--color-hairline); }
-.pin-map .leaflet-bar a:hover { background-color: var(--color-surface-2); }
-.pin-map .leaflet-control-attribution { background: rgb(26 21 18 / 0.78); color: var(--color-ink-3); }
-.pin-map .leaflet-control-attribution a { color: var(--color-flame-1); }
+/* The pin map's chrome follows the map's own theme (data-theme), not the page around it: a light map in a dark modal
+   gets light controls. The map itself (land, roads, POIs) is recolored in domain/mapTheme. */
+.pin-map { background: var(--color-surface-2); font-family: inherit; }
+.pin-map[data-theme='dark'] { --ctl-bg: #2a241f; --ctl-hover: #362e28; --ctl-line: #433a32; --ctl-ink: #8f857b; --ctl-glass: rgb(27 23 20 / 0.78); --ctl-icon: invert(1); --ctl-fg: #e8e0d8; }
+.pin-map[data-theme='light'] { --ctl-bg: #ffffff; --ctl-hover: #f1ede6; --ctl-line: #e6e0d6; --ctl-ink: #6e655c; --ctl-glass: rgb(255 255 255 / 0.78); --ctl-icon: none; --ctl-fg: #3b342e; }
+.pin-map .maplibregl-ctrl-group { border-radius: 14px; overflow: hidden; background: var(--ctl-bg); box-shadow: var(--shadow-lift); }
+.pin-map .maplibregl-ctrl-group button { width: 34px; height: 34px; background-color: transparent; }
+.pin-map .maplibregl-ctrl-group button:not(:disabled):hover { background-color: var(--ctl-hover); }
+.pin-map .maplibregl-ctrl-group button + button { border-top: 1px solid var(--ctl-line); }
+.pin-map .maplibregl-ctrl-icon { filter: var(--ctl-icon); }
+.pin-map .maplibregl-ctrl-attrib { background: var(--ctl-glass); color: var(--ctl-ink); font-size: 10px; }
+.pin-map .maplibregl-ctrl-attrib a { color: var(--ctl-ink); }
+.pin-map .pin-sat-btn { display: grid; place-items: center; color: var(--ctl-fg); }
+.pin-map .pin-sat-btn[aria-pressed='true'] { color: var(--color-flame-1); background-color: var(--ctl-hover); }
+.pin-map .maplibregl-marker { cursor: grab; }
+.pin-map .maplibregl-marker:active { cursor: grabbing; }
+
+/* The pin is a physical thing: a teardrop whose tip sits on the spot. Picked up it lifts off a shadow that stays on the ground; put down it lands with a squash and a ripple. */
+.pin-dot { position: relative; display: block; width: 32px; height: 42px; }
+.pin-dot::before { /* ground shadow, under the tip */
+  content: ''; position: absolute; left: 50%; bottom: -3px; width: 18px; height: 7px; margin-left: -9px; border-radius: 50%;
+  background: rgb(0 0 0 / 0.5); filter: blur(2px);
+  transition: transform 200ms var(--ease-out-quart), opacity 200ms linear;
+}
+.pin-dot::after { /* ripple on the ground, only while landing */
+  content: ''; position: absolute; left: 50%; bottom: -2px; width: 14px; height: 6px; margin-left: -7px; border-radius: 50%;
+  border: 2px solid var(--color-flame-1); opacity: 0; pointer-events: none;
+}
+.pin-dot > svg {
+  position: relative; z-index: 1; display: block; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 100%;
+  filter: drop-shadow(0 3px 3px rgb(0 0 0 / 0.4));
+  transition: transform 220ms var(--ease-spring);
+}
+.pin-dot.pin-lifted > svg { transform: translateY(-16px) scale(1.12); }
+.pin-dot.pin-lifted::before { transform: scale(0.75); opacity: 0.55; }
+.pin-dot[data-landed] > svg { animation: pin-land 560ms var(--ease-out-quart) both; }
+.pin-dot[data-landed]::after { animation: pin-ripple 700ms var(--ease-out-quart) both; }
+@keyframes pin-land {
+  0% { transform: translateY(-30px) scale(1.12); }
+  45% { transform: translateY(0) scale(1.18, 0.82); }
+  70% { transform: translateY(-5px) scale(0.95, 1.05); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes pin-ripple { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(5); } }
+@media (prefers-reduced-motion: reduce) {
+  .pin-dot > svg, .pin-dot::before { transition: none; }
+  .pin-dot[data-landed] > svg, .pin-dot[data-landed]::after { animation: none; }
+}
+/* The place name being "written": a quiet shimmer while the lookup runs. */
+@keyframes place-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.place-shimmer {
+  background: linear-gradient(90deg, var(--color-surface-2) 30%, var(--color-surface-3) 50%, var(--color-surface-2) 70%) 0 0 / 200% 100%;
+  animation: place-shimmer 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .place-shimmer { animation: none; } }
+
+/* AnimatedMoney: each digit is a 0-9 strip that slides to its value, so a change shows every digit in between. */
+.roll-strip { transition-property: transform; transition-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) { .roll-strip { transition: none; } }

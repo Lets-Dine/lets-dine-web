@@ -135,6 +135,7 @@ interface ApiRestaurant {
   taxRate: number;
   deliveryFeeAmount?: number | null;
   deliveryEnabled?: boolean;
+  pickupEnabled?: boolean;
   deliveryChannel?: DeliveryChannel;
   whatsappNumber?: string | null;
   vatPanNumber?: string | null;
@@ -360,6 +361,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     taxRate: api.taxRate,
     deliveryFeeAmount: api.deliveryFeeAmount ?? null,
     deliveryEnabled: api.deliveryEnabled ?? true,
+    pickupEnabled: api.pickupEnabled ?? false,
     deliveryChannel: api.deliveryChannel ?? 'APP',
     whatsappNumber: api.whatsappNumber ?? null,
     vatPanNumber: api.vatPanNumber ?? null,
@@ -646,6 +648,8 @@ export interface BranchDraft {
   name: string;
   address: string;
   phone: string;
+  latitude?: number | null;
+  longitude?: number | null;
   timezone: string;
   /** Ratios, or null to inherit the restaurant's. */
   serviceChargeRate: number | null;
@@ -668,6 +672,8 @@ function branchBody(draft: Partial<BranchDraft>): Record<string, unknown> {
     ...(draft.name !== undefined && { name: draft.name.trim() }),
     ...(draft.address !== undefined && { address: draft.address.trim() }),
     ...(draft.phone !== undefined && { phone: draft.phone.trim() || null }),
+    ...(draft.latitude !== undefined && { latitude: draft.latitude }),
+    ...(draft.longitude !== undefined && { longitude: draft.longitude }),
     ...(draft.timezone !== undefined && { timezone: draft.timezone.trim() }),
     ...(draft.serviceChargeRate !== undefined && { serviceChargeRate: draft.serviceChargeRate }),
     ...(draft.taxRate !== undefined && { taxRate: draft.taxRate }),
@@ -1223,7 +1229,7 @@ export async function fetchOrdersBySession(sessionId: string): Promise<Order[]> 
 }
 
 export interface StaffOrderInput {
-  type: 'TABLE' | 'FLOOR' | 'DELIVERY' | 'QUICK';
+  type: 'TABLE' | 'FLOOR' | 'DELIVERY' | 'PICKUP' | 'QUICK';
   tableId?: string;
   floorId?: string;
   lines: { dishId: string; quantity: number; variantId?: string; addOnIds: string[] }[];
@@ -1249,7 +1255,7 @@ export async function addOrderItem(tableId: string, dishId: string, options: Ite
   const order = await apiRequest<ApiOrder>(`/restaurant/orders/table/${encodeURIComponent(tableId)}/items`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ dishId, variantId: options.variantId ?? undefined, addOnIds: options.addOnIds ?? [] }),
+    body: JSON.stringify({ dishId, variantId: options.variantId ?? undefined, addOnIds: options.addOnIds ?? [], customerId: options.customerId }),
   });
   return toOrder(order);
 }

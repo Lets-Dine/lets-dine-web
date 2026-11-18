@@ -18,11 +18,11 @@ const localDay = () => new Date().toLocaleDateString('en-CA');
  * owed. It is the same delivery as on the Stock page, with the supplier already filled in. "Add
  * another" keeps the sheet open for the next item on the same bill.
  */
-export function PurchaseSheet({ supplier, currency, onClose, onSaved }: { supplier: string; currency: string; onClose: () => void; onSaved: () => void }) {
+export function PurchaseSheet({ supplier, currency, ingredientId: preselected, onClose, onSaved }: { supplier: string; currency: string; /** Start on this ingredient instead of the first. */ ingredientId?: string; onClose: () => void; onSaved: () => void }) {
   const { busy, run } = useCommand();
   const ingredients = useAsync(fetchIngredients, []);
   const prices = useAsync(() => fetchAllSupplierPrices(supplier).catch(() => []), [supplier]);
-  const [ingredientId, setIngredientId] = useState('');
+  const [ingredientId, setIngredientId] = useState(preselected ?? '');
   const [qty, setQty] = useState<number | ''>('');
   const [cost, setCost] = useState<Minor>(0);
   // Once the price is typed by hand it is left alone; until then it follows the last price and the quantity.
@@ -31,6 +31,7 @@ export function PurchaseSheet({ supplier, currency, onClose, onSaved }: { suppli
   const [method, setMethod] = useState<PaymentMethod>('CASH');
   const today = localDay();
   const [arrivedOn, setArrivedOn] = useState(today);
+  const [expiresOn, setExpiresOn] = useState('');
   // Remounting clears the quantity and price boxes, which keep their own text.
   const [round, setRound] = useState(0);
   // The price box has its own, so filling it in never remounts the quantity box while it is being typed in.
@@ -65,6 +66,7 @@ export function PurchaseSheet({ supplier, currency, onClose, onSaved }: { suppli
           cost,
           method,
           onCredit: credit,
+          expiresOn: expiresOn || undefined,
           // Today means now; an earlier day is filed at midday, so it lands inside that day.
           receivedAt: arrivedOn && arrivedOn < today ? new Date(`${arrivedOn}T12:00:00`).toISOString() : undefined,
         }),
@@ -77,6 +79,7 @@ export function PurchaseSheet({ supplier, currency, onClose, onSaved }: { suppli
         setQty('');
         setCost(0);
         setPriceTyped(false);
+        setExpiresOn('');
         setRound((r) => r + 1);
         setPriceKey((k) => k + 1);
       } else {
@@ -145,8 +148,11 @@ export function PurchaseSheet({ supplier, currency, onClose, onSaved }: { suppli
                       currency={currency}
                     />
                   </Field>
-                  <Field label="Date received" className="sm:col-span-2">
+                  <Field label="Date received">
                     <DatePicker value={arrivedOn} max={today} onChange={(v) => setArrivedOn(v || today)} clearable={false} aria-label="Date received" />
+                  </Field>
+                  <Field label="Best before (optional)">
+                    <DatePicker key={`e${round}`} value={expiresOn} min={arrivedOn} onChange={setExpiresOn} aria-label="Best before" />
                   </Field>
                 </div>
 

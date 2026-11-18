@@ -9,7 +9,7 @@ import { Bike, ChevronDown } from '../icons';
 import { CourierTag } from './delivery';
 import { ADMIN_TINY, StatusPill } from './kit';
 import { MapLink } from './MapLink';
-import { FocusRibbon, ItemRow, Progress } from './OrderLines';
+import { FocusRibbon, ItemRow, Progress, useBilledQuantities } from './OrderLines';
 import { useOrderMoves } from './OrderMoves';
 
 /**
@@ -40,7 +40,8 @@ export function PassCardV2({
   /** `null` means "nobody has decided" — an overdue ticket then opens on its own. */
   const [opened, setOpened] = useState<boolean | null>(null);
   const open = opened ?? focus !== null;
-  const { move, cancel, sheets, courierRun, live } = useOrderMoves(order, { onApply, onResync, onTakePayment }, { moveClass: cx(ADMIN_TINY, 'h-10 flex-1 text-[13.5px]') });
+  const paidQty = useBilledQuantities(order, open || order.status === 'UNPAID');
+  const { move, cancel, sheets, courierRun, live } = useOrderMoves(order, { onApply, onResync, onTakePayment, paid: paidQty }, { moveClass: cx(ADMIN_TINY, 'h-10 flex-1 text-[13.5px]') });
 
   const isDelivery = order.orderType === 'DELIVERY';
   const lines = billableItems(order.items);
@@ -48,7 +49,9 @@ export function PassCardV2({
   const progress = itemStatusSummary(order);
   const where = isDelivery
     ? order.deliveryCustomerName || 'Guest'
-    : (order.tableName ?? order.floorVisitorName ?? (order.floorName ? 'Floor order' : 'Quick sale'));
+    : order.orderType === 'PICKUP'
+      ? 'Pick up'
+      : (order.tableName ?? order.floorVisitorName ?? (order.floorName ? 'Floor order' : 'Quick sale'));
 
   return (
     <article
@@ -132,7 +135,7 @@ export function PassCardV2({
           <div className="min-h-0 overflow-hidden" inert={!open}>
             <ul className="mt-3 divide-y divide-hairline border-t border-hairline">
               {order.items.map((item) => (
-                <ItemRow key={item.id} order={order} item={item} now={now} canEdit={live} onApply={onApply} onResync={onResync} />
+                <ItemRow key={item.id} order={order} item={item} now={now} canEdit={live} paid={paidQty.get(item.id)} onApply={onApply} onResync={onResync} />
               ))}
             </ul>
           </div>

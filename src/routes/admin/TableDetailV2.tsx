@@ -1,3 +1,4 @@
+import { SeatCustomer, readSeatedCustomer, rememberSeatedCustomer } from '../../components/admin/SeatCustomer';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -86,9 +87,12 @@ export function TableDetailV2() {
   }, [tablesTick, reloadTables]);
 
   const table = tables.data?.find((t) => t.id === tableId) ?? null;
+  // Who staff seated this table for, if anyone: the visit's first order goes on them.
+  const seatedFor = readSeatedCustomer(table?.currentSessionId);
   const editable = allows('tables:edit');
   const navigate = useNavigate();
   const [moveTo, setMoveTo] = useState('');
+  const [choosingCustomer, setChoosingCustomer] = useState(false);
   const canOrder = allows('orders:advance');
 
   const sessionId = table?.currentSessionId ?? null;
@@ -147,6 +151,7 @@ export function TableDetailV2() {
             await addOrderItem(staff, table!.id, dish.id, {
               variantId,
               addOnIds,
+              customerId: seatedFor?.id,
             });
       },
       'Order placed for the table',
@@ -266,17 +271,33 @@ export function TableDetailV2() {
                   type="button"
                   className={cx(ADMIN_PRIMARY, 'mt-7 h-12 px-7 text-[15px]')}
                   disabled={busy}
-                  onClick={() => {
-                    haptic.commit();
-                    act('seat', () => startTableSession(staff, table.id), `${table.name} seated`);
-                  }}
+                  onClick={() => setChoosingCustomer(true)}
                 >
                   {pending === 'seat' ? 'Seating…' : 'Seat this table'}
                 </button>
               )}
+              {choosingCustomer && (
+                <SeatCustomer
+                  onClose={() => setChoosingCustomer(false)}
+                  onSeat={(customer) => {
+                    setChoosingCustomer(false);
+                    haptic.commit();
+                    act(
+                      'seat',
+                      async () => rememberSeatedCustomer((await startTableSession(staff, table.id)).currentSessionId ?? '', customer),
+                      `${table.name} seated`,
+                    );
+                  }}
+                />
+              )}
             </div>
           ) : (
             <>
+              {seatedFor && (
+                <p className="text-[13.5px] text-ink-3">
+                  Seated for <span className="font-semibold text-ink">{seatedFor.name}</span>
+                </p>
+              )}
               {canOrder && (
                 <Section title="Add to the table" aside={draftCount > 0 ? `${draftCount} on the ticket` : undefined}>
                   <button

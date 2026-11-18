@@ -1,4 +1,6 @@
 import type { KitchenTicket } from '../api/kitchen';
+import type { ReceiptBody } from '../components/admin/receipt';
+import { formatMoney } from '../domain/money';
 
 /**
  * A kitchen or bar slip as raw ESC/POS bytes. Plain ASCII on purpose: a thermal printer's
@@ -157,5 +159,45 @@ export function buildTestSlip(label: string, paper: Paper = '80mm'): Uint8Array 
   const s = new Slip().raw(INIT, ALIGN.center, SIZE(0x11), BOLD(true)).text('TEST').raw(SIZE(0x00), BOLD(false));
   s.text(label).raw(ALIGN.left).text('0123456789'.repeat(Math.ceil(cols / 10)).slice(0, cols));
   s.text('If this line wraps, switch paper width.').raw([LF, LF, LF], CUT);
+  return Uint8Array.from(s.bytes);
+}
+
+/** "label    value" padded to the full line width; the label is cut if both cannot fit. */
+function pair(label: string, value: string, cols: number): string {
+  const v = ascii(value);
+  return `${ascii(label).slice(0, Math.max(1, cols - v.length - 1)).padEnd(cols - v.length)}${v}`;
+}
+
+/** The guest receipt / bill, the same content `printReceipt` shows in the browser. */
+export function buildReceiptSlip(r: ReceiptBody, paper: Paper = '80mm'): Uint8Array {
+  const cols = COLUMNS[paper];
+  const { currency, subtotal, serviceCharge, tax, discount, total } = r.totals;
+  const money = (n: number) => formatMoney(n, currency);
+  const rule = '-'.repeat(cols);
+  const s = new Slip().raw(INIT, ALIGN.center, SIZE(0x11), BOLD(true));
+  for (const l of wrap(r.restaurant.name, cols / 2)) s.text(l);
+  s.raw(SIZE(0x00), BOLD(false));
+  if (r.legalName) for (const l of wrap(r.legalName, cols)) s.text(l);
+  if (r.vatPan) s.text(`VAT/PAN: ${r.vatPan}`);
+  s.text(r.table.name + (r.table.capacity ? ` - ${r.table.capacity} seats` : '')).raw(ALIGN.left).text(rule);
+  if (r.customerName) s.text(pair('Customer', r.customerName, cols));
+  if (r.payment) {
+    s.text(pair('Paid by', r.paidBy, cols));
+    if (r.payment.takenBy) s.text(pair('Served by', r.payment.takenBy, cols));
+    s.text(rule);
+  }
+  for (const i of r.lines) {
+    const head = `${i.quantity}x ${i.dishNameSnapshot}`;
+    const [first, ...rest] = wrap(head, cols - money(i.total).length - 1);
+    s.text(pair(first ?? '', money(i.total), cols));
+    for (const l of rest) s.text(`  ${l}`);
+  }
+  s.text(rule).text(pair('Subtotal', money(subtotal), cols));
+  if (discount > 0) s.text(pair('Discount', `-${money(discount)}`, cols));
+  s.text(pair('Service', money(serviceCharge), cols)).text(pair('Tax', money(tax), cols));
+  s.raw(BOLD(true), SIZE(0x01)).text(pair('TOTAL', money(total), cols)).raw(BOLD(false), SIZE(0x00));
+  s.text(rule).raw(ALIGN.center);
+  for (const l of wrap('This is not a tax invoice. Please collect the original bill from the counter.', cols)) s.text(l);
+  s.text(`Thank you - ${new Date().toLocaleString()}`).raw([LF, LF, LF], CUT);
   return Uint8Array.from(s.bytes);
 }

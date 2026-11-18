@@ -1,3 +1,4 @@
+import { AnimatedMoney } from './AnimatedMoney';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { isTableOpen } from '../../api/admin';
@@ -181,7 +182,7 @@ export function PaymentSheet({
   const [_endSessionOnPay, setEndSessionOnPay] = useState(false);
   // A flat minor-unit reduction the cashier can dial in before taking payment — Manager/Owner only.
   const [discount, setDiscount] = useState(0);
-  const [discountText, setDiscountText] = useState('0.00');
+  const [discountText, setDiscountText] = useState('');
   // Points the cashier typed ('' for none). What is actually spent is this, held to what the bill can take.
   const [pointsText, setPointsText] = useState('');
   const pointsId = useId();
@@ -224,7 +225,7 @@ export function PaymentSheet({
     setPendingRemoves([]);
     setEndSessionOnPay(false);
     setDiscount(0);
-    setDiscountText('0.00');
+    setDiscountText('');
     setPointsText('');
     setStep('bill');
     setMethod(null);
@@ -235,9 +236,12 @@ export function PaymentSheet({
     setPaidNowText('');
     setPaidNowQr(false);
     setDueInDays(14);
-    // Opened from one order's "Pay this order": start in split mode with that order's lines taken (clamped to what's unbilled below).
+    // Opened from one order's "Pay this order": start in split mode with that order's lines taken (clamped to what's unbilled below),
+    // unless that order is the whole bill.
     const only = payOrderId && canSplit ? orders.find((o) => o.id === payOrderId) : undefined;
-    if (only) {
+    // If this order is all that is left to pay (nothing billed, no other order on the table), the whole bill is the order: open on that.
+    const wholeBillIsThisOrder = (billed?.length ?? 0) === 0 && orders.every((o) => o.id === payOrderId || o.status === 'CANCELLED' || o.items.every((i) => i.status === 'CANCELLED'));
+    if (only && !wholeBillIsThisOrder) {
       setSplitOn(true);
       setTake(Object.fromEntries(only.items.filter((i) => i.status !== 'CANCELLED').map((i) => [i.id, i.quantity])));
     }
@@ -438,22 +442,28 @@ export function PaymentSheet({
   const openOrderCount = orders.filter((o) => isTableOpen(o.status)).length;
   // Split mode lists order lines one by one (an order line is what a share names), each with what is still unbilled.
   const billedBy = new Map((billed ?? []).map((b) => [b.orderItemId, b.quantity]));
-  const splitRows = !inSplit
+  const allSplitRows = !inSplit
     ? []
     : orders
         .filter((o) => o.status !== 'CANCELLED')
         .flatMap((o) => o.items.filter((i) => i.status !== 'CANCELLED'))
         .map((item) => {
-          const left = item.quantity - (billedBy.get(item.id) ?? 0);
+          const paid = Math.min(billedBy.get(item.id) ?? 0, item.quantity);
+          const left = item.quantity - paid;
           return {
             id: item.id,
             name: [item.dishNameSnapshot, item.variantNameSnapshot ? ` · ${item.variantNameSnapshot}` : '', item.addOns.length ? ` + ${item.addOns.map((a) => a.nameSnapshot).join(', ')}` : ''].join(''),
             unitPrice: item.unitPrice,
+            quantity: item.quantity,
+            paid,
             left,
             taken: Math.min(take[item.id] ?? 0, left),
           };
-        })
-        .filter((row) => row.left > 0);
+        });
+  const splitRows = allSplitRows.filter((row) => row.left > 0);
+  const paidRows = allSplitRows.filter((row) => row.paid > 0);
+  // Dish value (before fees) the earlier shares have already covered.
+  const paidBefore = paidRows.reduce((sum, r) => sum + r.unitPrice * r.paid, 0);
   const takenRows = splitRows.filter((row) => row.taken > 0);
   const hasItems = inSplit ? splitRows.length > 0 : draftLines.length > 0;
   const canTake = inSplit ? takenRows.length > 0 : hasItems;
@@ -480,7 +490,11 @@ export function PaymentSheet({
   const takenUnits = takenRows.reduce((sum, r) => sum + r.taken, 0);
   // What the rest of the table still owes, before fees: unchanged by this share's discount or points.
   const unbilledAfter = splitRows.reduce((sum, r) => sum + r.unitPrice * (r.left - r.taken), 0);
-  const takeLabel = `${inSplit ? 'Take this share' : 'Take payment'} · ${formatMoney(total, currency)}`;
+  const takeLabel = (
+    <>
+      {inSplit ? 'Take this share' : 'Take payment'} · <AnimatedMoney value={total} currency={currency} />
+    </>
+  );
   const billLines: ReceiptLine[] = inSplit
     ? takenRows.map((r) => ({ dishNameSnapshot: r.name, quantity: r.taken, total: r.unitPrice * r.taken }))
     : draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total }));
@@ -605,14 +619,18 @@ export function PaymentSheet({
                         </button>
                       </span>
                     </div>
-                    <dl className="mt-1.5 grid grid-cols-2 gap-x-4 text-[13px] text-[oklch(0.463_0.031_74)]">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <dt>This share</dt>
-                        <dd className="font-bold tnum text-[oklch(0.232_0.019_70)]">{formatMoney(subtotal, currency)}</dd>
+                    <dl className="mt-2 grid grid-cols-3 gap-2 text-[12px] text-[oklch(0.463_0.031_74)]">
+                      <div className="rounded-xl bg-[oklch(0.943_0.024_85)] px-2.5 py-2">
+                        <dt>Already paid</dt>
+                        <dd className="text-[14px] font-bold tnum text-[oklch(0.42_0.1_150)]"><AnimatedMoney value={paidBefore} currency={currency} /></dd>
                       </div>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <dt>Still unbilled</dt>
-                        <dd className="font-bold tnum text-[oklch(0.232_0.019_70)]">{formatMoney(unbilledAfter, currency)}</dd>
+                      <div className="rounded-xl bg-[oklch(0.539_0.163_36)]/15 px-2.5 py-2 ring-1 ring-[oklch(0.539_0.163_36)]/40 ring-inset">
+                        <dt>Paying now</dt>
+                        <dd className="text-[14px] font-bold tnum text-[oklch(0.232_0.019_70)]"><AnimatedMoney value={subtotal} currency={currency} /></dd>
+                      </div>
+                      <div className="rounded-xl bg-[oklch(0.943_0.024_85)] px-2.5 py-2">
+                        <dt>Left after this</dt>
+                        <dd className="text-[14px] font-bold tnum text-[oklch(0.232_0.019_70)]"><AnimatedMoney value={unbilledAfter} currency={currency} /></dd>
                       </div>
                     </dl>
                   </div>
@@ -640,40 +658,77 @@ export function PaymentSheet({
                 )}
 
                 {hasItems && inSplit && (
-                  <ul className="divide-y divide-dashed divide-[oklch(0.232_0.019_70)]/20 text-[14px]">
-                    {splitRows.map((row) => (
-                      <li key={row.id} className="flex items-center justify-between gap-3 py-2.5">
-                        <span className="min-w-0">
-                          <span className="block truncate font-semibold text-[oklch(0.232_0.019_70)]">{row.name}</span>
-                          <span className="block text-[12.5px] text-[oklch(0.463_0.031_74)] tnum">
-                            {formatMoney(row.unitPrice, currency)} each · {row.left} left to bill
-                          </span>
-                        </span>
-                        <span className="flex shrink-0 items-center gap-2">
+                  <ul className="grid gap-2 text-[14px]">
+                    {splitRows.map((row) => {
+                      const picked = row.taken > 0;
+                      const toggle = () => setTake((prev) => ({ ...prev, [row.id]: picked ? 0 : row.left }));
+                      return (
+                        <li
+                          key={row.id}
+                          className={cx(
+                            'flex items-center gap-3 rounded-2xl p-2.5 ring-1 ring-inset transition-colors',
+                            picked ? 'bg-[oklch(0.539_0.163_36)]/12 ring-[oklch(0.539_0.163_36)]/50' : 'ring-[oklch(0.232_0.019_70)]/15',
+                          )}
+                        >
                           <button
                             type="button"
-                            disabled={busy || row.taken === 0}
-                            aria-label={`Take one fewer ${row.name}`}
-                            onClick={() => setTake((prev) => ({ ...prev, [row.id]: row.taken - 1 }))}
-                            className="size-9 rounded-full bg-[oklch(0.879_0.033_85)] text-[18px] leading-none font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
+                            disabled={busy}
+                            role="checkbox"
+                            aria-checked={picked}
+                            aria-label={`${picked ? 'Remove' : 'Add'} ${row.name} ${picked ? 'from' : 'to'} this share`}
+                            onClick={toggle}
+                            className={cx(
+                              'grid size-7 shrink-0 place-items-center rounded-full text-[15px] font-bold ring-2 ring-inset active:translate-y-px disabled:opacity-40',
+                              picked ? 'bg-[oklch(0.539_0.163_36)] text-white ring-[oklch(0.539_0.163_36)]' : 'ring-[oklch(0.232_0.019_70)]/30',
+                            )}
                           >
-                            −
+                            {picked && '✓'}
                           </button>
-                          <span className="w-16 text-center leading-tight">
-                            <span className="block text-[15px] font-bold text-[oklch(0.232_0.019_70)] tnum">{row.taken}</span>
-                            <span className="block text-[12px] text-[oklch(0.463_0.031_74)]">of {row.left}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold text-[oklch(0.232_0.019_70)]">{row.name}</span>
+                            <span className="block text-[12.5px] text-[oklch(0.463_0.031_74)] tnum">
+                              {formatMoney(row.unitPrice, currency)} each
+                              {row.paid > 0 && <span className="ml-1.5 font-semibold text-[oklch(0.42_0.1_150)]">· {row.paid} of {row.quantity} already paid</span>}
+                            </span>
                           </span>
-                          <button
-                            type="button"
-                            disabled={busy || row.taken >= row.left}
-                            aria-label={`Take one more ${row.name}`}
-                            onClick={() => setTake((prev) => ({ ...prev, [row.id]: row.taken + 1 }))}
-                            className="size-9 rounded-full bg-[oklch(0.879_0.033_85)] text-[18px] leading-none font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
-                          >
-                            +
-                          </button>
-                          <span className="w-20 text-right font-bold tnum text-[oklch(0.232_0.019_70)]">{formatMoney(row.unitPrice * row.taken, currency)}</span>
-                        </span>
+                          {row.left > 1 && (
+                            <span className="flex shrink-0 items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={busy || row.taken === 0}
+                                aria-label={`Take one fewer ${row.name}`}
+                                onClick={() => setTake((prev) => ({ ...prev, [row.id]: row.taken - 1 }))}
+                                className="size-8 rounded-full bg-[oklch(0.879_0.033_85)] text-[17px] leading-none font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
+                              >
+                                −
+                              </button>
+                              <span className="w-12 text-center leading-tight">
+                                <span className="block text-[15px] font-bold text-[oklch(0.232_0.019_70)] tnum">{row.taken}</span>
+                                <span className="block text-[11.5px] text-[oklch(0.463_0.031_74)]">of {row.left}</span>
+                              </span>
+                              <button
+                                type="button"
+                                disabled={busy || row.taken >= row.left}
+                                aria-label={`Take one more ${row.name}`}
+                                onClick={() => setTake((prev) => ({ ...prev, [row.id]: row.taken + 1 }))}
+                                className="size-8 rounded-full bg-[oklch(0.879_0.033_85)] text-[17px] leading-none font-bold text-[oklch(0.232_0.019_70)] active:translate-y-px disabled:opacity-40"
+                              >
+                                +
+                              </button>
+                            </span>
+                          )}
+                          <span className={cx('w-20 shrink-0 text-right font-bold tnum', picked ? 'text-[oklch(0.232_0.019_70)]' : 'text-[oklch(0.463_0.031_74)]')}>
+                            {formatMoney(row.unitPrice * (picked ? row.taken : row.left), currency)}
+                          </span>
+                        </li>
+                      );
+                    })}
+                    {paidRows.filter((r) => r.left === 0).map((row) => (
+                      <li key={row.id} className="flex items-center gap-3 rounded-2xl bg-[oklch(0.42_0.1_150)]/8 p-2.5 text-[oklch(0.463_0.031_74)]">
+                        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[oklch(0.42_0.1_150)] text-[15px] font-bold text-white" aria-hidden>✓</span>
+                        <span className="min-w-0 flex-1 truncate">{row.quantity}× {row.name}</span>
+                        <span className="shrink-0 text-[12.5px] font-bold text-[oklch(0.42_0.1_150)]">Paid</span>
+                        <span className="w-20 shrink-0 text-right tnum">{formatMoney(row.unitPrice * row.quantity, currency)}</span>
                       </li>
                     ))}
                   </ul>
@@ -816,7 +871,7 @@ export function PaymentSheet({
                   </dl>
                   <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-dashed border-[oklch(0.232_0.019_70)]/25 pt-3">
                     <span className={cx(DISPLAY, 'text-[18px] font-black text-[oklch(0.232_0.019_70)]')}>{inSplit ? 'This share' : 'Total'}</span>
-                    <span className={cx(DISPLAY, 'text-[32px] leading-none font-black tnum text-[oklch(0.5_0.12_70)]')}>{formatMoney(total, currency)}</span>
+                    <span className={cx(DISPLAY, 'text-[32px] leading-none font-black tnum text-[oklch(0.5_0.12_70)]')}><AnimatedMoney value={total} currency={currency} /></span>
                   </div>
                 </div>
 
@@ -839,6 +894,7 @@ export function PaymentSheet({
                             type="text"
                             inputMode="decimal"
                             value={discountText}
+                            placeholder="0.00"
                             disabled={busy}
                             onChange={(e) => {
                               const next = e.target.value.replace(/[^0-9.]/g, '');
@@ -846,8 +902,8 @@ export function PaymentSheet({
                               const parsed = Number.parseFloat(next);
                               setDiscount(Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100)) : 0);
                             }}
-                            onBlur={() => setDiscountText((appliedDiscount / 100).toFixed(2))}
-                            className="w-28 rounded-full bg-[oklch(0.879_0.033_85)] py-2 pr-3 pl-7 text-right text-[13.5px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none disabled:opacity-40"
+                            onBlur={() => setDiscountText(appliedDiscount > 0 ? (appliedDiscount / 100).toFixed(2) : '')}
+                            className="w-28 rounded-full bg-[oklch(0.879_0.033_85)] py-2 pr-3 pl-7 text-right text-[13.5px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none placeholder:font-normal placeholder:text-[oklch(0.463_0.031_74)]/60 disabled:opacity-40"
                           />
                         </span>
                       </label>
@@ -1225,7 +1281,7 @@ function HoldBack() {
 }
 
 /** A second modal over the bill, for picking one thing. Its own backdrop swallows clicks so the bill beneath stays open. */
-function PickerModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function PickerModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -1259,7 +1315,7 @@ function PickerModal({ title, onClose, children }: { title: string; onClose: () 
   );
 }
 
-const PICKER_SEARCH =
+export const PICKER_SEARCH =
   'w-full rounded-full bg-[oklch(0.879_0.033_85)] py-2.5 pr-3 pl-9 text-[13px] font-semibold text-[oklch(0.232_0.019_70)] outline-none placeholder:text-[oklch(0.463_0.031_74)]/70';
 
 /** The menu, searchable. Stays open while items are added, with a count on each, so a round can be built in one go. */

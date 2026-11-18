@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { advanceOrderItem, removeOrderItem } from '../../api/staff';
+import { advanceOrderItem, fetchBilledItems, removeOrderItem } from '../../api/staff';
 import {
   ITEM_ADVANCE_LABEL,
   ITEM_STATUS_LABEL,
@@ -13,9 +13,20 @@ import type { Focus } from '../../domain/orderStatus';
 import { formatMoney } from '../../domain/money';
 import type { Dish, ItemStatus, Menu, Order, OrderItem, OrderItemAddOn } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
+import { useAsync } from '../../state/useAsync';
 import { cx } from '../ui';
 import { Minus, Plus } from '../icons';
 import { ADMIN_TINY, Confirm, INPUT_BOX, useCommand } from './kit';
+
+/**
+ * How much of each line of a table order a split share has already paid, by order-line id. Read only while `enabled`
+ * (a card is open, the sheet is up) so a closed card costs nothing; empty off the live backend and for any order that isn't a table's.
+ */
+export function useBilledQuantities(order: Order, enabled: boolean): Map<string, number> {
+  const wanted = enabled && Boolean(order.tableId);
+  const billed = useAsync(() => (wanted ? fetchBilledItems(order.sessionId) : Promise.resolve(null)), [order.sessionId, order.updatedAt, wanted]);
+  return useMemo(() => new Map((wanted ? (billed.data ?? []) : []).map((b) => [b.orderItemId, b.quantity])), [billed.data, wanted]);
+}
 
 /**
  * The line-level half of a ticket, shared by the full pass (`admin/Orders`)
@@ -125,6 +136,7 @@ export function ItemRow({
   item,
   now,
   canEdit,
+  paid = 0,
   onApply,
   onResync,
 }: {
@@ -132,6 +144,8 @@ export function ItemRow({
   item: OrderItem;
   now: number;
   canEdit: boolean;
+  /** Units of this line a split share has already paid. */
+  paid?: number;
   onApply: (order: Order) => void;
   onResync: () => void;
 }) {
@@ -196,6 +210,11 @@ export function ItemRow({
           {flag && ` · ${flag.reason}`}
           {!flag && started && !cancelled && item.status !== 'SERVED' && ` · ${minutesSince(item.statusUpdatedAt, now)}m`}
         </span>
+        {paid > 0 && !cancelled && (
+          <span className="rounded-full bg-leaf/14 px-2 py-0.5 text-[11.5px] font-semibold text-leaf">
+            {paid >= item.quantity ? 'Paid' : `${paid} of ${item.quantity} paid`}
+          </span>
+        )}
 
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
           {editable && item.quantity > 1 && (

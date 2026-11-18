@@ -30,6 +30,7 @@ import { useOrderSheet } from '../../components/admin/OrderSheet';
 import { PassCardV2 } from '../../components/admin/PassCardV2';
 import { RevenueTrendChart } from '../../components/admin/RevenueTrendChart';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
+import { TablePaySheet } from '../../components/admin/TablePaySheet';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 import { NewOrderButton } from '../../components/admin/NewOrder';
@@ -379,9 +380,10 @@ export function DashboardV2() {
 
       {orderSheet.sheet}
 
+      {payingOrder?.tableId && <TablePaySheet order={payingOrder} onClose={() => setPayingId(null)} onPaid={reloadOrders} />}
       <PaymentSheet
-        table={payingOrder ? floorBillSubject(payingOrder) : null}
-        orders={payingOrder ? [payingOrder] : []}
+        table={payingOrder && !payingOrder.tableId ? floorBillSubject(payingOrder) : null}
+        orders={payingOrder && !payingOrder.tableId ? [payingOrder] : []}
         dishes={menuDishes}
         restaurantName={menu.restaurant.name}
         legalName={menu.restaurant.legalName}

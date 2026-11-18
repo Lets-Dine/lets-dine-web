@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { createOrder } from '../api/diner';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { createOrder, getBranches, startDeliverySession } from '../api/diner';
+import type { DeliverySessionResult } from '../api/diner';
 import { ApiError } from '../api/store';
 import { track } from '../domain/analytics';
 import { formatMoney } from '../domain/money';
@@ -11,12 +12,14 @@ import { requestNotifyPermission } from '../platform/notify';
 import { useCart } from '../state/CartContext';
 import { useDeliveryPlace } from '../state/useDeliveryPlace';
 import { usePageTitle } from '../state/usePageTitle';
+import { useAsync } from '../state/useAsync';
 import { useSessionOrders } from '../state/SessionOrdersContext';
 import { useToast } from '../state/ToastContext';
 import { MapPin } from '../components/icons';
 import { placeName } from '../domain/location';
 import { PinMap } from '../components/PinMap';
 import type { LatLng } from '../domain/location';
+import type { PublicBranch } from '../domain/types';
 import { BillLines, PAGE, SPLIT, addOnLabels, lineUnitPrice, useBill, variantLabel } from './Cart';
 import { useRestaurant } from './RestaurantLayout';
 import { TopBar } from './Shell';
@@ -25,15 +28,39 @@ import { TopBar } from './Shell';
 const BRANCH_CLOSED_KEY = 'ORDER_BRANCH_CLOSED';
 
 export function Checkout() {
-  const { menu, customer, floor, dinerIdentity, setDinerIdentity, floorPlace, setFloorPlace, identityLabel, session, base } =
+  const { menu, customer, floor, dinerIdentity, setDinerIdentity, floorPlace, setFloorPlace, identityLabel, session, base, guest, openVisit } =
     useRestaurant();
+  const { slug = '' } = useParams();
+  /** Delivery or pick-up: a customer whose phone number is already on the visit, or a guest whose number is asked for below. */
+  const phoneMode = customer !== null || guest;
   // §22/§16b — `customer` is the one field exclusive to a delivery session (a floor
   // session also has a null `table`, so that alone can't be the delivery check).
-  const isDelivery = customer !== null;
+  // A phone-number visit is delivery or pick-up, chosen here: delivery needs the restaurant to take delivery orders in the app,
+  // pick-up needs its own switch. With only one on there is nothing to choose.
+  const canDeliver = menu.restaurant.deliveryEnabled !== false && menu.restaurant.deliveryChannel !== 'WHATSAPP';
+  const canPickup = menu.restaurant.pickupEnabled === true;
+  // With both on, nothing is preselected: a returning customer is not assumed to want what they ordered last time.
+  const [chosen, setChosen] = useState<'DELIVERY' | 'PICKUP' | null>(null);
+  const fulfilment = canDeliver && canPickup ? chosen : canPickup ? 'PICKUP' : 'DELIVERY';
+  const isPickup = phoneMode && fulfilment === 'PICKUP';
+  const isDelivery = phoneMode && fulfilment === 'DELIVERY';
   const isFloor = floor !== null;
   // §16b — every dine-in order (table or floor) captures who it's for; only delivery
   // already has an identity, tied to the session by phone from the start.
-  const isDineIn = !isDelivery;
+  const needsChoice = phoneMode && fulfilment === null;
+  const isDineIn = !phoneMode;
+
+  // A guest gives their number now, at the end, and that is what opens the visit. Kept across a retry so a failed order
+  // (a closed branch, say) does not open a second visit.
+  const [guestPhone, setGuestPhone] = useState('');
+  const [guestName, setGuestName] = useState('');
+  const [pickedBranch, setPickedBranch] = useState<string | null>(null);
+  const branches = useAsync<PublicBranch[]>(() => (guest ? getBranches(slug) : Promise.resolve([])), [guest, slug]);
+  const choices = branches.data ?? [];
+  const guestBranch = choices.find((c) => c.slug === pickedBranch) ?? choices.find((c) => c.isDefault) ?? choices[0];
+  const startedVisit = useRef<DeliverySessionResult | null>(null);
+  const who = customer ?? (guest ? { name: guestName.trim(), phone: guestPhone.trim() } : null);
+  const guestReady = !guest || guestPhone.trim().length >= 6;
   usePageTitle(`Checkout · ${menu.restaurant.name}`);
   const cart = useCart();
   const { orders: sessionOrders, rememberOrder } = useSessionOrders();
@@ -74,7 +101,7 @@ export function Checkout() {
   const lockedOrder = isDineIn && !isFloor ? sessionOrders.find((o) => o.customerId) : undefined;
   const identityReady = !isDineIn || Boolean(lockedOrder) || (Boolean(dinerIdentity) && !editingIdentity);
   const placeReady = !isFloor || floorPlace.trim().length > 0;
-  const canSubmit = !submitting && !sessionEnded && (!isDelivery || address.trim().length > 0) && identityReady && placeReady;
+  const canSubmit = !submitting && !sessionEnded && !needsChoice && guestReady && (!isDelivery || address.trim().length > 0) && identityReady && placeReady;
 
   // The exact spot is saved at once; the place name is a label looked up after, and optional. Only the
   // newest lookup may write the box, so dragging the pin around never lands an old name.
@@ -136,8 +163,16 @@ export function Checkout() {
     setSubmitting(true);
     setError(null);
     try {
+      if (guest && !startedVisit.current) {
+        startedVisit.current = await startDeliverySession({
+          restaurantSlug: slug,
+          phone: guestPhone.trim(),
+          name: guestName.trim() || undefined,
+          branchSlug: choices.length > 1 ? guestBranch?.slug : undefined,
+        });
+      }
       const order = await createOrder({
-        session,
+        session: startedVisit.current?.session ?? session,
         lines: cart.lines,
         // Stable across retries of this same cart, so a double tap or a flaky
         // connection can never produce two orders.
@@ -145,6 +180,7 @@ export function Checkout() {
         deliveryAddress: isDelivery ? address.trim() : undefined,
         deliveryLocation: isDelivery && pin ? pin : undefined,
         deliveryNote: isDelivery ? note.trim() || undefined : undefined,
+        fulfilment: phoneMode && fulfilment ? fulfilment : undefined,
         customer: isDineIn && !lockedOrder && dinerIdentity ? dinerIdentity : undefined,
         floorVisitorName: isFloor ? floorPlace.trim() : undefined,
       });
@@ -157,6 +193,8 @@ export function Checkout() {
       requestNotifyPermission();
       haptic.success();
       toast('Order sent to the kitchen', '🔥');
+      // The visit this order opened becomes the layout's own, so the order screen can follow it.
+      if (startedVisit.current) openVisit(startedVisit.current);
       navigate(`${base}/order/${order.id}`, { replace: true });
     } catch (e) {
       haptic.warn();
@@ -178,14 +216,91 @@ export function Checkout() {
 
       <div className={cx(PAGE, SPLIT, 'pt-5')}>
         <div className="flex flex-col gap-7">
-          {isDelivery ? (
+          {guest && (
+            <section className="animate-rise grid gap-3 rounded-3xl bg-surface p-4.5 ring-1 ring-hairline ring-inset">
+              <span className={cx(EYEBROW, 'text-ink-3')}>Your details</span>
+              <label className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
+                Phone number
+                <input
+                  className={cx(INPUT, 'h-12')}
+                  value={guestPhone}
+                  onChange={(event) => setGuestPhone(event.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="98XXXXXXXX"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  required
+                />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
+                Name <span className="font-normal text-ink-4">(so we know who it's for)</span>
+                <input className={cx(INPUT, 'h-12')} value={guestName} onChange={(event) => setGuestName(event.target.value)} autoComplete="name" />
+              </label>
+              {choices.length > 1 && (
+                <fieldset className="grid gap-2">
+                  <legend className="mb-1 text-[13px] font-semibold text-ink-2">Which branch is this for?</legend>
+                  {choices.map((candidate) => (
+                    <label
+                      key={candidate.id}
+                      className={cx(
+                        'flex cursor-pointer items-start gap-3 rounded-2xl p-3 ring-1 ring-inset transition-colors',
+                        candidate.slug === guestBranch?.slug ? 'bg-flame-1/10 ring-flame-1/50' : 'ring-hairline hover:bg-surface-2/40',
+                      )}
+                    >
+                      <input type="radio" name="branch" className="mt-1" checked={candidate.slug === guestBranch?.slug} onChange={() => setPickedBranch(candidate.slug)} />
+                      <span className="grid gap-0.5">
+                        <span className="text-[14px] font-semibold text-ink">{candidate.name}</span>
+                        {candidate.address && <span className="text-[12.5px] text-ink-4">{candidate.address}</span>}
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+            </section>
+          )}
+
+          {phoneMode && canDeliver && canPickup && (
+            <div role="radiogroup" aria-label="How do you want it?" className="grid grid-cols-2 gap-1.5 rounded-2xl bg-surface-2 p-1.5 ring-1 ring-hairline ring-inset">
+              {(['DELIVERY', 'PICKUP'] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={fulfilment === option}
+                  onClick={() => setChosen(option)}
+                  className={cx(
+                    'h-11 rounded-xl text-[14px] font-semibold transition-colors',
+                    fulfilment === option ? 'bg-flame text-white shadow-flame' : 'text-ink-3 hover:text-ink',
+                  )}
+                >
+                  {option === 'DELIVERY' ? 'Delivery' : 'Pick up'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {needsChoice ? (
+            <p className="rounded-2xl bg-surface-2 px-4 py-3.5 text-[13.5px] font-semibold text-ink-2 ring-1 ring-hairline ring-inset">
+              Choose delivery or pick-up to finish your order.
+            </p>
+          ) : isPickup ? (
+            <section className="animate-rise">
+              <div className="flex flex-col gap-1 rounded-3xl bg-surface bg-flame-dim p-4.5 ring-1 ring-flame-2/35 ring-inset">
+                <span className={cx(EYEBROW, 'text-flame-1/80')}>Collecting</span>
+                <b className={cx(DISPLAY, 'text-[21px]')}>{who?.name || 'Guest'}</b>
+                <span className="text-[13px] text-ink-3">
+                  {menu.restaurant.name} · {who?.phone} · pick-up at the counter — we'll call when it's ready
+                </span>
+              </div>
+            </section>
+          ) : isDelivery ? (
             <section className="animate-rise">
               <div className="flex flex-col gap-3 rounded-3xl bg-surface bg-flame-dim p-4.5 ring-1 ring-flame-2/35 ring-inset">
                 <div className="flex flex-col gap-1">
                   <span className={cx(EYEBROW, 'text-flame-1/80')}>Delivering to</span>
-                  <b className={cx(DISPLAY, 'text-[21px]')}>{customer?.name || 'Guest'}</b>
+                  <b className={cx(DISPLAY, 'text-[21px]')}>{who?.name || 'Guest'}</b>
                   <span className="text-[13px] text-ink-3">
-                    {menu.restaurant.name} · {customer?.phone} · delivery
+                    {menu.restaurant.name} · {who?.phone} · delivery
                   </span>
                 </div>
                 <div className="grid gap-1.5 text-[13px] font-semibold text-ink-2">
@@ -383,7 +498,7 @@ export function Checkout() {
 
           {sessionEnded && (
             <p className="rounded-2xl bg-mint/10 px-3.5 py-3 text-[13.5px] font-semibold text-mint" role="alert">
-              {isDelivery
+              {isDelivery || isPickup
                 ? "This order has been closed out — new items can't be placed on it."
                 : "This table has been closed out — new orders can't be placed. Ask a server if you'd like to order more."}
             </p>
@@ -411,7 +526,7 @@ export function Checkout() {
               onClick={placeOrder}
               disabled={!canSubmit}
             >
-              {sessionEnded ? (isDelivery ? 'Order closed' : 'Table closed') : submitting ? 'Sending…' : 'Place order'}
+              {sessionEnded ? (isDelivery || isPickup ? 'Order closed' : 'Table closed') : submitting ? 'Sending…' : 'Place order'}
             </button>
           </div>
         </aside>
@@ -428,7 +543,7 @@ export function Checkout() {
       >
         <div className="mx-auto flex w-full max-w-[620px] items-center gap-2.5">
           <div className="flex flex-col pl-1 leading-tight">
-            <span className="text-[11px] font-semibold text-ink-3">{isDelivery ? 'Pay on delivery' : 'Pay at restaurant'}</span>
+            <span className="text-[11px] font-semibold text-ink-3">{isDelivery ? 'Pay on delivery' : isPickup ? 'Pay at pick-up' : needsChoice ? 'Total' : 'Pay at restaurant'}</span>
             <b className="text-[17px] font-bold tracking-tight tnum">{formatMoney(bill.total, currency)}</b>
           </div>
           <button
@@ -437,7 +552,7 @@ export function Checkout() {
             onClick={placeOrder}
             disabled={!canSubmit}
           >
-            {sessionEnded ? (isDelivery ? 'Order closed' : 'Table closed') : submitting ? 'Sending…' : 'Place order'}
+            {sessionEnded ? (isDelivery || isPickup ? 'Order closed' : 'Table closed') : submitting ? 'Sending…' : 'Place order'}
           </button>
         </div>
       </div>

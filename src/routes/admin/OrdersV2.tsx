@@ -9,6 +9,7 @@ import { PassCardV2 } from '../../components/admin/PassCardV2';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useOrderSheet } from '../../components/admin/OrderSheet';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
+import { TablePaySheet } from '../../components/admin/TablePaySheet';
 import { NewOrderButton } from '../../components/admin/NewOrder';
 import { PosModeButton } from '../../components/admin/PosModeButton';
 import { useDashboard } from './AdminLayout';
@@ -185,9 +186,11 @@ export function OrdersV2() {
 
       {orderSheet.sheet}
 
+      {/* A table order opens its table's sheet on this order's lines (the whole tab for staff who can't split); floor and quick-sale orders are billed on their own. */}
+      {payingOrder?.tableId && <TablePaySheet order={payingOrder} onClose={() => setPayingId(null)} onPaid={reloadOrders} />}
       <PaymentSheet
-        table={payingOrder ? floorBillSubject(payingOrder) : null}
-        orders={payingOrder ? [payingOrder] : []}
+        table={payingOrder && !payingOrder.tableId ? floorBillSubject(payingOrder) : null}
+        orders={payingOrder && !payingOrder.tableId ? [payingOrder] : []}
         dishes={menuDishes}
         restaurantName={menu.restaurant.name}
         legalName={menu.restaurant.legalName}

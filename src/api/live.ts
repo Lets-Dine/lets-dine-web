@@ -39,6 +39,7 @@ interface ApiRestaurant {
   taxRate: number;
   deliveryFeeAmount?: number | null;
   deliveryEnabled?: boolean;
+  pickupEnabled?: boolean;
   deliveryChannel?: DeliveryChannel;
   whatsappNumber?: string | null;
   vatPanNumber?: string | null;
@@ -284,6 +285,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     taxRate: api.taxRate,
     deliveryFeeAmount: api.deliveryFeeAmount ?? null,
     deliveryEnabled: api.deliveryEnabled ?? true,
+    pickupEnabled: api.pickupEnabled ?? false,
     deliveryChannel: api.deliveryChannel ?? 'APP',
     whatsappNumber: api.whatsappNumber ?? null,
     vatPanNumber: api.vatPanNumber ?? null,
@@ -833,6 +835,7 @@ export async function createOrder({
   deliveryAddress,
   deliveryLocation,
   deliveryNote,
+  fulfilment,
   customer,
   floorVisitorName,
 }: CreateOrderInput): Promise<Order> {
@@ -854,6 +857,7 @@ export async function createOrder({
       deliveryLatitude: deliveryLocation?.lat,
       deliveryLongitude: deliveryLocation?.lng,
       deliveryNote: deliveryNote || undefined,
+      fulfilment,
       customer: customer ? { phone: customer.phone.trim(), name: customer.name.trim() } : undefined,
       floorVisitorName: floorVisitorName?.trim() || undefined,
     }),

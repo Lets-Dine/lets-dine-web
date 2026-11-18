@@ -33,7 +33,7 @@ export interface KitchenTicket {
   lines: KitchenTicketLine[];
   order?: {
     reference: string;
-    orderType: 'DINE_IN' | 'DELIVERY';
+    orderType: 'DINE_IN' | 'DELIVERY' | 'PICKUP';
     tableName: string | null;
     floorName: string | null;
     floorVisitorName: string | null;

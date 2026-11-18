@@ -23,6 +23,7 @@ import {
   Toggle,
   useCommand,
 } from '../../components/admin/kit';
+import { BranchAddressMap } from '../../components/admin/BranchAddressMap';
 import { Check, ChevronLeft } from '../../components/icons';
 import { reduced } from '../../components/admin/profile';
 import { FOOT_PRIMARY, SHEET_FOOT, Sheet } from '../../components/admin/Sheet';
@@ -77,6 +78,8 @@ const fromMajor = (text: string) => (text.trim() === '' ? null : Math.round(Numb
 const initialOf = (branch: Branch) => ({
   name: branch.name,
   address: branch.address,
+  latitude: branch.latitude,
+  longitude: branch.longitude,
   phone: branch.phone ?? '',
   timezone: branch.timezone,
   service: toPercent(branch.serviceChargeRate),
@@ -142,6 +145,8 @@ function BranchEditor({ branch, canEdit, onSaved }: { branch: Branch; canEdit: b
       updateBranch(branch.id, {
         name: form.name,
         address: form.address,
+        latitude: form.latitude,
+        longitude: form.longitude,
         phone: form.phone,
         timezone: form.timezone,
         serviceChargeRate: fromPercent(form.service),
@@ -249,6 +254,11 @@ function BranchEditor({ branch, canEdit, onSaved }: { branch: Branch; canEdit: b
                 <Field label="Address">
                   <TextInput value={form.address} onChange={set('address')} maxLength={200} />
                 </Field>
+                <BranchAddressMap
+                  pin={form.latitude != null && form.longitude != null ? { lat: form.latitude, lng: form.longitude } : null}
+                  onPick={({ lat, lng }) => setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }))}
+                  onAddress={set('address')}
+                />
                 <div className="grid gap-6 sm:grid-cols-2">
                   <Field label="Phone">
                     <TextInput value={form.phone} onChange={set('phone')} maxLength={30} />

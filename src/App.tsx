@@ -41,6 +41,7 @@ import { OrdersV2 } from './routes/admin/OrdersV2';
 import { StockTake } from './routes/admin/StockTake';
 import { BuyList } from './routes/admin/BuyList';
 import { Watchlist } from './routes/admin/Watchlist';
+import { IngredientDetail } from './routes/admin/IngredientDetail';
 import { Inventory } from './routes/admin/Inventory';
 import { Suppliers } from './routes/admin/Suppliers';
 import { SupplierDetail } from './routes/admin/SupplierDetail';
@@ -224,7 +225,7 @@ export default function App() {
                 <Route path="order/:orderId/review" element={<ReviewFlow />} />
               </Route>
 
-              {/* Delivery: no QR, no table — same layout, session starts from a phone number instead. */}
+              {/* Delivery and pick-up: no QR, no table — same layout, the session starts from a phone number and the customer chooses at checkout. */}
               <Route path="/r/:slug/delivery" element={<RestaurantLayout kind="delivery" />}>
                 <Route index element={<Menu />} />
                 <Route path="d/:dishId" element={<DishPage />} />
@@ -271,6 +272,7 @@ export default function App() {
                 <Route path="inventory/consumption" element={<Consumption />} />
                 <Route path="inventory/buy-list" element={<BuyList />} />
                 <Route path="inventory/watchlist" element={<Watchlist />} />
+                <Route path="inventory/:ingredientId" element={<IngredientDetail />} />
                 <Route path="suppliers" element={<Suppliers />} />
                 <Route path="suppliers/:name" element={<SupplierDetail />} />
                 <Route path="inventory/margins" element={<Navigate to="/admin/inventory/watchlist" replace />} />

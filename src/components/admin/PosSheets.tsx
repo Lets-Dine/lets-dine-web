@@ -97,8 +97,8 @@ export function ReceiptsSheet({ tables, menu, onClose }: { tables: DiningTable[]
   /** What the customer's copy says: a payment with no table is a counter sale or a delivery, and the receipt cannot tell which. */
   const receiptName = (id: string | null) => (id ? tableName(id) : 'Order');
 
-  const print = (p: Payment) => {
-    const opened = printReceipt(
+  const print = async (p: Payment) => {
+    const opened = await printReceipt(
       { name: receiptName(p.tableId) },
       p.items.map((i) => ({ dishNameSnapshot: i.dishNameSnapshot, quantity: i.quantity, total: i.unitPrice * i.quantity })),
       { currency: p.currency, subtotal: p.subtotal, serviceCharge: p.serviceCharge, tax: p.tax, discount: p.discount, total: p.total },

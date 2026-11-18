@@ -49,3 +49,20 @@ export async function placeName({ lat, lng }: LatLng, timeoutMs = 6000): Promise
     clearTimeout(timer);
   }
 }
+
+/** The first place OpenStreetMap's Nominatim knows by this name, or null. Searches are bounded to Nepal; the text leaves the device. */
+export async function findPlace(query: string, timeoutMs = 6000): Promise<(LatLng & { name: string }) | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=np&accept-language=en&q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) return null;
+    const [hit] = (await res.json()) as { lat: string; lon: string; display_name?: string }[];
+    return hit ? { lat: Number(hit.lat), lng: Number(hit.lon), name: hit.display_name?.split(',').slice(0, 3).join(',').trim() ?? query } : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}

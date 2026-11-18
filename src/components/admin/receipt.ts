@@ -1,5 +1,8 @@
 import { formatMoney } from '../../domain/money';
 import type { PaymentMethod } from '../../domain/types';
+import { buildReceiptSlip } from '../../printing/escpos';
+import { printRaw } from '../../printing/qz';
+import { askReceiptPrinter, getState } from '../../printing/store';
 
 /**
  * The one paper artifact the till produces — a settle-table charge (Tables.tsx)
@@ -43,7 +46,60 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
 }
 
-export function printReceipt(
+/** Everything a receipt shows, resolved once so the browser page and the ESC/POS slip say the same thing. */
+export interface ReceiptBody {
+  table: { name: string; capacity?: number };
+  lines: ReceiptLine[];
+  totals: ReceiptTotals;
+  restaurant: ReceiptRestaurant;
+  payment?: ReceiptPayment;
+  paidBy: string;
+  legalName: string;
+  vatPan?: string;
+  customerName?: string;
+}
+
+/**
+ * When this PC is set to print, asks which configured printer (or the browser) to use; with it off, goes straight
+ * to the browser's print dialog, which is also the fallback if the chosen printer fails. Resolves false only when the
+ * browser path was needed and pop-ups are blocked.
+ */
+export async function printReceipt(
+  table: { name: string; capacity?: number },
+  lines: ReceiptLine[],
+  totals: ReceiptTotals,
+  restaurant: ReceiptRestaurant,
+  payment?: ReceiptPayment,
+  customerName?: string | null,
+): Promise<boolean> {
+  const choice = getState().agentOn ? await askReceiptPrinter() : 'browser';
+  if (choice === null) return true; // closed the picker: nothing to print
+  if (choice !== 'browser') {
+    const target = choice;
+    const name = restaurant.name;
+    const registered = restaurant.legalName?.trim() ?? '';
+    const body: ReceiptBody = {
+      table,
+      lines,
+      totals,
+      restaurant,
+      payment,
+      paidBy: payment ? (payment.label ?? (payment.method === 'CASH' ? 'Cash' : payment.method === 'QR' ? 'QR' : 'Card')) : '',
+      legalName: registered && registered.toLowerCase() !== name.trim().toLowerCase() ? registered : '',
+      vatPan: restaurant.vatPanNumber?.trim() || undefined,
+      customerName: customerName?.trim() || undefined,
+    };
+    try {
+      await printRaw(target, buildReceiptSlip(body, target.paper));
+      return true;
+    } catch {
+      /* printer or QZ Tray unreachable: the browser dialog still gets the guest their receipt */
+    }
+  }
+  return printInBrowser(table, lines, totals, restaurant, payment, customerName);
+}
+
+function printInBrowser(
   table: { name: string; capacity?: number },
   lines: ReceiptLine[],
   totals: ReceiptTotals,

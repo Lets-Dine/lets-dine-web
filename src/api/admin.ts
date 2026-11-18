@@ -1859,9 +1859,8 @@ export async function regenerateFloorQr(actor: StaffMember, floorId: string): Pr
  * that sets `cancelledAt` by hand rather than leaving it to read as still
  * PENDING forever. Mirrors the live backend's own `DiningSessionService.endSession`.
  *
- * Table orders only — ending a table's visit settles its tab as a whole regardless of any one
- * order's status, so a fully-served ticket here still lands on `COMPLETED` the way it always has.
- * `UNPAID` is floor-only (§16b) and never applies to what this closes.
+ * Table orders only — ending a table's visit settles its tab as a whole, so it stamps `paidAt` and a
+ * fully-served ticket here lands on `COMPLETED`.
  */
 function closeOrderForSessionEnd(order: Order, restaurant: Restaurant, now: string): Order {
   const items: OrderItem[] = order.items.map((item) => {
@@ -1871,8 +1870,9 @@ function closeOrderForSessionEnd(order: Order, restaurant: Restaurant, now: stri
   });
 
   const cancelledAt = order.acceptedAt ? order.cancelledAt : now;
-  const status = deriveOrderStatus({ acceptedAt: order.acceptedAt, cancelledAt, paidAt: order.paidAt, floorName: order.floorName, items });
-  const settled = recomputeTotals({ ...order, items, cancelledAt, updatedAt: now }, restaurant);
+  const paidAt = order.paidAt ?? now;
+  const status = deriveOrderStatus({ acceptedAt: order.acceptedAt, cancelledAt, paidAt, floorName: order.floorName, items });
+  const settled = recomputeTotals({ ...order, items, cancelledAt, paidAt, updatedAt: now }, restaurant);
   return { ...settled, status, completedAt: status === 'COMPLETED' ? now : null };
 }
 
@@ -2009,6 +2009,8 @@ export async function listReviews(actor: StaffMember, filter: ReviewFilter = {})
 export interface ItemOptions {
   variantId?: string | null;
   addOnIds?: string[];
+  /** The regular a seated table is for; the live backend puts the visit's first order on them. */
+  customerId?: string;
 }
 
 export interface SettingsPatch {
@@ -2024,6 +2026,7 @@ export interface SettingsPatch {
   /** Flat, minor-unit delivery fee. `null`/`0` means no fee. */
   deliveryFeeAmount?: number | null;
   deliveryEnabled?: boolean;
+  pickupEnabled?: boolean;
   deliveryChannel?: DeliveryChannel;
   whatsappNumber?: string | null;
   /** Registered name printed on receipts. Empty is refused. */
@@ -2068,6 +2071,7 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
     taxRate: rate(patch.taxRate, 'Tax') ?? before.taxRate,
     deliveryFeeAmount: deliveryFee !== undefined ? deliveryFee : before.deliveryFeeAmount,
     deliveryEnabled: patch.deliveryEnabled ?? before.deliveryEnabled,
+    pickupEnabled: patch.pickupEnabled ?? before.pickupEnabled,
     deliveryChannel: patch.deliveryChannel ?? before.deliveryChannel,
     whatsappNumber: patch.whatsappNumber !== undefined ? patch.whatsappNumber?.replace(/\D/g, '') || null : before.whatsappNumber,
     vatPanNumber: patch.vatPanNumber !== undefined ? patch.vatPanNumber?.trim() || null : before.vatPanNumber,

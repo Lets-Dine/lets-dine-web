@@ -218,7 +218,9 @@ export function OrderStatus() {
                 : order.status === 'READY'
                   ? order.orderType === 'DELIVERY'
                     ? 'Packed and waiting to go out'
-                    : 'A server is bringing it over'
+                    : order.orderType === 'PICKUP'
+                      ? 'Ready at the counter — pay when you collect'
+                      : 'A server is bringing it over'
                   : 'Typically 15–25 minutes at this time of day'}
             </p>
           )}

@@ -15,7 +15,7 @@ const STATION_LABEL = { KITCHEN: 'Kitchen', BAR: 'Bar' } as const;
 function where(ticket: KitchenTicket): string {
   const order = ticket.order;
   if (!order) return `#${ticket.number}`;
-  const place = order.orderType === 'DELIVERY' ? 'Delivery' : (order.tableName ?? order.floorName ?? 'Dine-in');
+  const place = order.orderType === 'DELIVERY' ? 'Delivery' : order.orderType === 'PICKUP' ? 'Pick up' : (order.tableName ?? order.floorName ?? 'Dine-in');
   return `#${ticket.number} (${place})`;
 }
 

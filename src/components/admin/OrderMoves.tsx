@@ -4,7 +4,7 @@ import { useAsync } from '../../state/useAsync';
 import { branchKeyOf, completeDelivery, fetchAssignmentForOrder, settleDelivery } from '../../api/delivery';
 import { acceptOrder, advanceDeliveryOrder, advanceOrderItem, deliverOrder, rejectOrder } from '../../api/staff';
 import { formatMoney } from '../../domain/money';
-import { ADVANCE_LABEL, DELIVERY_ADVANCE_LABEL, ITEM_ADVANCE_LABEL, canCancelOrder } from '../../domain/orderStatus';
+import { ADVANCE_LABEL, DELIVERY_ADVANCE_LABEL, ITEM_ADVANCE_LABEL, canCancelOrder, unpaidTotal } from '../../domain/orderStatus';
 import type { ItemStatus, Order, OrderItem, OrderStatus } from '../../domain/types';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { cx } from '../ui';
@@ -38,7 +38,8 @@ export function useOrderMoves(
     onApply,
     onResync,
     onTakePayment,
-  }: { onApply: (order: Order) => void; onResync: () => void; onTakePayment?: (order: Order) => void },
+    paid,
+  }: { onApply: (order: Order) => void; onResync: () => void; onTakePayment?: (order: Order) => void; paid?: Map<string, number> },
   { moveClass, cancelLabel = 'Cancel' }: { moveClass: string; cancelLabel?: string },
 ) {
   const staff = useStaff();
@@ -121,7 +122,7 @@ export function useOrderMoves(
       </button>
     ) : order.status === 'UNPAID' && onTakePayment && live ? (
       <button type="button" disabled={busy} className={cx(button, 'gap-1.5')} onClick={() => onTakePayment(order)}>
-        <Receipt size={13} /> Take payment · {formatMoney(order.total, order.currency)}
+        <Receipt size={13} /> {order.tableId ? 'Pay this order' : 'Take payment'} · {formatMoney(paid ? unpaidTotal(order, paid) : order.total, order.currency)}
       </button>
     ) : null;
 

@@ -110,12 +110,13 @@ export function billableItems(items: OrderItem[]): OrderItem[] {
  * detail) rarely has the floor record itself loaded alongside it. The order's own id stands in for
  * a `qrToken`: that field only ever seeds a demo reference string, never a real charge link.
  */
-export function floorBillSubject(order: Pick<Order, 'id' | 'floorName' | 'floorVisitorName'>): {
+export function floorBillSubject(order: Pick<Order, 'id' | 'floorName' | 'floorVisitorName'> & Partial<Pick<Order, 'orderType' | 'customerName'>>): {
   id: string;
   name: string;
   qrToken: string;
 } {
-  return { id: order.id, name: order.floorVisitorName || order.floorName || 'Quick sale', qrToken: order.id };
+  const pickup = order.orderType === 'PICKUP' ? `Pick up${order.customerName ? ` · ${order.customerName}` : ''}` : null;
+  return { id: order.id, name: pickup || order.floorVisitorName || order.floorName || 'Quick sale', qrToken: order.id };
 }
 
 /**
@@ -125,11 +126,10 @@ export function floorBillSubject(order: Pick<Order, 'id' | 'floorName' | 'floorV
  * the server-side derivation exactly (`lets-dine-backend`'s
  * `order-status.util.ts`) so the two never drift.
  *
- * A floor order (§16b) doesn't jump straight to `COMPLETED` once every item is served — it sits
+ * A dine-in order doesn't jump straight to `COMPLETED` once every item is served — it sits
  * at `UNPAID` until `paidAt` is set, so staff always has a moment where that order can still be
- * paid, instead of the bill window closing itself the instant the last dish goes out. A table
- * order has no such gap: its tab is settled as a whole (`PaymentSheet`), independent of any one
- * order's own status, so it goes straight to `COMPLETED` the way it always has.
+ * paid, instead of the bill window closing itself the instant the last dish goes out. A table's
+ * tab is settled as a whole (`PaymentSheet`), which stamps `paidAt` on every order it covers.
  */
 export function deriveOrderStatus(
   order: Pick<Order, 'acceptedAt' | 'cancelledAt' | 'paidAt' | 'floorName' | 'items'>,
@@ -140,7 +140,6 @@ export function deriveOrderStatus(
   const live = billableItems(order.items);
   if (live.length === 0) return 'CANCELLED';
   if (live.every((i) => i.status === 'SERVED')) {
-    if (!order.floorName) return 'COMPLETED';
     return order.paidAt ? 'COMPLETED' : 'UNPAID';
   }
   if (live.every((i) => i.status === 'READY' || i.status === 'SERVED')) return 'READY';
@@ -428,4 +427,15 @@ export function focusMap(orders: Order[], now: number = Date.now()): Map<string,
     if (found) map.set(order.id, found);
   }
   return map;
+}
+
+/**
+ * What is still owed on an order once split shares have paid some of its lines: the order's total (tax, service and discount
+ * included) scaled by the share of its dish value that no share has covered yet. `paid` maps an order-line id to units paid.
+ */
+export function unpaidTotal(order: Order, paid: Map<string, number>): number {
+  const lines = billableItems(order.items);
+  const all = lines.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+  const left = lines.reduce((sum, i) => sum + i.unitPrice * Math.max(0, i.quantity - (paid.get(i.id) ?? 0)), 0);
+  return all > 0 ? Math.round((order.total * left) / all) : order.total;
 }

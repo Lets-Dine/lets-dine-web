@@ -15,7 +15,7 @@ export type OrderStatus =
   | 'CANCELLED';
 
 /** Dine-in is table-scoped and QR-triggered; delivery has no table and is dispatched by staff. */
-export type OrderType = 'DINE_IN' | 'DELIVERY';
+export type OrderType = 'DINE_IN' | 'DELIVERY' | 'PICKUP';
 
 /** An item's own progress through the kitchen — independent of its siblings. */
 export type ItemStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
@@ -46,6 +46,8 @@ export interface Restaurant {
   deliveryFeeAmount: number | null;
   /** Off = no delivery orders; the menu stays visible. Absent = on. */
   deliveryEnabled?: boolean;
+  /** On = diners can order for pick-up. Absent = off; staff can always ring one up. */
+  pickupEnabled?: boolean;
   /** How delivery orders arrive while delivery is on: in the app (default) or as a WhatsApp message to `whatsappNumber`. */
   deliveryChannel?: DeliveryChannel;
   /** Digits with country code, no "+". Required for the WHATSAPP channel. */

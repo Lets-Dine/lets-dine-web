@@ -21,7 +21,7 @@ import { DishMenu, useTicketDraft } from './DishTilePicker';
 import { useCommand } from './kit';
 import { useCountUp } from './profile';
 
-type Kind = 'TABLE' | 'FLOOR' | 'DELIVERY';
+type Kind = 'TABLE' | 'FLOOR' | 'DELIVERY' | 'PICKUP';
 /** The questions the docket asks, in the order it asks them. Dishes is where it comes to rest. */
 type Ask = 'kind' | 'where' | 'guest' | 'address' | 'dishes';
 interface Guest {
@@ -34,6 +34,7 @@ const KINDS: Record<Kind, { name: string; service: string; detail: string }> = {
   TABLE: { name: 'Table', service: 'Table service', detail: 'Seats a free table, or joins one already eating' },
   FLOOR: { name: 'Floor', service: 'Floor service', detail: 'A cabin, room or spot on one of the floors' },
   DELIVERY: { name: 'Delivery', service: 'Delivery', detail: 'Cooked here, sent out to the guest’s door' },
+  PICKUP: { name: 'Pick up', service: 'Pick up', detail: 'Cooked here, collected at the counter and paid then' },
 };
 
 /** A docket's foot is torn from the pad — 14px teeth along the bottom edge. */
@@ -132,11 +133,14 @@ function NewOrderComposer({ onClose }: { onClose: () => void }) {
     if (activeTables.length > 0) list.push('TABLE');
     if (activeFloors.length > 0) list.push('FLOOR');
     if (menu.restaurant.deliveryEnabled) list.push('DELIVERY');
+    list.push('PICKUP');
     return list;
   }, [activeTables.length, activeFloors.length, menu.restaurant.deliveryEnabled]);
 
   const [chosenKind, setKind] = useState<Kind | null>(null);
   const kind = chosenKind && kinds.includes(chosenKind) ? chosenKind : kinds.length === 1 ? kinds[0] : null;
+  /** Delivery and pick-up are both for a named guest and have no table or floor to choose. */
+  const forGuest = kind === 'DELIVERY' || kind === 'PICKUP';
   const [tableId, setTableId] = useState<string | null>(null);
   const [floorId, setFloorId] = useState<string | null>(null);
   const [spot, setSpot] = useState('');
@@ -165,8 +169,8 @@ function NewOrderComposer({ onClose }: { onClose: () => void }) {
 
   const answered: Record<Ask, boolean> = {
     kind: kind !== null,
-    where: kind === 'TABLE' ? !!table : kind === 'FLOOR' ? !!floor && spotDone : kind === 'DELIVERY',
-    guest: kind === 'DELIVERY' ? !!guest : !!who || walkIn,
+    where: kind === 'TABLE' ? !!table : kind === 'FLOOR' ? !!floor && spotDone : forGuest,
+    guest: forGuest ? !!guest : !!who || walkIn,
     address: kind !== 'DELIVERY' || (addressDone && !!address.trim()),
     dishes: ticket.draft.length > 0,
   };
@@ -187,7 +191,7 @@ function NewOrderComposer({ onClose }: { onClose: () => void }) {
   // The questions this order actually asks, in order — what the back link above each question walks.
   const path: Ask[] = [
     ...(kinds.length > 1 ? (['kind'] as const) : []),
-    ...(kind !== 'DELIVERY' ? (['where'] as const) : []),
+    ...(!forGuest ? (['where'] as const) : []),
     'guest',
     ...(kind === 'DELIVERY' ? (['address'] as const) : []),
     'dishes',
@@ -510,7 +514,9 @@ function NewOrderComposer({ onClose }: { onClose: () => void }) {
           lede={
             kind === 'DELIVERY'
               ? 'The phone number is how the rider reaches them.'
-              : 'Optional at a table — a name links the order to their visits and points.'
+              : kind === 'PICKUP'
+                ? 'The name and phone are how you call them when it’s ready.'
+                : 'Optional at a table — a name links the order to their visits and points.'
           }
         >
           <GuestSearch
@@ -520,7 +526,7 @@ function NewOrderComposer({ onClose }: { onClose: () => void }) {
               answer();
             }}
           />
-          {kind !== 'DELIVERY' && (
+          {!forGuest && (
             <TextAction
               className="mt-8"
               quiet
@@ -631,7 +637,7 @@ function NewOrderComposer({ onClose }: { onClose: () => void }) {
               value={kind ? KINDS[kind].service : null}
             />
           )}
-          {kind !== 'DELIVERY' && (
+          {!forGuest && (
             <DocketLine
               label={kind === 'FLOOR' ? 'Floor' : 'Table'}
               active={ask === 'where'}

@@ -161,6 +161,8 @@ function whatsappMessage({
 
 export function Cart() {
   const { menu, customer, identityLabel, base, session, whatsapp } = useRestaurant();
+  /** Delivery is on and takes orders in the app: only then is a delivery fee part of this estimate. */
+  const canDeliver = menu.restaurant.deliveryEnabled !== false && menu.restaurant.deliveryChannel !== 'WHATSAPP';
   usePageTitle(`Your order · ${menu.restaurant.name}`);
   const cart = useCart();
   const navigate = useNavigate();
@@ -194,7 +196,7 @@ export function Cart() {
   };
 
   const byId = new Map(menu.dishes.map((d) => [d.id, d]));
-  const deliveryFee = customer || whatsapp ? (menu.restaurant.deliveryFeeAmount ?? 0) : 0;
+  const deliveryFee = (customer && canDeliver) || whatsapp ? (menu.restaurant.deliveryFeeAmount ?? 0) : 0;
   const bill = useBill(cart.lines, menu.dishes, deliveryFee);
   const currency = menu.restaurant.currency;
 

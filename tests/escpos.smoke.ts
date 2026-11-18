@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type { KitchenTicket } from '../src/api/kitchen';
-import { ascii, buildJobSlip, buildSlip, COLUMNS, wrap } from '../src/printing/escpos';
+import { ascii, buildJobSlip, buildReceiptSlip, buildSlip, COLUMNS, wrap } from '../src/printing/escpos';
 
 assert.equal(ascii('2× Momo – “hot”'), '2x Momo - "hot"');
 assert.equal(ascii('मोमो'), '????'); // unprintable becomes "?", never a stray byte
@@ -41,3 +41,15 @@ const full = text(buildJobSlip([ticket(2), bar], '80mm'));
 assert.ok(full.includes('FULL ORDER') && full.includes('KOT #12') && full.includes('BOT #13') && full.includes('Mango Lassi') && full.includes('Chicken Momo'));
 assert.equal(text(buildJobSlip([ticket(2)], '80mm')), text(buildSlip(ticket(2), '80mm'))); // one ticket is just its own slip
 console.log('escpos: ok');
+
+const receipt = text(
+  buildReceiptSlip({
+    table: { name: 'Table 4' },
+    lines: [{ dishNameSnapshot: 'Chicken Momo', quantity: 2, total: 40000 }],
+    totals: { currency: 'NPR', subtotal: 40000, serviceCharge: 0, tax: 0, discount: 0, total: 40000 },
+    restaurant: { name: 'Cafe' },
+    paidBy: '',
+    legalName: '',
+  }),
+);
+assert.ok(receipt.includes('2x Chicken Momo') && receipt.includes('Rs. 400') && receipt.includes('TOTAL'));

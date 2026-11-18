@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   addIngredient,
   adjustStock,
@@ -42,7 +42,7 @@ const UNITS = [
   { value: 'pcs', label: 'Count (pieces)' },
 ];
 
-const STATE_COPY: Record<StockState, { label: string; pill: string; bar: string; text: string; tint: string }> = {
+export const STATE_COPY: Record<StockState, { label: string; pill: string; bar: string; text: string; tint: string }> = {
   out: {
     label: 'Out of stock',
     pill: 'bg-berry/14 text-berry-ink',
@@ -66,10 +66,10 @@ const STATE_COPY: Record<StockState, { label: string; pill: string; bar: string;
   },
 };
 
-type Tool = 'receive' | 'consume' | 'waste' | 'recount' | 'transfer' | 'return' | 'edit';
+export type Tool = 'receive' | 'consume' | 'waste' | 'recount' | 'transfer' | 'return' | 'edit';
 
 /** The four things you can do to an ingredient, each said in the words a cook would use. */
-const TOOLS: Record<Tool, { short: string; title: string; blurb: string; Icon: typeof Box; detail: string }> = {
+export const TOOLS: Record<Tool, { short: string; title: string; blurb: string; Icon: typeof Box; detail: string }> = {
   receive: {
     short: 'Restock',
     title: 'Delivery arrived',
@@ -123,18 +123,18 @@ const TOOLS: Record<Tool, { short: string; title: string; blurb: string; Icon: t
 
 const USAGE_PAGE_SIZE = 8;
 
-const usageTime = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-const dayOnly = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+export const usageTime = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+export const dayOnly = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
-const UNIT_NAMES: Record<string, string> = { g: 'Gram (g)', ml: 'Millilitre (ml)', pcs: 'Piece (pcs)' };
+export const UNIT_NAMES: Record<string, string> = { g: 'Gram (g)', ml: 'Millilitre (ml)', pcs: 'Piece (pcs)' };
 
-const CARD = 'animate-rise rounded-3xl bg-surface-2/50 px-5 py-5 ring-1 ring-hairline ring-inset sm:px-6';
-const CARD_TITLE = 'text-[17px] font-semibold tracking-tight';
+export const CARD = 'animate-rise rounded-3xl bg-surface-2/50 px-5 py-5 ring-1 ring-hairline ring-inset sm:px-6';
+export const CARD_TITLE = 'text-[17px] font-semibold tracking-tight';
 /** Sections rise one after another, as on the customer page. */
-const rise = (ms: number) => ({ animationDelay: `${ms}ms` });
+export const rise = (ms: number) => ({ animationDelay: `${ms}ms` });
 
 /** The latest movement said as a sentence, in the words a cook would use. */
-function describeMovement(m: NonNullable<IngredientSummary['lastMovement']>, name: string, unit: string): string {
+export function describeMovement(m: NonNullable<IngredientSummary['lastMovement']>, name: string, unit: string): string {
   const amount = formatQty(Math.abs(m.delta), unit);
   switch (m.reason) {
     case 'DELIVERY':
@@ -157,7 +157,7 @@ function describeMovement(m: NonNullable<IngredientSummary['lastMovement']>, nam
 }
 
 /** The facts that rarely change, as label and value pairs. */
-function BasicDetails({ ing, summary, currency }: { ing: Ingredient; summary: IngredientSummary | null; currency: string }) {
+export function BasicDetails({ ing, summary, currency }: { ing: Ingredient; summary: IngredientSummary | null; currency: string }) {
   const buy = summary?.lastPurchase;
   const price = buy?.cost ? pricePer(buy.cost, buy.quantity, ing.unit, currency) : null;
   const rows: [string, string][] = [
@@ -183,7 +183,7 @@ function BasicDetails({ ing, summary, currency }: { ing: Ingredient; summary: In
 }
 
 /** Where the number stands: now, what came in and went out lately, and the latest change. */
-function StockOverview({ ing, state, summary }: { ing: Ingredient; state: StockState; summary: IngredientSummary | null }) {
+export function StockOverview({ ing, state, summary }: { ing: Ingredient; state: StockState; summary: IngredientSummary | null }) {
   const tiles = [
     { label: 'Current stock', value: ing.quantity, hint: STATE_COPY[state].label, tone: STATE_COPY[state].text },
     { label: 'Stock in', value: summary?.stockIn, hint: `last ${summary?.days ?? 30} days`, tone: 'text-ink' },
@@ -218,7 +218,7 @@ const PURCHASE_COUNT = 5;
 const localDay = () => new Date().toLocaleDateString('en-CA');
 
 /** The latest deliveries of this ingredient: when, from whom, how much, and what was paid. */
-function LatestPurchases({ ing, currency }: { ing: Ingredient; currency: string }) {
+export function LatestPurchases({ ing, currency }: { ing: Ingredient; currency: string }) {
   const purchases = useAsync(() => fetchPurchases(ing.id, PURCHASE_COUNT).catch(() => null), [ing.id]);
   const rows = purchases.data;
   return (
@@ -342,7 +342,7 @@ function DishConsumption({ ing, onAdd }: { ing: Ingredient; onAdd: () => void })
 }
 
 /** What a price works out to per kg / litre / piece, so "Rs 2,400 for 5 kg" reads as "Rs 480 per kg". */
-function pricePer(cost: Minor, quantity: number, unit: string, currency: string): string | null {
+export function pricePer(cost: Minor, quantity: number, unit: string, currency: string): string | null {
   if (quantity <= 0 || cost <= 0) return null;
   const per = unit === 'g' ? { label: 'kg', factor: 1000 } : unit === 'ml' ? { label: 'L', factor: 1000 } : { label: unit, factor: 1 };
   return `${formatMoney(Math.round((cost * per.factor) / quantity), currency)} per ${per.label}`;
@@ -361,7 +361,7 @@ function Outcome({ children, tone = 'info' }: { children: ReactNode; tone?: 'inf
 }
 
 /** "2.5 kg" as a bold number and a quiet unit, so a column of quantities scans by number. */
-function Qty({ value, unit, className, unitClassName = 'text-ink-4' }: { value: number; unit: string; className?: string; unitClassName?: string }) {
+export function Qty({ value, unit, className, unitClassName = 'text-ink-4' }: { value: number; unit: string; className?: string; unitClassName?: string }) {
   const [n, ...u] = formatQty(value, unit).split(' ');
   return (
     <span className={cx('tnum whitespace-nowrap', className)}>
@@ -444,6 +444,7 @@ export function Inventory() {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Open>(null);
   const [adding, setAdding] = useState(false);
+  const navigate = useNavigate();
 
   // A link from elsewhere (the Watchlist) can open an ingredient, and straight into a form: ?open=<id>&tool=return&lot=<id>.
   const [params, setParams] = useSearchParams();
@@ -578,7 +579,7 @@ export function Inventory() {
                 <li key={ing.id} className={cx('transition-opacity', pending === ing.id && 'opacity-50')}>
                   {/* Tiles rise in a short cascade (capped, so a long list doesn't make you wait). */}
                   <div className="h-full animate-rise" style={rise(Math.min(i, 10) * 45)}>
-                    <StockRow ing={ing} state={state} interactive={canManage} onOpen={() => setOpen({ id: ing.id, tool: null })} delay={Math.min(i, 10) * 45 + 200} />
+                    <StockRow ing={ing} state={state} interactive={canManage} onOpen={() => navigate(`/admin/inventory/${ing.id}`)} delay={Math.min(i, 10) * 45 + 200} />
                   </div>
                 </li>
               ))}
@@ -845,7 +846,7 @@ function FirstRun({ onAdd }: { onAdd?: () => void }) {
  * slides its form in under the same header, and Back returns to the details. Built on the native
  * <dialog>, like the add form: focus trap, Esc and the backdrop come with it.
  */
-function IngredientSheet({
+export function IngredientSheet({
   ing,
   initialTool,
   initialLot,

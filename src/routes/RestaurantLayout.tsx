@@ -2,7 +2,6 @@ import { useEffect, createContext, useContext, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Navigate, Outlet, useLocation, useParams } from 'react-router-dom';
 import {
-  getBranches,
   getRestaurant,
   getMenu,
   isSessionOpen,
@@ -10,7 +9,6 @@ import {
   openFloorSession,
   resolveQr,
   resumeDeliverySession,
-  startDeliverySession,
   subscribeToSessionEnd,
 } from '../api/diner';
 import type { DeliverySessionResult, FloorSessionResult } from '../api/diner';
@@ -18,16 +16,16 @@ import { IS_LIVE_API } from '../api/http';
 import { ApiError } from '../api/store';
 import { buildRankContext } from '../domain/metrics';
 import type { RankContext } from '../domain/metrics';
-import type { Customer, DiningSession, DiningTable, Floor, Menu, PublicBranch } from '../domain/types';
+import type { Customer, DiningSession, DiningTable, Floor, Menu } from '../domain/types';
 import { CartProvider } from '../state/CartContext';
-import { SessionOrdersProvider } from '../state/SessionOrdersContext';
+import { GuestOrdersProvider, SessionOrdersProvider } from '../state/SessionOrdersContext';
 import { useAsync } from '../state/useAsync';
 import { useDinerIdentity } from '../state/useDinerIdentity';
 import type { DinerIdentity } from '../state/useDinerIdentity';
 import { CartDock } from '../components/CartDock';
 import { OwnerPitch, UnclaimedBanner } from '../components/OwnerPitch';
 import { OrderDock } from '../components/OrderDock';
-import { BTN_FLAME, CARD, DISPLAY, EYEBROW, INPUT, SHELL, cx } from '../components/ui';
+import { BTN_FLAME, CARD, DISPLAY, INPUT, SHELL, cx } from '../components/ui';
 import { Check } from '../components/icons';
 import { BootScreen, ErrorScreen } from './Shell';
 
@@ -67,6 +65,10 @@ interface RestaurantValue {
   floorPlace: string;
   setFloorPlace: (place: string) => void;
   session: DiningSession;
+  /** A phone-number visit with no phone number yet: browsing and carting as a guest, with the visit opened at checkout. */
+  guest: boolean;
+  /** Hands the layout the visit checkout just opened, so the order screen follows it. */
+  openVisit: (visit: DeliverySessionResult) => void;
   /** Delivery is switched off: the menu is visible but nothing can be added or ordered. */
   browseOnly: boolean;
   /** Delivery runs through WhatsApp: a cart, but no session — the order leaves as a message. */
@@ -89,10 +91,11 @@ function identityLabelFor(
   floor: Floor | null,
   floorVisitorName: string | null,
   dinerIdentity: DinerIdentity | null,
+  phoneLabel = 'Delivery',
 ): string {
   if (table) return table.name;
   if (floor) return dinerIdentity?.name || floorVisitorName || floor.name;
-  return 'Delivery';
+  return phoneLabel;
 }
 
 interface Resolved {
@@ -105,6 +108,8 @@ interface Resolved {
 export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
   const { slug = '', token } = useParams();
   const isDelivery = kind === 'delivery';
+  /** Delivery and pick-up share one entry: a phone number opens the visit, and the customer chooses at checkout. */
+  const phoneVisit = isDelivery;
   const isFloor = kind === 'floor';
 
   const [joined, setJoined] = useState<Awaited<ReturnType<typeof joinTableSession>> | null>(null);
@@ -115,13 +120,19 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
 
   const qr = useAsync(() => (kind === 'table' ? resolveQr(slug, token ?? '') : Promise.resolve(null)), [slug, token, kind]);
   // A restaurant that has switched delivery off still shows its menu, just without a way to order.
-  const deliveryInfo = useAsync(() => (isDelivery ? getRestaurant(slug) : Promise.resolve(null)), [slug, isDelivery]);
-  const browseOnly = isDelivery && deliveryInfo.data?.deliveryEnabled === false;
-  const whatsapp = isDelivery && !browseOnly && deliveryInfo.data?.deliveryChannel === 'WHATSAPP';
+  const deliveryInfo = useAsync(() => (phoneVisit ? getRestaurant(slug) : Promise.resolve(null)), [slug, phoneVisit]);
+  // Browse-only when neither way of getting the food is on. WhatsApp ordering only applies when pick-up is off: with it on the
+  // customer needs a real visit to place a pick-up, and delivery is then offered only if it takes orders in the app.
+  const browseOnly = isDelivery && deliveryInfo.data?.deliveryEnabled === false && deliveryInfo.data?.pickupEnabled !== true;
+  const whatsapp = isDelivery && !browseOnly && deliveryInfo.data?.deliveryChannel === 'WHATSAPP' && deliveryInfo.data?.pickupEnabled !== true;
   const sessionless = browseOnly || whatsapp;
+  // What a phone-number visit is called until the order is finalised: the customer chooses delivery or pick-up at checkout.
+  const offersDelivery = deliveryInfo.data?.deliveryEnabled !== false && deliveryInfo.data?.deliveryChannel !== 'WHATSAPP';
+  const offersPickup = deliveryInfo.data?.pickupEnabled === true;
+  const phoneLabel = offersPickup ? (offersDelivery ? 'Delivery or pick-up' : 'Pick up') : 'Delivery';
   const deliveryResume = useAsync(
-    () => (isDelivery && !deliveryInfo.loading && !sessionless ? resumeDeliverySession(slug) : Promise.resolve(null)),
-    [slug, isDelivery, deliveryInfo.loading, sessionless],
+    () => (phoneVisit && !deliveryInfo.loading && !sessionless ? resumeDeliverySession(slug) : Promise.resolve(null)),
+    [slug, phoneVisit, deliveryInfo.loading, sessionless],
   );
   // §16b — no identity question to block on any more; resumes a session
   // already open on this device, or opens a fresh one straight away.
@@ -143,10 +154,28 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
         floorVisitorName: null,
       }
     : null;
+  // Delivery and pick-up: nothing is asked until the order is finalised. A customer with no visit open on this device browses as a
+  // guest, and checkout is where their phone number opens the visit (`openVisit`).
+  const guestSession: DiningSession | null =
+    phoneVisit && !sessionless && !deliveryInfo.loading && !deliveryResume.loading && !deliveryResume.error && !delivery && !deliveryResume.data
+      ? {
+          id: `guest-${slug}`,
+          restaurantId: deliveryInfo.data?.id ?? '',
+          tableId: null,
+          anonymousSessionToken: '',
+          startedAt: '',
+          expiresAt: '',
+          endedAt: null,
+          customerId: null,
+          floorId: null,
+          floorVisitorName: null,
+        }
+      : null;
+  const guest = guestSession !== null;
   const resolved: Resolved | null = browseSession
     ? { table: null, session: browseSession }
-    : isDelivery
-    ? (delivery ?? deliveryResume.data ?? null)
+    : phoneVisit
+    ? (delivery ?? deliveryResume.data ?? (guestSession ? { table: null, session: guestSession } : null))
     : isFloor
       ? floorOpen.data
       : (joined ?? qr.data ?? null);
@@ -171,12 +200,14 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
       table,
       customer: resolved.customer ?? null,
       floor,
-      identityLabel: identityLabelFor(table, floor, session.floorVisitorName, dinerIdentity),
+      identityLabel: identityLabelFor(table, floor, session.floorVisitorName, dinerIdentity, phoneLabel),
       dinerIdentity,
       setDinerIdentity,
       floorPlace,
       setFloorPlace,
       session,
+      guest,
+      openVisit: setDelivery,
       browseOnly,
       whatsapp,
       ctx: buildRankContext(menu.data.dishes),
@@ -198,6 +229,8 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
     setDinerIdentity,
     floorPlace,
     setFloorPlace,
+    phoneLabel,
+    guest,
   ]);
 
   /**
@@ -208,7 +241,7 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
    * delivery session too — staff can end one the same way.
    */
   useEffect(() => {
-    if (!resolved || sessionless || resolved.session.endedAt) return;
+    if (!resolved || sessionless || guest || resolved.session.endedAt) return;
     const onEnded = () => setEndedAt(new Date().toISOString());
 
     if (IS_LIVE_API) return subscribeToSessionEnd(resolved.session, onEnded);
@@ -219,25 +252,24 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
       });
     }, SESSION_POLL_MS);
     return () => clearInterval(timer);
-  }, [resolved, sessionless]);
+  }, [resolved, sessionless, guest]);
 
-  const occupied = !isDelivery && !joined && qr.error instanceof ApiError && qr.error.key === TABLE_OCCUPIED_KEY;
+  const occupied = !phoneVisit && !joined && qr.error instanceof ApiError && qr.error.key === TABLE_OCCUPIED_KEY;
   if (occupied) {
     return <OccupiedTableScreen onJoined={setJoined} restaurantSlug={slug} tableToken={token ?? ''} />;
   }
 
-  // Delivery has no QR/table to auto-resolve — ask for a phone number once
-  // neither a resumed session nor a just-started one is already in hand.
-  if (isDelivery && deliveryInfo.loading) return <BootScreen />;
-  if (isDelivery && !resolved) {
+  // Delivery has no QR/table to auto-resolve: it resumes this device's open visit, or browses as a guest.
+  if (phoneVisit && deliveryInfo.loading) return <BootScreen />;
+  if (phoneVisit && !resolved) {
     if (deliveryResume.loading) return <BootScreen />;
     if (deliveryResume.error) {
-      return <ErrorScreen title="We couldn't open delivery ordering" message={deliveryResume.error.message} />;
+      return <ErrorScreen title="We couldn't open ordering" message={deliveryResume.error.message} />;
     }
-    return <DeliveryEntryScreen restaurantSlug={slug} onStarted={setDelivery} />;
+    return <BootScreen />;
   }
 
-  const error = isDelivery
+  const error = phoneVisit
     ? menu.error
     : isFloor
       ? (floorOpen.error ?? menu.error)
@@ -247,7 +279,7 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
   if (error) {
     return (
       <ErrorScreen
-        title={isDelivery ? "We couldn't load the menu" : isFloor ? "We couldn't open this floor" : "We couldn't open this table"}
+        title={phoneVisit ? "We couldn't load the menu" : isFloor ? "We couldn't open this floor" : "We couldn't open this table"}
         message={error.message}
       />
     );
@@ -255,6 +287,21 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
   if (!value) return <BootScreen />;
 
   const sessionEnded = Boolean(value.session.endedAt);
+
+  if (guest) {
+    return (
+      <RestaurantContext.Provider value={value}>
+        <CartProvider sessionId={value.session.id}>
+          <GuestOrdersProvider>
+            <OwnerPitch restaurantName={value.menu.restaurant.name} />
+            <UnclaimedBanner restaurant={value.menu.restaurant} />
+            <SessionlessOutlet base={value.base} allowCart allowCheckout />
+            <CartDock dishes={value.menu.dishes} base={value.base} />
+          </GuestOrdersProvider>
+        </CartProvider>
+      </RestaurantContext.Provider>
+    );
+  }
 
   if (sessionless) {
     return (
@@ -275,7 +322,7 @@ export function RestaurantLayout({ kind }: { kind: RestaurantEntryKind }) {
         <SessionOrdersProvider session={value.session} base={value.base}>
           <OwnerPitch restaurantName={value.menu.restaurant.name} />
           <UnclaimedBanner restaurant={value.menu.restaurant} />
-          {sessionEnded && <SessionEndedBanner isDelivery={isDelivery} />}
+          {sessionEnded && <SessionEndedBanner isDelivery={phoneVisit} />}
           <Outlet />
           <CartDock dishes={value.menu.dishes} base={value.base} hidden={sessionEnded} />
           <OrderDock base={value.base} />
@@ -366,125 +413,11 @@ function OccupiedTableScreen({
 }
 
 /** Menu and dish pages (plus the cart for WhatsApp) — checkout and order screens need a session. */
-function SessionlessOutlet({ base, allowCart }: { base: string; allowCart: boolean }) {
+function SessionlessOutlet({ base, allowCart, allowCheckout = false }: { base: string; allowCart: boolean; allowCheckout?: boolean }) {
   const { pathname } = useLocation();
   const rest = pathname.slice(base.length);
-  const allowed = rest === '' || rest === '/' || rest.startsWith('/d/') || (allowCart && rest === '/cart');
+  const allowed = rest === '' || rest === '/' || rest.startsWith('/d/') || (allowCart && rest === '/cart') || (allowCheckout && rest === '/checkout');
   if (!allowed) return <Navigate to={base} replace />;
   return <Outlet />;
 }
 
-/**
- * The delivery equivalent of scanning a table's QR code — just a phone
- * number (name is a convenience for the kitchen, not an identity check).
- * The delivery address itself is collected at checkout, not here, since it
- * is editable per order (`Checkout.tsx`) rather than tied to the session.
- */
-function DeliveryEntryScreen({
-  restaurantSlug,
-  onStarted,
-}: {
-  restaurantSlug: string;
-  onStarted: (result: DeliverySessionResult) => void;
-}) {
-  const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  // A restaurant with one location has nothing to pick, so the choice only appears for two or more.
-  const branches = useAsync<PublicBranch[]>(() => getBranches(restaurantSlug), [restaurantSlug]);
-  const [pickedBranch, setPickedBranch] = useState<string | null>(null);
-  const choices = branches.data ?? [];
-  const branch = choices.find((candidate) => candidate.slug === pickedBranch) ?? choices.find((candidate) => candidate.isDefault) ?? choices[0];
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    setSubmitting(true);
-    setError('');
-    try {
-      onStarted(
-        await startDeliverySession({
-          restaurantSlug,
-          phone: phone.trim(),
-          name: name.trim() || undefined,
-          branchSlug: choices.length > 1 ? branch?.slug : undefined,
-        }),
-      );
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not start your order.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <main className={cx(SHELL, 'grid place-content-center px-5 py-10')}>
-      <form className={cx(CARD, 'mx-auto grid w-full max-w-md gap-5 p-6 sm:p-8')} onSubmit={submit}>
-        <div className="grid gap-2">
-          <p className={cx(EYEBROW, 'text-flame-1')}>Order for delivery</p>
-          <h1 className={cx(DISPLAY, 'text-3xl')}>What's your number?</h1>
-          <p className="text-[14.5px] leading-relaxed text-ink-3">
-            We'll text you when your order is on its way. A returning number picks up your saved details.
-          </p>
-        </div>
-        {choices.length > 1 && (
-          <fieldset className="grid gap-2">
-            <legend className="mb-2 text-[13px] font-semibold text-ink-2">Which branch should deliver?</legend>
-            {choices.map((candidate) => (
-              <label
-                key={candidate.id}
-                className={cx(
-                  'flex cursor-pointer items-start gap-3 rounded-2xl p-3.5 ring-1 ring-inset transition-colors',
-                  candidate.slug === branch?.slug ? 'bg-flame-1/10 ring-flame-1/50' : 'ring-hairline hover:bg-surface-2/40',
-                )}
-              >
-                <input
-                  type="radio"
-                  name="branch"
-                  className="mt-1 accent-[var(--color-flame-1,currentColor)]"
-                  checked={candidate.slug === branch?.slug}
-                  onChange={() => setPickedBranch(candidate.slug)}
-                />
-                <span className="grid gap-0.5">
-                  <span className="text-[14.5px] font-semibold text-ink">{candidate.name}</span>
-                  {candidate.address && <span className="text-[12.5px] text-ink-4">{candidate.address}</span>}
-                  <span className={cx('text-[12px] font-semibold', candidate.isOpenNow ? 'text-ink-3' : 'text-flame-1')}>
-                    {candidate.isOpenNow ? 'Open now' : 'Closed right now — you can browse, but not order'}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-        )}
-        <label className="grid gap-2 text-[13px] font-semibold text-ink-2">
-          Phone number
-          <input
-            className={cx(INPUT, 'h-13')}
-            value={phone}
-            onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))}
-            placeholder="98XXXXXXXX"
-            type="tel"
-            maxLength={10}
-            inputMode="tel"
-            autoComplete="tel"
-            required
-          />
-        </label>
-        <label className="grid gap-2 text-[13px] font-semibold text-ink-2">
-          Name <span className="font-normal normal-case text-ink-4">(optional)</span>
-          <input
-            className={cx(INPUT, 'h-13')}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="So the kitchen knows who this is for"
-            autoComplete="name"
-          />
-        </label>
-        {error && <p className="text-[13.5px] text-flame-1">{error}</p>}
-        <button className={BTN_FLAME} type="submit" disabled={submitting || !phone.trim()}>
-          {submitting ? 'Starting…' : 'Start my order'}
-        </button>
-      </form>
-    </main>
-  );
-}

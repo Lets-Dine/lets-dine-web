@@ -8,6 +8,7 @@ import { Empty, Loading, PageTitle, Panel, Segmented, useCommand } from '../../c
 import { PassCard } from '../../components/admin/PassCard';
 import { useOrderSheet } from '../../components/admin/OrderSheet';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
+import { TablePaySheet } from '../../components/admin/TablePaySheet';
 import { useDashboard } from './AdminLayout';
 import { useLaneOrders } from './useLaneOrders';
 
@@ -177,9 +178,10 @@ export function Orders() {
 
       {orderSheet.sheet}
 
+      {payingOrder?.tableId && <TablePaySheet order={payingOrder} onClose={() => setPayingId(null)} onPaid={reloadOrders} />}
       <PaymentSheet
-        table={payingOrder ? floorBillSubject(payingOrder) : null}
-        orders={payingOrder ? [payingOrder] : []}
+        table={payingOrder && !payingOrder.tableId ? floorBillSubject(payingOrder) : null}
+        orders={payingOrder && !payingOrder.tableId ? [payingOrder] : []}
         dishes={menuDishes}
         restaurantName={menu.restaurant.name}
         legalName={menu.restaurant.legalName}

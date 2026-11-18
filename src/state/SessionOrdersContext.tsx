@@ -31,6 +31,12 @@ export function useSessionOrders(): SessionOrdersValue {
   return ctx;
 }
 
+/** A browsing customer who hasn't given a phone number yet has no visit, so nothing to follow: an empty, settled list. */
+const NO_ORDERS: SessionOrdersValue = { orders: [], ready: true, rememberOrder: () => {} };
+export function GuestOrdersProvider({ children }: { children: ReactNode }) {
+  return <SessionOrdersContext.Provider value={NO_ORDERS}>{children}</SessionOrdersContext.Provider>;
+}
+
 const POLL_MS = 2500;
 
 export function SessionOrdersProvider({

@@ -14,7 +14,7 @@ import { PaymentSheet } from './PaymentSheet';
  * only and manager-only, like the split itself.
  */
 function eligible(order: Order, canSplit: boolean): boolean {
-  return IS_LIVE_API && Boolean(order.tableId) && order.status !== 'CANCELLED' && canSplit;
+  return IS_LIVE_API && Boolean(order.tableId) && order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && canSplit;
 }
 
 /** Whether "Pay this order" should show: a table order with at least one line no share has paid yet. */

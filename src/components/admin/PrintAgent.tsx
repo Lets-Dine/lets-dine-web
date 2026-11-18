@@ -1,12 +1,16 @@
 import { useEffect } from 'react';
+import { useAsync } from '../../state/useAsync';
+import { Sheet } from './Sheet';
+import { SheetHeader } from './delivery';
+import { BTN_GHOST, cx } from '../ui';
 import { IS_LIVE_API } from '../../api/http';
 import { subscribeToTicketChanges } from '../../api/kitchen';
-import { claimJob, listPendingJobs, markJobFailed, markJobPrinted } from '../../api/printers';
+import { claimJob, listPendingJobs, listPrinters, markJobFailed, markJobPrinted } from '../../api/printers';
 import type { PrintJob } from '../../api/printers';
 import { buildJobSlip } from '../../printing/escpos';
 import type { Paper } from '../../printing/escpos';
 import { connect, printRaw } from '../../printing/qz';
-import { clearFailure, getState, pruneFailures, recordFailure, retryAll, subscribe, useStore } from '../../printing/store';
+import { answerReceiptPrinter, clearFailure, setPickerReady, getState, pruneFailures, recordFailure, retryAll, subscribe, useStore } from '../../printing/store';
 import { useAuth } from '../../state/AuthContext';
 import { Alert } from '../icons';
 import { ADMIN_GHOST } from './kit';
@@ -122,9 +126,14 @@ let again = false;
  */
 export function PrintAgent() {
   const { staff, allows } = useAuth();
-  const { agentOn, failed } = useStore();
+  const { agentOn, failed, choosing, receiptPrinter } = useStore();
   const allowed = Boolean(staff) && allows('orders:advance') && IS_LIVE_API;
   const running = allowed && agentOn;
+
+  useEffect(() => {
+    setPickerReady(running);
+    return () => setPickerReady(false);
+  }, [running]);
 
   useEffect(() => {
     if (!running) return;
@@ -142,9 +151,12 @@ export function PrintAgent() {
     };
   }, [running]);
 
-  if (!running || failed.length === 0) return null;
+  const picker = running && choosing ? <ReceiptPrinterPicker current={receiptPrinter?.id ?? 'browser'} /> : null;
+  if (!running || failed.length === 0) return picker;
 
   return (
+    <>
+    {picker}
     <div role="alert" className="mb-5 flex items-start gap-3 rounded-2xl bg-berry/10 px-4 py-3 ring-1 ring-berry/30 ring-inset">
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-berry text-white" aria-hidden>
         <Alert size={16} />
@@ -160,5 +172,33 @@ export function PrintAgent() {
         Retry
       </button>
     </div>
+    </>
+  );
+}
+
+/** Asked every time a receipt prints from a PC that prints: the last pick is ticked, so a repeat is one tap. */
+function ReceiptPrinterPicker({ current }: { current: string }) {
+  const printers = useAsync(() => listPrinters(), []);
+  const options = (printers.data ?? []).filter((p) => p.isActive);
+  const pick = (close: () => void, id: string) => {
+    const p = options.find((x) => x.id === id);
+    answerReceiptPrinter(p ? { id: p.id, name: p.name, host: p.ipAddress, port: p.port, paper: p.paperWidth === 'MM58' ? '58mm' : '80mm' } : 'browser');
+    close();
+  };
+  return (
+    <Sheet label="Print receipt" onClose={() => answerReceiptPrinter(null)}>
+      {(close) => (
+        <div className="grid gap-2 px-5 pb-5">
+          <SheetHeader title="Print receipt on" onClose={close} />
+          {printers.loading && !printers.data && <p className="text-[13.5px] text-ink-3">Loading printers…</p>}
+          {[...options.map((p) => ({ id: p.id, name: p.name })), { id: 'browser', name: 'Browser print dialog' }].map((o) => (
+            <button key={o.id} type="button" className={cx(BTN_GHOST, 'h-12 justify-between px-4 text-[14.5px]')} onClick={() => pick(close, o.id)}>
+              {o.name}
+              {o.id === current && <span className="text-[12px] text-ink-3">last used</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </Sheet>
   );
 }

@@ -2,7 +2,7 @@ import { MapLink } from './MapLink';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { formatMoney } from '../../domain/money';
-import { STATUS_LABEL, STATUS_ORDER, itemStatusSummary } from '../../domain/orderStatus';
+import { STATUS_LABEL, STATUS_ORDER, itemStatusSummary, unpaidTotal } from '../../domain/orderStatus';
 import type { Focus } from '../../domain/orderStatus';
 import type { Order, OrderStatus } from '../../domain/types';
 import { Contact, X } from '../icons';
@@ -10,7 +10,7 @@ import { relativeTime } from '../time';
 import { DISPLAY, cx } from '../ui';
 import { CourierTag } from './delivery';
 import { StatusPill } from './kit';
-import { FocusRibbon, ItemRow } from './OrderLines';
+import { FocusRibbon, ItemRow, useBilledQuantities } from './OrderLines';
 import { useOrderMoves } from './OrderMoves';
 import { Sheet } from './Sheet';
 import { TablePaySheet, useCanPayTableOrder } from './TablePaySheet';
@@ -49,9 +49,12 @@ export function OrderSheet({
   onPayAtTable: (order: Order) => void;
   onClose: () => void;
 }) {
+  const payAtTable = useCanPayTableOrder(order);
+  const paidQty = useBilledQuantities(order, true);
   const { move, cancel, sheets, courierRun, live } = useOrderMoves(
     order,
-    { onApply, onResync, onTakePayment },
+    // A table order that can be paid on its own has "Pay this order" instead of "Take payment".
+    { onApply, onResync, onTakePayment: payAtTable ? undefined : onTakePayment, paid: paidQty },
     {
       moveClass:
         'inline-flex h-11 flex-1 items-center gap-2 rounded-full px-5 text-[15px] font-semibold shadow-lift transition-move active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35',
@@ -59,12 +62,10 @@ export function OrderSheet({
     },
   );
 
-  const payAtTable = useCanPayTableOrder(order);
-
   const isDelivery = order.orderType === 'DELIVERY';
   const money = (n: number) => formatMoney(n, order.currency);
-  const place = isDelivery ? order.deliveryCustomerName || 'Guest' : (order.tableName ?? order.floorVisitorName ?? (order.floorName ? 'Floor order' : 'Quick sale'));
-  const kind = isDelivery ? 'Delivery' : order.floorName || (order.floorVisitorName ? 'Floor' : 'Dine-in');
+  const place = isDelivery ? order.deliveryCustomerName || 'Guest' : order.orderType === 'PICKUP' ? 'Pick up' : (order.tableName ?? order.floorVisitorName ?? (order.floorName ? 'Floor order' : 'Quick sale'));
+  const kind = isDelivery ? 'Delivery' : order.orderType === 'PICKUP' ? 'Pick up' : order.floorName || (order.floorVisitorName ? 'Floor' : 'Dine-in');
   const cancelled = order.status === 'CANCELLED';
   const stages = stagesFor(order);
   const at = Math.max(0, stages.indexOf(order.status));
@@ -128,7 +129,7 @@ export function OrderSheet({
             <Section delay={240} title="Dishes" hint={`${order.items.length} ${order.items.length === 1 ? 'line' : 'lines'}`}>
               <ul className="divide-y divide-hairline">
                 {order.items.map((item) => (
-                  <ItemRow key={item.id} order={order} item={item} now={now} canEdit={live} onApply={onApply} onResync={onResync} />
+                  <ItemRow key={item.id} order={order} item={item} now={now} canEdit={live} paid={paidQty.get(item.id)} onApply={onApply} onResync={onResync} />
                 ))}
               </ul>
             </Section>
@@ -213,7 +214,7 @@ export function OrderSheet({
                 className="inline-flex h-11 shrink-0 items-center rounded-full px-5 text-[15px] font-semibold text-flame-3 ring-1 ring-flame-2/40 ring-inset transition-transform active:scale-[0.98]"
                 onClick={() => onPayAtTable(order)}
               >
-                Pay this order
+                Pay this order · {formatMoney(unpaidTotal(order, paidQty), order.currency)}
               </button>
             )}
             {cancel}

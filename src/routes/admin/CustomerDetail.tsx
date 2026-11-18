@@ -21,6 +21,7 @@ import { SaleActions, StatusChip, owedOn } from '../../components/admin/SaleSett
 import { LoyaltyPanel } from '../../components/admin/Loyalty';
 import { useOrderSheet } from '../../components/admin/OrderSheet';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
+import { TablePaySheet } from '../../components/admin/TablePaySheet';
 import { Alert, Check, ChevronLeft, Contact, Copy, Plate, Send, Sliders } from '../../components/icons';
 import { Block, FloatingBar, Num, TiltCard, reduced, useAway, useCountUp } from '../../components/admin/profile';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
@@ -361,9 +362,10 @@ function Page({ item: base, profile, reloadProfile }: { item: CustomerListItem; 
 
       {orderSheet.sheet}
 
+      {payingOrder?.tableId && <TablePaySheet order={payingOrder} onClose={() => setPayingId(null)} onPaid={reloadOrders} />}
       <PaymentSheet
-        table={payingOrder ? floorBillSubject(payingOrder) : null}
-        orders={payingOrder ? [payingOrder] : []}
+        table={payingOrder && !payingOrder.tableId ? floorBillSubject(payingOrder) : null}
+        orders={payingOrder && !payingOrder.tableId ? [payingOrder] : []}
         dishes={menuDishes}
         restaurantName={menu.restaurant.name}
         legalName={menu.restaurant.legalName}

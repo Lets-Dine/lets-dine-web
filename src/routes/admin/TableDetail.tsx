@@ -1,3 +1,4 @@
+import { SeatCustomer, readSeatedCustomer, rememberSeatedCustomer } from '../../components/admin/SeatCustomer';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { isTableOpen } from '../../api/admin';
@@ -77,6 +78,8 @@ export function TableDetail() {
   }, [tablesTick, reloadTables]);
 
   const table = tables.data?.find((t) => t.id === tableId) ?? null;
+  // Who staff seated this table for, if anyone: the visit's first order goes on them.
+  const seatedFor = readSeatedCustomer(table?.currentSessionId);
   const editable = allows('tables:edit');
   const canOrder = allows('orders:advance');
 
@@ -91,6 +94,7 @@ export function TableDetail() {
   );
 
   const [renaming, setRenaming] = useState(false);
+  const [choosingCustomer, setChoosingCustomer] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [billing, setBilling] = useState(false);
   const [pickingDish, setPickingDish] = useState(false);
@@ -133,7 +137,7 @@ export function TableDetail() {
       'place',
       async () => {
         for (const { dish, qty, variantId, addOnIds } of draft)
-          for (let i = 0; i < qty; i++) await addOrderItem(staff, table!.id, dish.id, { variantId, addOnIds });
+          for (let i = 0; i < qty; i++) await addOrderItem(staff, table!.id, dish.id, { variantId, addOnIds, customerId: seatedFor?.id });
       },
       'Order placed for the table',
     );
@@ -216,14 +220,29 @@ export function TableDetail() {
                 action={
                   canOrder &&
                   !disabled && (
+                    <>
                     <button
                       type="button"
                       className={ADMIN_PRIMARY}
                       disabled={busy}
-                      onClick={() => act('seat', () => startTableSession(staff, table.id), `${table.name} seated`)}
+                      onClick={() => setChoosingCustomer(true)}
                     >
                       {pending === 'seat' ? 'Seating…' : 'Seat this table'}
                     </button>
+                    {choosingCustomer && (
+                      <SeatCustomer
+                        onClose={() => setChoosingCustomer(false)}
+                        onSeat={(customer) => {
+                          setChoosingCustomer(false);
+                          act(
+                      'seat',
+                      async () => rememberSeatedCustomer((await startTableSession(staff, table.id)).currentSessionId ?? '', customer),
+                      `${table.name} seated`,
+                    );
+                        }}
+                      />
+                    )}
+                    </>
                   )
                 }
               />

@@ -18,6 +18,9 @@ interface State {
   /** This PC prints the branch's slips (needs QZ Tray running). */
   agentOn: boolean;
   failed: JobProblem[];
+  receiptPrinter: ReceiptPrinter | null;
+  /** The receipt printer picker is open. */
+  choosing: boolean;
 }
 
 const KEY = 'FeastoX.print.agent.v1';
@@ -30,7 +33,36 @@ function loadAgent(): boolean {
   }
 }
 
-let state: State = { agentOn: loadAgent(), failed: [] };
+/** The printer this PC prints guest receipts on. Stored whole so printing needs no fetch. */
+export interface ReceiptPrinter {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  paper: '80mm' | '58mm';
+}
+
+const RECEIPT_KEY = 'FeastoX.print.receipt.v1';
+
+export function getReceiptPrinter(): ReceiptPrinter | null {
+  try {
+    return JSON.parse(localStorage.getItem(RECEIPT_KEY) ?? 'null') as ReceiptPrinter | null;
+  } catch {
+    return null;
+  }
+}
+
+export function setReceiptPrinter(printer: ReceiptPrinter | null) {
+  try {
+    if (printer) localStorage.setItem(RECEIPT_KEY, JSON.stringify(printer));
+    else localStorage.removeItem(RECEIPT_KEY);
+  } catch {
+    /* private mode: ignored */
+  }
+  commit({ ...state, receiptPrinter: printer });
+}
+
+let state: State = { agentOn: loadAgent(), failed: [], receiptPrinter: getReceiptPrinter(), choosing: false };
 const listeners = new Set<() => void>();
 
 function commit(next: State) {
@@ -70,4 +102,29 @@ export function pruneFailures(stillPending: Set<string>) {
 /** Let every failed job try again now. */
 export function retryAll() {
   commit({ ...state, failed: state.failed.map((p) => ({ ...p, retryAt: 0 })) });
+}
+
+export type ReceiptChoice = ReceiptPrinter | 'browser' | null;
+let answer: ((choice: ReceiptChoice) => void) | null = null;
+let pickerReady = false;
+export const setPickerReady = (ready: boolean) => {
+  pickerReady = ready;
+};
+
+/** Opens the printer picker (mounted in PrintAgent) and resolves with the pick; null = cancelled. Falls back to the browser if no picker is on screen. */
+export function askReceiptPrinter(): Promise<ReceiptChoice> {
+  if (!pickerReady) return Promise.resolve('browser');
+  answer?.(null);
+  return new Promise((resolve) => {
+    answer = resolve;
+    commit({ ...state, choosing: true });
+  });
+}
+
+export function answerReceiptPrinter(choice: ReceiptChoice) {
+  const resolve = answer;
+  answer = null;
+  if (choice !== null) setReceiptPrinter(choice === 'browser' ? null : choice);
+  commit({ ...state, choosing: false });
+  resolve?.(choice);
 }
