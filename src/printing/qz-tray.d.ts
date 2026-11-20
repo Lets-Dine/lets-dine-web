@@ -15,8 +15,15 @@ declare module 'qz-tray' {
       setSignatureAlgorithm(algorithm: 'SHA512' | 'SHA1'): void;
       setSignaturePromise(handler: (toSign: string) => (resolve: (signature: string) => void, reject: (reason: unknown) => void) => void): void;
     };
-    configs: { create(printer: { host: string; port: number }, options?: Record<string, unknown>): PrintConfig };
+    configs: { create(printer: string | { host: string; port: number }, options?: Record<string, unknown>): PrintConfig };
     print(config: PrintConfig, data: { type: 'raw'; format: 'command'; flavor: 'base64' | 'plain' | 'hex'; data: string }[]): Promise<void>;
+    printers: { find(): Promise<string | string[]> };
+    serial: {
+      findPorts(): Promise<string | string[]>;
+      openPort(port: string, options?: { baudRate?: number; dataBits?: number; stopBits?: number; parity?: string; flowControl?: string }): Promise<void>;
+      sendData(port: string, data: { type: 'BASE64'; data: string }): Promise<void>;
+      closePort(port: string): Promise<void>;
+    };
   }
   const qz: QzApi;
   export default qz;

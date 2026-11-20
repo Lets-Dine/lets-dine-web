@@ -1,7 +1,7 @@
 import { formatMoney } from '../../domain/money';
 import type { PaymentMethod } from '../../domain/types';
 import { buildReceiptSlip } from '../../printing/escpos';
-import { printRaw } from '../../printing/qz';
+import { printRaw, targetOf } from '../../printing/qz';
 import { askReceiptPrinter, getState } from '../../printing/store';
 
 /**
@@ -90,7 +90,7 @@ export async function printReceipt(
       customerName: customerName?.trim() || undefined,
     };
     try {
-      await printRaw(target, buildReceiptSlip(body, target.paper));
+      await printRaw(targetOf(target), buildReceiptSlip(body, target.paper));
       return true;
     } catch {
       /* printer or QZ Tray unreachable: the browser dialog still gets the guest their receipt */

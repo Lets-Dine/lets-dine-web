@@ -9,7 +9,7 @@ import { claimJob, listPendingJobs, listPrinters, markJobFailed, markJobPrinted 
 import type { PrintJob } from '../../api/printers';
 import { buildJobSlip } from '../../printing/escpos';
 import type { Paper } from '../../printing/escpos';
-import { connect, printRaw } from '../../printing/qz';
+import { connect, listLocalDevices, printRaw, targetOf } from '../../printing/qz';
 import { answerReceiptPrinter, clearFailure, setPickerReady, getState, pruneFailures, recordFailure, retryAll, subscribe, useStore } from '../../printing/store';
 import { useAuth } from '../../state/AuthContext';
 import { Alert } from '../icons';
@@ -54,7 +54,10 @@ async function report(id: string): Promise<void> {
 }
 
 /** One printer's queue, oldest first. It stops at the first problem so a later slip never comes out ahead of an earlier one. */
-async function runPrinter(jobs: PrintJob[]): Promise<void> {
+async function runPrinter(jobs: PrintJob[], here: Set<string>): Promise<void> {
+  // A Bluetooth printer only exists on the PC it is paired to. Leave the job for that PC.
+  const printer = jobs[0]?.printer;
+  if (printer?.link === 'BLUETOOTH' && !here.has(printer.deviceName)) return;
   for (const job of jobs) {
     if (!getState().agentOn) return;
     if (printedLocally.has(job.id)) {
@@ -70,7 +73,7 @@ async function runPrinter(jobs: PrintJob[]): Promise<void> {
     if (!claimed) continue;
     try {
       await withTimeout(
-        printRaw({ host: job.printer.ipAddress, port: job.printer.port }, buildJobSlip(job.tickets, PAPER[job.printer.paperWidth])),
+        printRaw(targetOf(job.printer), buildJobSlip(job.tickets, PAPER[job.printer.paperWidth])),
         PRINT_TIMEOUT_MS,
         'The printer',
       );
@@ -105,9 +108,14 @@ async function pump(): Promise<void> {
       const jobs = await withTimeout(listPendingJobs(), LOAD_TIMEOUT_MS, 'Loading print jobs').catch(() => null);
       if (!jobs) break;
       pruneFailures(new Set(jobs.map((j) => j.id)));
+      const here = jobs.some((job) => job.printer.link === 'BLUETOOTH')
+        ? await listLocalDevices()
+            .then((devices) => new Set(devices.map((device) => device.name)))
+            .catch(() => new Set<string>())
+        : new Set<string>();
       const byPrinter = new Map<string, PrintJob[]>();
       for (const job of jobs) byPrinter.set(job.printer.id, [...(byPrinter.get(job.printer.id) ?? []), job]);
-      await Promise.all([...byPrinter.values()].map(runPrinter));
+      await Promise.all([...byPrinter.values()].map((queued) => runPrinter(queued, here)));
     } while (again);
   } finally {
     working = false;
@@ -182,7 +190,18 @@ function ReceiptPrinterPicker({ current }: { current: string }) {
   const options = (printers.data ?? []).filter((p) => p.isActive);
   const pick = (close: () => void, id: string) => {
     const p = options.find((x) => x.id === id);
-    answerReceiptPrinter(p ? { id: p.id, name: p.name, host: p.ipAddress, port: p.port, paper: p.paperWidth === 'MM58' ? '58mm' : '80mm' } : 'browser');
+    answerReceiptPrinter(
+      p
+        ? {
+            id: p.id,
+            name: p.name,
+            host: p.ipAddress,
+            port: p.port,
+            paper: p.paperWidth === 'MM58' ? '58mm' : '80mm',
+            ...(p.link === 'BLUETOOTH' ? { device: p.deviceName, serial: p.serial } : {}),
+          }
+        : 'browser',
+    );
     close();
   };
   return (

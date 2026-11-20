@@ -40,6 +40,9 @@ export interface ReceiptPrinter {
   host: string;
   port: number;
   paper: '80mm' | '58mm';
+  /** Set when the receipt printer is Bluetooth. `host` is then unused. */
+  device?: string;
+  serial?: boolean;
 }
 
 const RECEIPT_KEY = 'FeastoX.print.receipt.v1';

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { createPrinter, deletePrinter, fetchQzCertificate, listPrinters, updatePrinter } from '../../api/printers';
-import type { PaperWidth, Printer, PrinterDraft } from '../../api/printers';
+import type { PaperWidth, Printer, PrinterDraft, PrinterLink } from '../../api/printers';
 import { listFloors, listTables } from '../../api/staff';
 import type { DiningTable, Floor, KitchenStation } from '../../domain/types';
 import { buildTestSlip } from '../../printing/escpos';
-import { connect, disconnect, onClosed, printRaw } from '../../printing/qz';
+import { connect, disconnect, listLocalDevices, onClosed, printRaw, targetOf } from '../../printing/qz';
 import { setAgentOn, useStore } from '../../printing/store';
 import { useAuth, useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
@@ -18,13 +18,19 @@ const PAPERS: { value: PaperWidth; label: string }[] = [
   { value: 'MM80', label: '80mm' },
   { value: 'MM58', label: '58mm' },
 ];
-const TYPES = [{ value: 'THERMAL', label: 'Thermal' }];
+const LINKS: { value: PrinterLink; label: string }[] = [
+  { value: 'NETWORK', label: 'Network' },
+  { value: 'BLUETOOTH', label: 'Bluetooth' },
+];
 
 const BLANK: PrinterDraft = {
   name: '',
   paperWidth: 'MM80',
   ipAddress: '',
   port: 9100,
+  link: 'NETWORK',
+  deviceName: '',
+  serial: false,
   fullKot: false,
   stations: [],
   tableAssignment: false,
@@ -88,7 +94,7 @@ function PrinterCard({ printer, canEdit, onEdit }: { printer: Printer; canEdit: 
           <span className="truncate">{printer.name}</span>
         </p>
         <p className="mt-0.5 text-[12.5px] text-ink-3 tabular-nums">
-          {printer.ipAddress}:{printer.port} · {printer.paperWidth === 'MM80' ? '80mm' : '58mm'}
+          {printer.link === 'BLUETOOTH' ? `Bluetooth · ${printer.deviceName}` : `${printer.ipAddress}:${printer.port}`} · {printer.paperWidth === 'MM80' ? '80mm' : '58mm'}
           {!printer.isActive && ' · switched off'}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -269,7 +275,7 @@ function SetupGuide({ hasCertificate, onClose }: { hasCertificate: boolean; onCl
     },
     {
       title: 'Add the printer',
-      body: 'Name it, enter the IP and port, and pick the paper width. Kitchen tickets are KOT, bar tickets are BOT. Full KOT puts the whole order on one slip. Table assignment limits a printer to the tables or floors you tick.',
+      body: 'Name it and pick Network (IP and port) or Bluetooth (pair it with this PC first, then choose it from the list). Kitchen tickets are KOT, bar tickets are BOT. Full KOT puts the whole order on one slip. Table assignment limits a printer to the tables or floors you tick.',
     },
     {
       title: 'Print a test slip',
@@ -434,7 +440,7 @@ export function PrinterSettings({ canEdit }: { canEdit: boolean }) {
             </span>
             <p className="text-[16px] font-semibold tracking-tight">No printers yet</p>
             <p className="max-w-[36ch] text-[14px] leading-relaxed text-ink-3">
-              Add a network thermal printer and kitchen (KOT) and bar (BOT) tickets will come out on their own.
+              Add a network or Bluetooth printer and kitchen (KOT) and bar (BOT) tickets will come out on their own.
             </p>
             {canEdit && (
               <button type="button" className={ADMIN_PRIMARY} onClick={() => setEditing({ id: null, draft: BLANK })}>
@@ -445,7 +451,12 @@ export function PrinterSettings({ canEdit }: { canEdit: boolean }) {
         ) : (
           <ul className="grid gap-2.5">
             {(printers.data ?? []).map((p) => (
-              <PrinterCard key={p.id} printer={p} canEdit={canEdit} onEdit={() => setEditing({ id: p.id, draft: { ...BLANK, ...p } })} />
+              <PrinterCard
+                key={p.id}
+                printer={p}
+                canEdit={canEdit}
+                onEdit={() => setEditing({ id: p.id, draft: { ...BLANK, ...p, link: p.link ?? 'NETWORK', deviceName: p.deviceName ?? '', serial: Boolean(p.serial) } })}
+              />
             ))}
           </ul>
         )}
@@ -480,14 +491,22 @@ function PrinterForm({ id, initial, onDone }: { id: string | null; initial: Prin
   const toggleIn = <K extends 'tableIds' | 'floorIds' | 'stations'>(key: K, value: PrinterDraft[K][number], on: boolean) =>
     patch({ [key]: on ? [...(draft[key] as string[]), value as string] : (draft[key] as string[]).filter((v) => v !== value) } as Partial<PrinterDraft>);
 
+  const bluetooth = draft.link === 'BLUETOOTH';
   const ipOk = IPV4.test(draft.ipAddress.trim());
-  const valid = draft.name.trim().length > 0 && ipOk;
+  const addressOk = bluetooth ? draft.deviceName.trim().length > 0 : ipOk;
+  const valid = draft.name.trim().length > 0 && addressOk;
 
   const save = () =>
     void run(
       'save',
       () => {
-        const body = { ...draft, name: draft.name.trim(), ipAddress: draft.ipAddress.trim() };
+        const body = {
+          ...draft,
+          name: draft.name.trim(),
+          ipAddress: bluetooth ? '' : draft.ipAddress.trim(),
+          deviceName: bluetooth ? draft.deviceName.trim() : '',
+          serial: bluetooth ? draft.serial : false,
+        };
         return id ? updatePrinter(id, body) : createPrinter(body);
       },
       'Printer saved',
@@ -495,7 +514,7 @@ function PrinterForm({ id, initial, onDone }: { id: string | null; initial: Prin
 
   const test = () => {
     setTestResult('Connecting to the printer…');
-    printRaw({ host: draft.ipAddress.trim(), port: draft.port }, buildTestSlip(draft.name.trim() || 'Printer', draft.paperWidth === 'MM80' ? '80mm' : '58mm'))
+    printRaw(targetOf(bluetooth ? { ...draft, deviceName: draft.deviceName.trim() } : { ...draft, ipAddress: draft.ipAddress.trim() }), buildTestSlip(draft.name.trim() || 'Printer', draft.paperWidth === 'MM80' ? '80mm' : '58mm'))
       .then(() => {
         setTestResult('Sent. Check the paper.');
         setPrinted((n) => n + 1);
@@ -515,11 +534,14 @@ function PrinterForm({ id, initial, onDone }: { id: string | null; initial: Prin
           <Field label="Paper width *">
             <Select<PaperWidth> aria-label="Paper width" value={draft.paperWidth} onChange={(paperWidth) => patch({ paperWidth })} options={PAPERS} />
           </Field>
-          <Field label="Printer type *">
-            <Select aria-label="Printer type" value="THERMAL" onChange={() => {}} options={TYPES} />
+          <Field label="Connection *">
+            <Select<PrinterLink> aria-label="Connection" value={draft.link} onChange={(link) => patch({ link })} options={LINKS} />
           </Field>
         </div>
 
+        {bluetooth ? (
+          <BluetoothPicker draft={draft} onPick={(deviceName, serial) => patch({ deviceName, serial })} onName={(deviceName) => patch({ deviceName })} onSerial={(serial) => patch({ serial })} />
+        ) : (
         <div className="grid gap-5 sm:grid-cols-[1fr_8rem]">
           <Field
             label="IP address *"
@@ -532,6 +554,7 @@ function PrinterForm({ id, initial, onDone }: { id: string | null; initial: Prin
             <TextInput value={String(draft.port)} onChange={(port) => patch({ port: Number(port.replace(/\D/g, '')) || 9100 })} />
           </Field>
         </div>
+        )}
 
         <div className="grid gap-1 border-t border-hairline pt-4">
           <h3 className="text-[15px] font-semibold">Auto print KOT &amp; BOT</h3>
@@ -594,7 +617,7 @@ function PrinterForm({ id, initial, onDone }: { id: string | null; initial: Prin
         />
 
         <div className="flex flex-wrap items-center gap-3 border-t border-hairline pt-4">
-          <button type="button" className={ADMIN_GHOST} disabled={!ipOk} onClick={test}>
+          <button type="button" className={ADMIN_GHOST} disabled={!addressOk} onClick={test}>
             Test print
           </button>
           {testResult && (
@@ -627,6 +650,75 @@ function PrinterForm({ id, initial, onDone }: { id: string | null; initial: Prin
       </div>
       </div>
     </Block>
+  );
+}
+
+function BluetoothPicker({
+  draft,
+  onPick,
+  onName,
+  onSerial,
+}: {
+  draft: PrinterDraft;
+  onPick: (name: string, serial: boolean) => void;
+  onName: (name: string) => void;
+  onSerial: (serial: boolean) => void;
+}) {
+  const [found, setFound] = useState<{ name: string; serial: boolean }[] | null>(null);
+  const [finding, setFinding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const find = () => {
+    setFinding(true);
+    setError(null);
+    listLocalDevices()
+      .then((devices) => setFound(devices))
+      .catch((e: unknown) => {
+        setFound([]);
+        setError(e instanceof Error ? e.message : 'QZ Tray is not connected');
+      })
+      .finally(() => setFinding(false));
+  };
+
+  return (
+    <div className="grid gap-3">
+      <Field
+        label="Bluetooth printer *"
+        hint="Pair it in system settings on this PC first. Most receipt printers show up as a serial port (COM or tty)."
+      >
+        <TextInput value={draft.deviceName} onChange={onName} maxLength={120} placeholder="Printer name or COM port" />
+      </Field>
+      <label className="flex items-center gap-2.5 text-[14.5px]">
+        <input type="checkbox" className="size-4 accent-flame" checked={draft.serial} onChange={(e) => onSerial(e.target.checked)} />
+        Serial port
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className={ADMIN_GHOST} disabled={finding} onClick={find}>
+          {finding ? 'Looking…' : 'Find on this PC'}
+        </button>
+        {error && <p className="text-[13px] text-ink-3">{error}. Start QZ Tray, then try again.</p>}
+      </div>
+      {found && found.length === 0 && !error && <p className="text-[13px] text-ink-4">Nothing listed. Pair the printer, then find again, or type its name.</p>}
+      {found && found.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {found.map((device) => (
+            <button
+              key={`${device.serial ? 's' : 'p'}:${device.name}`}
+              type="button"
+              className={cx(
+                ADMIN_TINY,
+                'rounded-full px-3 ring-1 ring-hairline ring-inset',
+                draft.deviceName === device.name && draft.serial === device.serial && 'bg-ink text-surface',
+              )}
+              onClick={() => onPick(device.name, device.serial)}
+            >
+              {device.name}
+              {device.serial ? ' · serial' : ''}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

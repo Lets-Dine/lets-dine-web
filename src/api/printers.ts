@@ -7,12 +7,19 @@ import { authHeaders } from './live-admin';
 
 export type PaperWidth = 'MM80' | 'MM58';
 
+export type PrinterLink = 'NETWORK' | 'BLUETOOTH';
+
 export interface Printer {
   id: string;
   name: string;
   paperWidth: PaperWidth;
+  /** Empty when `link` is BLUETOOTH. */
   ipAddress: string;
   port: number;
+  link: PrinterLink;
+  /** OS printer name, or a serial port when `serial` is set. */
+  deviceName: string;
+  serial: boolean;
   /** The whole order on one slip, every station together. */
   fullKot: boolean;
   /** KITCHEN = KOT, BAR = BOT. Ignored while `fullKot` is on. */
@@ -44,7 +51,16 @@ export interface PrintJob {
   orderId: string;
   attempts: number;
   lastError: string | null;
-  printer: { id: string; name: string; ipAddress: string; port: number; paperWidth: PaperWidth };
+  printer: {
+    id: string;
+    name: string;
+    ipAddress: string;
+    port: number;
+    paperWidth: PaperWidth;
+    link: PrinterLink;
+    deviceName: string;
+    serial: boolean;
+  };
   /** One ticket, or every ticket one change produced for a full-KOT printer. */
   tickets: KitchenTicket[];
 }
