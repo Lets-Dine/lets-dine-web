@@ -145,7 +145,7 @@ export function PosGrid({
         <p className="sr-only" role="status">
           {matches.length} dish{matches.length === 1 ? '' : 'es'}
         </p>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4 sm:px-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
           {matches.length === 0 ? (
             <p className="py-20 text-center text-[14px] text-ink-3">
               Nothing on the menu matches {query.trim() ? <b className="font-semibold text-ink">“{query.trim()}”</b> : 'this category'}.

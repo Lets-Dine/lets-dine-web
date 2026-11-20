@@ -2134,7 +2134,7 @@ function percent(rate: number): string {
 
 /* ── Uploads ───────────────────────────────────────────────────────── */
 
-export type UploadTarget = 'dish' | 'restaurant-cover' | 'restaurant-logo' | 'staff-avatar';
+export type UploadTarget = 'dish' | 'restaurant-cover' | 'restaurant-logo' | 'staff-avatar' | 'payment-qr';
 
 export interface UploadSignature {
   cloudName: string;

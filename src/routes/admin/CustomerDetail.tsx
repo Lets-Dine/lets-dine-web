@@ -24,6 +24,7 @@ import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { TablePaySheet } from '../../components/admin/TablePaySheet';
 import { Alert, Check, ChevronLeft, Contact, Copy, Plate, Send, Sliders } from '../../components/icons';
 import { Block, FloatingBar, Num, TiltCard, reduced, useAway, useCountUp } from '../../components/admin/profile';
+import { BrandName } from '../../components/BrandName';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 import { DatePicker } from '../../components/admin/DatePicker';
@@ -416,7 +417,7 @@ function MemberCard({ item, hue, points }: { item: CustomerListItem; hue: number
       </span>
       <div className="relative flex h-full flex-col justify-between">
         <div className="flex items-start justify-between">
-          <span className="text-[12px] font-bold uppercase tracking-[0.16em] opacity-70">FeastoX regular</span>
+          <span className="text-[12px] font-bold uppercase tracking-[0.16em] opacity-70"><BrandName /> regular</span>
           <SegmentPill segment={item.segment} />
         </div>
         {points !== null && (

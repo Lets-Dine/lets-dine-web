@@ -1,7 +1,8 @@
 /**
- * Full screen for POS mode. A browser only grants it from a real tap or click, so POS asks for it from the button that opens
- * it; it then holds across the in-app navigation. It is given back when POS closes, but only if POS was the one that took it:
- * a screen someone put into full screen themselves is left as they had it.
+ * Full screen for POS mode. A browser only grants it from a real tap or click in that tab. Opening POS in a new tab
+ * does not carry the click over, so the POS screen asks as it opens and again on the first tap or key there.
+ * It is given back when POS closes, but only if POS was the one that took it: a screen someone put into full screen
+ * themselves is left as they had it.
  */
 type FullscreenDoc = Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => Promise<void> | void };
 type FullscreenEl = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };

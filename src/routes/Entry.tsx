@@ -6,6 +6,7 @@ import { useAsync } from '../state/useAsync';
 import { usePageTitle } from '../state/usePageTitle';
 import { Skeleton } from '../components/Bits';
 import { RatingPill } from '../components/Rating';
+import { BrandName } from '../components/BrandName';
 import { BTN, BTN_QUIET, BTN_SIZE_LG, DISPLAY, SHELL, cx } from '../components/ui';
 import { Qr, Sparkle } from '../components/icons';
 
@@ -35,7 +36,7 @@ export function Entry() {
         <div className="flex flex-col gap-4">
           <span className="inline-flex w-fit animate-rise items-center gap-1.5 rounded-full bg-flame-2/14 py-1.5 pl-3 pr-3.5 text-[13px] font-bold text-flame-1 ring-1 ring-flame-2/35 ring-inset">
             <Sparkle size={15} />
-            FeastoX
+            <BrandName />
           </span>
           <h1 className={cx(DISPLAY, 'animate-rise text-[clamp(34px,11vw,44px)] lg:text-6xl')} style={{ animationDelay: '60ms' }}>
             Stop guessing

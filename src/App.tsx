@@ -64,6 +64,7 @@ import { Settings } from './routes/admin/Settings';
 import { Profile } from './routes/admin/Profile';
 import { SignIn } from './routes/admin/SignIn';
 import { Kitchen } from './routes/Kitchen';
+import { CustomerDisplay } from './routes/CustomerDisplay';
 import { Consumption } from './routes/admin/Consumption';
 import { Pos } from './routes/admin/Pos';
 import { PosV2 } from './routes/admin/PosV2';
@@ -240,6 +241,8 @@ export default function App() {
               {/* A tablet on the kitchen or bar wall — outside the admin chrome on purpose. */}
               <Route path="/kitchen" element={<Navigate to="/kitchen/kitchen" replace />} />
               <Route path="/kitchen/:station" element={<Kitchen />} />
+              {/* The screen that faces the customer, opened from POS. Outside the admin chrome: it only reads. */}
+              <Route path="/customer-display" element={<CustomerDisplay />} />
               <Route path="/admin/signin" element={<SignIn />} />
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<DashboardPage />} />

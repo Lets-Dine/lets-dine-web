@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { BrandName } from '../../components/BrandName';
 import { cx } from '../../components/ui';
 import { X } from '../../components/icons';
 import { scrollToSection } from './motion';
@@ -50,7 +51,7 @@ function NavLink({
 function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cx('font-display text-[19px] font-semibold tracking-[-0.03em] text-ink', className)}>
-      FeastoX
+      <BrandName />
       <span className="text-flame-1">.</span>
     </span>
   );

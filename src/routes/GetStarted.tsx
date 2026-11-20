@@ -5,6 +5,7 @@ import { IS_LIVE_API } from '../api/http';
 import { ApiError } from '../api/store';
 import { useAuth } from '../state/AuthContext';
 import { usePageTitle } from '../state/usePageTitle';
+import { BrandName } from '../components/BrandName';
 import { cx } from '../components/ui';
 import { Check, ChevronLeft, ChevronRight } from '../components/icons';
 import { CircleButton, DISPLAY_LG, GhostButton, PrimaryButton, PrimaryCta } from './landing/kit';
@@ -427,7 +428,7 @@ export function GetStarted() {
       <header className="flex items-center justify-between px-5 py-5 sm:px-8">
         <Link to="/" className="rounded-md" aria-label="FeastoX — home">
           <span className="font-display text-[18px] font-semibold tracking-[-0.03em] text-ink">
-            FeastoX
+            <BrandName />
             <span className="text-flame-1">.</span>
           </span>
         </Link>

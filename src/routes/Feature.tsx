@@ -2,6 +2,7 @@ import { useLayoutEffect } from 'react';
 import { Link } from 'react-router-dom';
 import features from '../content/features.json';
 import { usePageTitle } from '../state/usePageTitle';
+import { paintBrand } from '../components/BrandName';
 import { cx } from '../components/ui';
 import { LandingNav } from './landing/Nav';
 import { LandingFooter } from './landing/LandingFooter';
@@ -37,7 +38,7 @@ export function Feature({ slug }: { slug: string }) {
       <main id="main" className={cx(RAIL, 'pb-20 pt-[calc(120px+var(--safe-t))] lg:pt-[calc(150px+var(--safe-t))]')}>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
         <h1 className={cx(DISPLAY_MD, 'max-w-[22ch] text-ink')}>{page.h1}</h1>
-        <p className={cx(LEAD, 'mt-6 max-w-[56ch]')}>{page.intro}</p>
+        <p className={cx(LEAD, 'mt-6 max-w-[56ch]')}>{paintBrand(page.intro)}</p>
         <div className="mt-8">
           <PrimaryCta to="/get-started" size="lg">
             Get started
@@ -48,7 +49,7 @@ export function Feature({ slug }: { slug: string }) {
           {page.sections.map((s) => (
             <section key={s.h}>
               <h2 className="font-display text-[22px] font-semibold tracking-[-0.02em] text-ink">{s.h}</h2>
-              <p className="mt-2 max-w-[48ch] text-[15.5px] leading-[1.62] text-ink-2">{s.p}</p>
+              <p className="mt-2 max-w-[48ch] text-[15.5px] leading-[1.62] text-ink-2">{paintBrand(s.p)}</p>
             </section>
           ))}
         </div>
@@ -57,8 +58,8 @@ export function Feature({ slug }: { slug: string }) {
         <dl className="mt-4 max-w-[64ch]">
           {page.faqs.map((f) => (
             <div key={f.q} className="border-b border-hairline py-5 first:border-t">
-              <dt className="font-semibold text-ink">{f.q}</dt>
-              <dd className="mt-1.5 text-[15.5px] leading-[1.6] text-ink-2">{f.a}</dd>
+              <dt className="font-semibold text-ink">{paintBrand(f.q)}</dt>
+              <dd className="mt-1.5 text-[15.5px] leading-[1.6] text-ink-2">{paintBrand(f.a)}</dd>
             </div>
           ))}
         </dl>

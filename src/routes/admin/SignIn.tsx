@@ -9,6 +9,7 @@ import { useAuth } from '../../state/AuthContext';
 import { AdminThemeToggle } from '../../state/AdminTheme';
 import { usePageTitle } from '../../state/usePageTitle';
 import { ADMIN_PRIMARY, Field, PANEL, TextInput } from '../../components/admin/kit';
+import { BrandName } from '../../components/BrandName';
 import { DISPLAY, SHELL, cx } from '../../components/ui';
 
 /**
@@ -50,7 +51,8 @@ export function SignIn() {
       <div className="w-full max-w-[440px]">
         <div className="mb-6 text-center">
           <Link to="/" aria-label="FeastoX home" className="mb-4 inline-block font-display text-[24px] font-semibold tracking-[-0.03em] text-ink">
-            FeastoX<span className="text-flame-1">.</span>
+            <BrandName />
+            <span className="text-flame-1">.</span>
           </Link>
           <h1 className={cx(DISPLAY, 'text-[28px]')}>Restaurant dashboard</h1>
           <p className="mt-1.5 text-[14px] text-ink-3">Sign in to work the pass, the menu and the numbers.</p>

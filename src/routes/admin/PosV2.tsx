@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import type { StaffOrderInput } from '../../api/live-admin';
 import { STAFF_ORDERS_ENABLED, completeOrderPayment, createStaffOrder, listFloors, listTables, reprintKitchenTickets } from '../../api/staff';
 import { randomId } from '../../api/store';
 import { formatMoney } from '../../domain/money';
-import { ITEM_STATUS_LABEL, STATUS_LABEL, floorBillSubject, focusMap } from '../../domain/orderStatus';
+import { ITEM_STATUS_LABEL, STATUS_LABEL, byUrgencyThenAge, floorBillSubject, focusMap } from '../../domain/orderStatus';
 import { tableService } from '../../domain/posBoard';
 import type { Dish, DiningTable, Floor, Order } from '../../domain/types';
-import { exitFullscreenIfTaken, isFullscreen, toggleFullscreen } from '../../platform/fullscreen';
+import { openCustomerDisplay, usePublishCustomerDisplay } from '../../platform/customerDisplay';
+import { exitFullscreenIfTaken, enterFullscreen, isFullscreen, toggleFullscreen } from '../../platform/fullscreen';
 import { haptic } from '../../platform/haptics';
 import { isSoundOn, playTick, setSoundOn } from '../../platform/sound';
 import { useAuth, useStaff } from '../../state/AuthContext';
@@ -21,15 +22,19 @@ import { Avatar } from '../../components/admin/Avatar';
 import { DishOptionsDialog, orderableOptions } from '../../components/admin/DishOptionsDialog';
 import { useTicketDraft } from '../../components/admin/DishTilePicker';
 import { Empty, Loading, Select, TextInput, useCommand } from '../../components/admin/kit';
+import { useOrderSheet } from '../../components/admin/OrderSheet';
+import { PassCardV2 } from '../../components/admin/PassCardV2';
 import { PaymentSheet } from '../../components/admin/PaymentSheet';
+import type { CustomerPayQr } from '../../components/admin/PaymentSheet';
 import { Key, PosGrid, usePosMenu } from '../../components/admin/PosV2Grid';
 import { HeldSheet, ReceiptsSheet } from '../../components/admin/PosSheets';
 import { TablePaySheet } from '../../components/admin/TablePaySheet';
 import { PosCustomer } from '../../components/admin/PosCustomer';
 import type { Guest } from '../../components/admin/PosCustomer';
 import { QuantityStepper } from '../../components/Bits';
-import { Bell, Bike, Check, ChevronLeft, Clock, Maximize, Minimize, Receipt, Ticket, Volume, VolumeOff } from '../../components/icons';
-import { BTN_FLAME, BTN_GHOST, DISPLAY, cx } from '../../components/ui';
+import { Bell, Bike, Check, ChevronLeft, Clock, Eye, Maximize, Minimize, Receipt, Ticket, Volume, VolumeOff } from '../../components/icons';
+import { BrandName } from '../../components/BrandName';
+import { BTN_FLAME, BTN_GHOST, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 
 /*
@@ -88,9 +93,10 @@ interface Guard {
 const TICK_MS = 15_000;
 
 export function PosV2() {
-  // Reached only from the Orders page, whose button carries this state (a reload keeps it). Anything else, a typed
-  // address or an old bookmark, goes back to Orders.
-  const entered = (useLocation().state as { pos?: boolean } | null)?.pos === true;
+  // Reached from the Orders button (`?enter=1`, its own tab) or an in-app link that carries state. A reload keeps either.
+  // Anything else, a typed address or an old bookmark, goes back to Orders.
+  const location = useLocation();
+  const entered = (location.state as { pos?: boolean } | null)?.pos === true || new URLSearchParams(location.search).get('enter') === '1';
   return entered ? <PosV2Screen /> : <Navigate to="/admin/orders" replace />;
 }
 
@@ -101,6 +107,8 @@ function PosV2Screen() {
   const navigate = useNavigate();
   const push = useToast();
   const [open, setOpen] = useState<Opened | null>(null);
+  /** New is a blank sale. Orders is the open tickets, still inside POS. */
+  const [mode, setMode] = useState<'new' | 'orders'>('new');
   const [fullscreen, setFullscreen] = useState(false);
   const [sound, setSound] = useState(isSoundOn);
   const [guard, setGuard] = useState<Guard | null>(null);
@@ -132,6 +140,17 @@ function PosV2Screen() {
     return { kind: open.kind };
   }, [open, activeTables, activeFloors]);
 
+  useEffect(() => {
+    // A new tab does not inherit the click that opened it, so this ask is refused until the first tap or key in the tab.
+    void enterFullscreen();
+    const ask = () => void enterFullscreen();
+    window.addEventListener('pointerdown', ask, { once: true });
+    window.addEventListener('keydown', ask, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', ask);
+      window.removeEventListener('keydown', ask);
+    };
+  }, []);
   useEffect(() => {
     const sync = () => setFullscreen(isFullscreen());
     sync();
@@ -208,26 +227,25 @@ function PosV2Screen() {
   }
 
   const exit = () => leave(() => navigate('/admin/orders'));
+  const goNew = () => leave(() => { setMode('new'); setOpen(null); });
+  const goOrders = () => leave(() => { setMode('orders'); setOpen(null); });
   const blocked = sheet !== null || leaving !== null;
+  const openCount = orders.filter((o) => o.status !== 'COMPLETED' && o.status !== 'CANCELLED').length;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center gap-3 px-4 py-2 pt-[calc(8px+var(--safe-t))]">
-        <button
-          type="button"
-          onClick={() => (target ? leave(() => setOpen(null)) : exit())}
-          className="grid size-10 shrink-0 place-items-center rounded-lg bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset transition-colors hover:text-ink"
-          aria-label={target ? 'Back to the board' : 'Leave POS mode'}
-        >
-          <ChevronLeft size={17} />
-        </button>
-        <span className={cx(DISPLAY, 'truncate text-[20px]')}>
-          {menu.restaurant.name} <span className="text-flame-3">POS</span>
+      <header className="flex shrink-0 items-center gap-4 px-5 py-3 pt-[calc(12px+var(--safe-t))]">
+        <span className={cx(DISPLAY, 'truncate text-[28px]')}>
+          <BrandName /> <span className="text-2xl">POS</span>
         </span>
+        <ModeSwitch mode={mode} openCount={openCount} onNew={goNew} onOrders={goOrders} />
 
         <div className="ml-auto flex items-center gap-1.5">
           <HeaderButton label="Shortcuts" onClick={() => setSheet('keys')}>
             <span className="font-mono text-[12px] font-bold">F1</span>
+          </HeaderButton>
+          <HeaderButton label="Customer screen" onClick={openCustomerDisplay}>
+            <Eye size={16} />
           </HeaderButton>
           <HeaderButton label="Receipts" onClick={() => setSheet('receipts')}>
             <Receipt size={16} />
@@ -252,7 +270,7 @@ function PosV2Screen() {
           <span
             role="status"
             aria-label={`${waiting} waiting on the pass`}
-            className="relative grid size-10 place-items-center rounded-lg bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset"
+            className="relative grid size-12 place-items-center rounded-lg bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset"
           >
             <Bell size={16} />
             {waiting > 0 && <span className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-flame px-1 text-[11px] font-bold text-white tnum">{waiting}</span>}
@@ -262,7 +280,7 @@ function PosV2Screen() {
             onClick={exit}
             // Red, as the way out of the till: the house danger tint rather than a solid fill, which at this size reads
             // as an error the screen is reporting instead of a button someone has to mean to press.
-            className="ml-1 inline-flex h-10 items-center gap-2 rounded-lg bg-berry/14 px-3.5 text-[14px] font-semibold text-berry-ink ring-1 ring-berry/35 ring-inset transition-colors hover:bg-berry/20"
+            className="ml-1 inline-flex h-12 items-center gap-2 rounded-lg bg-berry/14 px-4 text-[15px] font-semibold text-berry-ink ring-1 ring-berry/35 ring-inset transition-colors hover:bg-berry/20"
           >
             <Avatar name={staff.name} src={staff.avatarUrl} className="size-5 text-[10px]" />
             Exit
@@ -270,7 +288,9 @@ function PosV2Screen() {
         </div>
       </header>
 
-      {target ? (
+      {mode === 'orders' ? (
+        <PosOrders />
+      ) : target ? (
         <Terminal
           key={`${open!.kind}:${open!.kind === 'TABLE' || open!.kind === 'FLOOR' ? open!.id : ''}`}
           target={target}
@@ -365,6 +385,38 @@ function PosV2Screen() {
   );
 }
 
+function ModeSwitch({ mode, openCount, onNew, onOrders }: { mode: 'new' | 'orders'; openCount: number; onNew: () => void; onOrders: () => void }) {
+  const newRef = useRef<HTMLButtonElement>(null);
+  const ordersRef = useRef<HTMLButtonElement>(null);
+  const [box, setBox] = useState<{ left: number; width: number } | null>(null);
+  const [slide, setSlide] = useState(false);
+  useLayoutEffect(() => {
+    const el = mode === 'new' ? newRef.current : ordersRef.current;
+    if (!el) return;
+    setBox({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [mode, openCount]);
+  useEffect(() => {
+    if (box) setSlide(true);
+  }, [box]);
+  const label = 'relative z-10 inline-flex h-10 items-center whitespace-nowrap rounded-lg px-4 text-[15px] font-semibold transition-colors duration-300 ease-out-quart active:scale-95';
+  return (
+    <div className="relative flex items-center gap-2">
+      <span
+        aria-hidden
+        className={cx('pointer-events-none absolute top-0 h-10 rounded-lg', CHIP_ON, slide && 'motion-safe:transition-[left,width] motion-safe:duration-300 motion-safe:ease-out-quart')}
+        style={{ left: box?.left ?? 0, width: box?.width ?? 0, opacity: box ? 1 : 0 }}
+      />
+      <button ref={newRef} type="button" aria-pressed={mode === 'new'} onClick={onNew} className={cx(label, mode === 'new' ? 'text-white' : 'text-ink-2')}>
+        New
+      </button>
+      <button ref={ordersRef} type="button" aria-pressed={mode === 'orders'} onClick={onOrders} className={cx(label, mode === 'orders' ? 'text-white' : 'text-ink-2')}>
+        Orders
+        {openCount > 0 && <span className="tnum"> · {openCount}</span>}
+      </button>
+    </div>
+  );
+}
+
 function HeaderButton({ label, onClick, pressed, lit, badge, children }: { label: string; onClick: () => void; pressed?: boolean; lit?: boolean; badge?: number; children: ReactNode }) {
   return (
     <button
@@ -374,13 +426,88 @@ function HeaderButton({ label, onClick, pressed, lit, badge, children }: { label
       title={label}
       aria-pressed={pressed}
       className={cx(
-        'relative grid size-10 place-items-center rounded-lg ring-1 ring-inset transition-colors',
+        'relative grid size-12 place-items-center rounded-lg ring-1 ring-inset transition-colors',
         lit ? 'bg-flame/15 text-flame-3 ring-flame/40' : 'bg-surface-2 text-ink-2 ring-hairline hover:text-ink',
       )}
     >
       {children}
       {badge !== undefined && <span className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-ink px-1 text-[11px] font-bold text-surface tnum">{badge}</span>}
     </button>
+  );
+}
+
+/* ── Open tickets, still inside POS ─────────────────────────────────────────── */
+
+function PosOrders() {
+  const { menu, orders, applyOrder, reloadOrders } = useDashboard();
+  const staff = useStaff();
+  const now = useNow(TICK_MS);
+  const { pending, run } = useCommand();
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const flags = useMemo(() => focusMap(orders, now), [orders, now]);
+  const orderSheet = useOrderSheet({ orders, flags, now, onApply: applyOrder, onResync: reloadOrders, onTakePayment: (o) => setPayingId(o.id) });
+  const openOrders = useMemo(
+    () => orders.filter((o) => o.status !== 'COMPLETED' && o.status !== 'CANCELLED').sort(byUrgencyThenAge(flags)),
+    [orders, flags],
+  );
+  const payingOrder = orders.find((o) => o.id === payingId) ?? null;
+  const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
+      <h2 className={cx(DISPLAY, 'py-3 text-[19px]')}>
+        Open orders <span className="font-mono text-[14px] font-normal text-ink-3 tnum">{openOrders.length}</span>
+      </h2>
+      {openOrders.length === 0 ? (
+        <p className="rounded-xl bg-surface-2/60 px-3.5 py-3 text-[13px] leading-relaxed text-ink-4 ring-1 ring-hairline ring-inset">
+          Nothing open. A new sale starts under New.
+        </p>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {openOrders.map((order, i) => (
+            <PassCardV2
+              key={order.id}
+              order={order}
+              index={i}
+              focus={flags.get(order.id) ?? null}
+              now={now}
+              onApply={applyOrder}
+              onResync={reloadOrders}
+              onTakePayment={(o) => setPayingId(o.id)}
+              onOpenDetail={orderSheet.open}
+            />
+          ))}
+        </div>
+      )}
+      {orderSheet.sheet}
+      {payingOrder?.tableId && <TablePaySheet order={payingOrder} onClose={() => setPayingId(null)} onPaid={reloadOrders} />}
+      <PaymentSheet
+        table={payingOrder && !payingOrder.tableId ? floorBillSubject(payingOrder) : null}
+        orders={payingOrder && !payingOrder.tableId ? [payingOrder] : []}
+        dishes={menuDishes}
+        restaurantName={menu.restaurant.name}
+        legalName={menu.restaurant.legalName}
+        vatPanNumber={menu.restaurant.vatPanNumber}
+        serviceChargeRate={menu.restaurant.serviceChargeRate}
+        taxRate={menu.restaurant.taxRate}
+        pending={pending}
+        onClose={() => setPayingId(null)}
+        onSettle={(changes) => {
+          if (!payingOrder || payingOrder.tableId) return Promise.resolve(false);
+          const order = payingOrder;
+          return run(
+            order.id,
+            () => completeOrderPayment(staff, order, changes.items, changes.method, changes.discount, changes.redeemPoints, changes.customerId, changes.credit),
+            `${order.reference} paid up`,
+          ).then((ok) => {
+            if (ok) reloadOrders();
+            return ok;
+          });
+        }}
+        onEndSession={() => setPayingId(null)}
+        onShowQr={() => setPayingId(null)}
+      />
+    </div>
   );
 }
 
@@ -480,7 +607,7 @@ function ServiceBoard({
   const busyCount = tables.filter((t) => t.currentSessionId).length;
 
   return (
-    <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain px-4 pb-6 xl:grid-cols-[1fr_320px] xl:overflow-hidden">
+    <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain px-4 pb-6 xl:grid-cols-[1fr_450px] xl:overflow-hidden">
       <section aria-label="Tables" className="flex min-h-0 flex-col xl:overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 py-3">
           <h2 className={cx(DISPLAY, 'text-[19px]')}>
@@ -710,7 +837,7 @@ function Terminal({
   const [guest, setGuest] = useState<Guest | null>(null);
   const [address, setAddress] = useState('');
   const deliveryReady = isPickup ? guest !== null : !isDelivery || (guest !== null && address.trim() !== '');
-  /** Floor and quick orders are each billed on their own; a table settles as a whole. */
+  /** Floor, quick and pick-up are each billed on their own; a table settles as a whole. A delivery is settled after its courier run. */
   const billedAlone = target.kind === 'FLOOR' || target.kind === 'QUICK' || target.kind === 'PICKUP';
   /** The shelf only holds tickets that have somewhere to go back to, so a delivery or a counter sale cannot park. */
   const canPark = target.kind === 'TABLE' || target.kind === 'FLOOR';
@@ -720,6 +847,8 @@ function Terminal({
   const [paidIds, setPaidIds] = useState<string[]>([]);
   /** The order whose payment sheet is open. Held here, not derived, so the sheet stays through its own "paid" screen. */
   const [paying, setPaying] = useState<Order | null>(null);
+  /** The QR the customer screen should be showing, or null while they are just watching the bill. */
+  const [payQr, setPayQr] = useState<CustomerPayQr | null>(null);
   const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
 
   // A visit that has ended takes its orders off this table's ticket.
@@ -760,6 +889,17 @@ function Terminal({
    */
   const dueTotal = (isTable ? sent : owing).reduce((n, o) => n + o.total, 0) + ticket.total;
   const unsent = ticket.draft.reduce((n, l) => n + l.qty, 0);
+
+  // What the customer screen shows: the dishes being added and what is owed. Guest name and phone stay here.
+  usePublishCustomerDisplay({
+    restaurant: menu.restaurant.name,
+    label: target.kind === 'TABLE' ? target.table.name : target.kind === 'FLOOR' ? target.floor.name : target.kind === 'DELIVERY' ? 'Delivery' : target.kind === 'PICKUP' ? 'Pick up' : 'Quick bill',
+    currency,
+    lines: ticket.draft.map((l) => ({ key: l.key, name: l.dish.name, detail: ticket.describe(l), qty: l.qty, amount: ticket.priceOf(l) * l.qty })),
+    total: dueTotal,
+    payQr: payQr?.url ?? null,
+    payAmount: payQr?.amount ?? null,
+  });
 
   /** Taking the draft off the screen and onto the shelf. Used by the Park button and by walking away. */
   const park = (quiet = false) => {
@@ -833,7 +973,7 @@ function Terminal({
       idempotency.current = { payload: '', key: '' };
       applyOrder(order);
       reloadOrders();
-      // A delivery leaves the counter for good: it is followed from Orders, not paid here.
+      // A delivery leaves the counter for the courier run: assign, deliver, then settle. It is not paid here.
       if (!isDelivery) setPlaced((p) => [...p, order]);
       // A quick bill is paid as it is rung up: straight to the payment sheet.
       if (target.kind === 'QUICK') setPaying(order);
@@ -845,7 +985,7 @@ function Terminal({
       setMultiplier(null);
       onChanged();
       haptic.success();
-      push(`${order.reference} placed · ${order.status === 'PENDING' ? 'waiting on the pass' : 'sent to the kitchen'}`, <Check size={16} />);
+      push(`${order.reference} placed · ${order.status === 'PENDING' ? 'waiting on the pass' : order.status === 'UNPAID' ? 'awaiting payment' : 'sent to the kitchen'}`, <Check size={16} />);
     });
   };
 
@@ -1282,6 +1422,7 @@ function Terminal({
             reloadOrders();
             onChanged();
           }}
+          onCustomerQr={setPayQr}
         />
       )}
 
@@ -1310,6 +1451,7 @@ function Terminal({
           }}
           onEndSession={() => setPaying(null)}
           onShowQr={() => setPaying(null)}
+          onCustomerQr={setPayQr}
         />
       )}
     </div>

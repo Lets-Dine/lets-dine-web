@@ -30,6 +30,7 @@ import { ADMIN_GHOST, ADMIN_PRIMARY, ADMIN_QUIET, Empty, Loading, PANEL, PageTit
 import { PlanCompareModal } from '../../components/admin/PlanCompareModal';
 import { SubscriptionStatusPill } from '../../components/admin/SubscriptionBits';
 import { Check, ChevronRight, Lock, X } from '../../components/icons';
+import { paintBrand } from '../../components/BrandName';
 import { DISPLAY, TAG, TAG_ON, cx } from '../../components/ui';
 
 /**
@@ -661,7 +662,7 @@ function RenewSection({ subscription, now, onRenewed }: { subscription: Subscrip
             {busy ? 'Opening payment…' : 'Renew'}
           </button>
         </div>
-        <p className="mt-3 text-[13px] leading-relaxed text-ink-3">{PAYMENT_NOTE}</p>
+        <p className="mt-3 text-[13px] leading-relaxed text-ink-3">{paintBrand(PAYMENT_NOTE)}</p>
       </Panel>
     </div>
   );

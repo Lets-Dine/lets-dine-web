@@ -13,17 +13,19 @@
     "test:flow": "esbuild tests/flow.smoke.tsx --bundle --platform=node --format=esm --jsx=automatic --external:react --external:react-dom --external:react-dom/client --external:react-router-dom --external:socket.io-client --outfile=node_modules/.tmp/flow.mjs --log-level=error && node --import ./tests/dom-shim.mjs node_modules/.tmp/flow.mjs",
     "test:dashboard": "esbuild tests/dashboard.smoke.tsx --bundle --platform=node --format=esm --jsx=automatic --external:react --external:react-dom --external:react-dom/client --external:react-router-dom --external:socket.io-client --outfile=node_modules/.tmp/dashboard.mjs --log-level=error && node --import ./tests/dom-shim.mjs node_modules/.tmp/dashboard.mjs",
     "test:live": "node tests/run-live.mjs",
-    "test": "npm run test:rules && npm run test:admin && npm run test:flow && npm run test:dashboard",
+    "test": "npm run test:rules && npm run test:admin && npm run test:flow && npm run test:dashboard && npm run test:qr",
     "test:performance": "esbuild tests/dish-performance.smoke.ts --bundle --platform=node --format=esm --external:socket.io-client --outfile=node_modules/.tmp/dp.mjs --log-level=error && node node_modules/.tmp/dp.mjs",
     "test:margins": "esbuild tests/margins.smoke.ts --bundle --platform=node --format=esm --external:socket.io-client --outfile=node_modules/.tmp/margins.mjs --log-level=error && node node_modules/.tmp/margins.mjs",
     "test:subscription": "esbuild tests/subscription.smoke.ts --bundle --platform=node --format=esm --outfile=node_modules/.tmp/subscription.mjs --log-level=error && node node_modules/.tmp/subscription.mjs",
     "test:escpos": "esbuild tests/escpos.smoke.ts --bundle --platform=node --format=esm --external:socket.io-client --outfile=node_modules/.tmp/escpos.mjs --log-level=error && node node_modules/.tmp/escpos.mjs",
-    "test:posboard": "esbuild tests/posboard.smoke.ts --bundle --platform=node --format=esm --external:socket.io-client --outfile=node_modules/.tmp/posboard.mjs --log-level=error && node node_modules/.tmp/posboard.mjs"
+    "test:posboard": "esbuild tests/posboard.smoke.ts --bundle --platform=node --format=esm --external:socket.io-client --outfile=node_modules/.tmp/posboard.mjs --log-level=error && node node_modules/.tmp/posboard.mjs",
+    "test:qr": "esbuild tests/read-qr.smoke.ts --bundle --platform=node --format=esm --outfile=node_modules/.tmp/readqr.mjs --log-level=error && node node_modules/.tmp/readqr.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "driver.js": "^1.10.1",
     "gsap": "^3.15.0",
+    "jsqr": "^1.4.0",
     "lenis": "^1.3.26",
     "maplibre-gl": "^6.19.0",
     "qz-tray": "^2.3.0",

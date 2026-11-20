@@ -7,6 +7,7 @@ import { useAsync } from '../../state/useAsync';
 import { useDashboard } from '../../routes/admin/AdminLayout';
 import { useCommand } from './kit';
 import { PaymentSheet } from './PaymentSheet';
+import type { CustomerPayQr } from './PaymentSheet';
 
 /**
  * Paying one table order without leaving the page it was opened from. It rides on split
@@ -28,7 +29,19 @@ export function useCanPayTableOrder(order: Order): boolean {
 }
 
 /** The split-bill sheet for `order`'s table visit, opened on that order's lines (or, with `wholeVisit`, on everything not yet paid). Mount it only while paying. */
-export function TablePaySheet({ order, onClose, onPaid, wholeVisit = false }: { order: Order; onClose: () => void; onPaid: () => void; wholeVisit?: boolean }) {
+export function TablePaySheet({
+  order,
+  onClose,
+  onPaid,
+  wholeVisit = false,
+  onCustomerQr,
+}: {
+  order: Order;
+  onClose: () => void;
+  onPaid: () => void;
+  wholeVisit?: boolean;
+  onCustomerQr?: (next: CustomerPayQr | null) => void;
+}) {
   const staff = useStaff();
   const { allows } = useAuth();
   const { menu } = useDashboard();
@@ -80,6 +93,7 @@ export function TablePaySheet({ order, onClose, onPaid, wholeVisit = false }: { 
         });
       }}
       onShowQr={onClose}
+      onCustomerQr={onCustomerQr}
     />
   );
 }

@@ -4,6 +4,7 @@ import { formatMoney } from '../domain/money';
 import { limitLabel, monthsFree, planPrice, type BillingInterval, type Plan } from '../domain/subscription';
 import { useAsync } from '../state/useAsync';
 import { usePageTitle } from '../state/usePageTitle';
+import { paintBrand } from '../components/BrandName';
 import { cx } from '../components/ui';
 import { LandingNav } from './landing/Nav';
 import { LandingFooter } from './landing/LandingFooter';
@@ -238,7 +239,7 @@ function PlanCard({
       </p>
       <p className={cx('mt-2 min-h-[2.5em] text-[13.5px] leading-snug', featured ? 'text-bg/70' : 'text-ink-3')}>
         {charge === null
-          ? 'Arranged with the FeastoX team.'
+          ? paintBrand('Arranged with the FeastoX team.')
           : interval === 'ANNUAL'
             ? free > 0
               ? `${12 - free} months at the monthly price.`

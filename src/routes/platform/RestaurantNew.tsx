@@ -11,6 +11,7 @@ import { ADMIN_GHOST, ADMIN_PRIMARY, Field, PageTitle, Panel, PercentInput, Segm
 import { usePageTitle } from '../../state/usePageTitle';
 import { useToast } from '../../state/ToastContext';
 import { Check, ChevronLeft, Copy } from '../../components/icons';
+import { paintBrand } from '../../components/BrandName';
 import { cx } from '../../components/ui';
 import { rupees, shortDay } from './kit';
 
@@ -202,7 +203,7 @@ export function PlatformRestaurantNew() {
                 >
                   <div>
                     <div className="flex items-center overflow-hidden rounded-xl bg-surface-2 ring-1 ring-hairline ring-inset focus-within:ring-[1.5px] focus-within:ring-flame-2/40">
-                      <span className="shrink-0 pl-3.5 text-[14px] text-ink-4">FeastoX.app/r/</span>
+                      <span className="shrink-0 pl-3.5 text-[14px] text-ink-4">{paintBrand('FeastoX.app/r/')}</span>
                       <input
                         className="w-full bg-transparent px-1 py-2.5 pr-3.5 text-[14.5px] text-ink outline-none"
                         value={form.slug}
@@ -325,7 +326,7 @@ export function PlatformRestaurantNew() {
             <dl className="grid gap-3.5 text-[13.5px]">
               <Row label="Restaurant">{form.name.trim() || <Muted>Not named yet</Muted>}</Row>
               <Row label="Legal name">{form.legalName.trim() || <Muted>Not named yet</Muted>}</Row>
-              <Row label="Diner address">{form.slug ? <span className="break-all">FeastoX.app/r/{form.slug}</span> : <Muted>—</Muted>}</Row>
+              <Row label="Diner address">{form.slug ? <span className="break-all">{paintBrand(`FeastoX.app/r/${form.slug}`)}</span> : <Muted>—</Muted>}</Row>
               <Row label="Owner">{form.ownerName.trim() ? `${form.ownerName.trim()}${emailOk ? ` · ${form.ownerEmail}` : ''}` : <Muted>Added in step 2</Muted>}</Row>
               <Row label="Plan">
                 {plan ? `${plan.name} · ${form.interval === 'ANNUAL' ? 'yearly' : 'monthly'}` : <Muted>—</Muted>}

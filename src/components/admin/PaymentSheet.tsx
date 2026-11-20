@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { isTableOpen } from '../../api/admin';
 import { randomId } from '../../api/store';
 import { fetchCustomerLoyalty, listCustomers } from '../../api/customers';
+import { STATIC_QR_ENABLED, getStaticQr } from '../../api/staticQr';
 import { STATUS_LABEL } from '../../domain/orderStatus';
 import type { BilledItem, BillLine, Dish, Order, OrderStatus, PaymentMethod, SplitLine } from '../../domain/types';
 import { formatMoney, percentOf, symbolFor } from '../../domain/money';
@@ -121,7 +122,12 @@ const BILL_PRIMARY =
 const BILL_SECONDARY =
   'w-full rounded-[14px] bg-[oklch(0.232_0.019_70)] px-4 py-3.5 text-[13px] font-bold text-[oklch(0.943_0.024_85)] transition-transform active:translate-y-px disabled:opacity-40';
 
-type PayStep = 'bill' | 'method' | 'credit' | 'qr' | 'done';
+type PayStep = 'bill' | 'method' | 'credit' | 'qr' | 'static' | 'done';
+
+export interface CustomerPayQr {
+  url: string;
+  amount: number;
+}
 
 export function PaymentSheet({
   table,
@@ -138,6 +144,7 @@ export function PaymentSheet({
   onClose,
   onSettle,
   onEndSession,
+  onCustomerQr,
 }: {
   table: BillSubject | null;
   orders: Order[];
@@ -156,6 +163,8 @@ export function PaymentSheet({
   onSettle: (changes: PendingBillChanges) => Promise<boolean>;
   onShowQr: () => void;
   onEndSession: () => void;
+  /** The facing screen. Called with the picture while the customer should be scanning, otherwise null. */
+  onCustomerQr?: (next: CustomerPayQr | null) => void;
 }) {
   const staff = useStaff();
   const canDiscount = can(staff.role, 'payments:discount');
@@ -200,6 +209,8 @@ export function PaymentSheet({
   const [paidNowText, setPaidNowText] = useState('');
   const [paidNowQr, setPaidNowQr] = useState(false);
   const [dueInDays, setDueInDays] = useState<number | null>(14);
+  const staticQr = useAsync(() => (STATIC_QR_ENABLED ? getStaticQr() : Promise.resolve(null)), [table?.id]);
+  const qrImage = staticQr.data?.enabled ? staticQr.data.imageUrl : null;
 
   // The customer the server will spend points for: the most recent order that has one (it reads the session's orders newest first).
   const orderCustomerId = [...orders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).find((o) => o.customerId)?.customerId ?? null;
@@ -284,6 +295,16 @@ export function PaymentSheet({
       clearTimeout(timer);
     };
   }, [step]);
+
+  // The facing screen shows the restaurant's QR only while this step is the one the customer scans.
+  const onCustomerQrRef = useRef(onCustomerQr);
+  onCustomerQrRef.current = onCustomerQr;
+  const scanAmount = step === 'credit' ? paidNow : (committed?.totals.total ?? 0);
+  const showingQr = Boolean(qrImage) && (step === 'static' || (step === 'credit' && paidNowQr && paidNow > 0));
+  useEffect(() => {
+    onCustomerQrRef.current?.(showingQr && qrImage ? { url: qrImage, amount: scanAmount } : null);
+    return () => onCustomerQrRef.current?.(null);
+  }, [showingQr, qrImage, scanAmount]);
 
   if (!table) return null;
 
@@ -1007,13 +1028,13 @@ export function PaymentSheet({
               {/* QR: the guest paid by scanning the restaurant's own QR; staff just record it, and it settles as a card payment. */}
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => void finalize('qr')}
+                disabled={busy || (STATIC_QR_ENABLED && staticQr.loading)}
+                onClick={() => (qrImage ? setStep('static') : void finalize('qr'))}
                 className="flex flex-col items-center gap-2 rounded-2xl bg-[oklch(0.879_0.033_85)] py-6 text-[oklch(0.232_0.019_70)] ring-2 ring-transparent transition-move active:scale-[0.97] disabled:opacity-40"
               >
                 <Qr size={26} />
                 <span className="text-[13px] font-bold tracking-wide uppercase">
-                  {busy && method === 'qr' ? 'Processing…' : 'Paid by QR'}
+                  {busy && method === 'qr' ? 'Processing…' : qrImage ? 'Pay by QR' : 'Paid by QR'}
                 </span>
               </button>
               {/* Credit has its own step: the cashier either settles now (above) or leaves some of it owed (next screen). */}
@@ -1127,6 +1148,9 @@ export function PaymentSheet({
                 );
               })}
             </div>
+            {paidNowQr && qrImage && paidNow > 0 && (
+              <img src={qrImage} alt="Payment QR" className="mx-auto size-40 rounded-2xl bg-white object-contain p-2" />
+            )}
             <dl className="space-y-1 text-[12px] text-[oklch(0.463_0.031_74)]">
               <div className="flex items-baseline justify-between">
                 <dt>Paid now{paidNow > 0 ? ` by ${paidNowQr ? 'QR' : 'cash'}` : ''}</dt>
@@ -1149,6 +1173,32 @@ export function PaymentSheet({
               </span>
             </button>
             </div>
+          </div>
+        )}
+
+        {step === 'static' && committed && qrImage && (
+          <div className="flex flex-col items-center gap-4 py-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setStep('method')}
+              className="flex w-fit items-center gap-1 self-start text-[13px] font-bold text-[oklch(0.463_0.031_74)] active:translate-y-px disabled:opacity-40"
+            >
+              <ChevronLeft size={14} /> Choose a different method
+            </button>
+            <span className={cx(DISPLAY, 'text-[28px] leading-none font-black tnum text-[oklch(0.232_0.019_70)]')}>
+              {formatMoney(committed.totals.total, committed.totals.currency)}
+            </span>
+            <img src={qrImage} alt="Payment QR" className="size-64 rounded-2xl bg-white object-contain p-3" />
+            <p className="text-[13px] text-[oklch(0.463_0.031_74)]">Customer scans this, then you mark it paid.</p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void finalize('qr')}
+              className="rounded-full px-5 py-2 text-[12px] font-bold tracking-wide text-[oklch(0.539_0.163_36)] uppercase ring-1 ring-[oklch(0.539_0.163_36)]/40 active:translate-y-px disabled:opacity-40"
+            >
+              {busy ? 'Confirming…' : 'Mark as paid'}
+            </button>
           </div>
         )}
 

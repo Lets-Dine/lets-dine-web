@@ -68,7 +68,7 @@ function escapeHtml(text: string): string {
 
 const slugify = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-const BRAND = "FeastoX";
+const BRAND_X = '#ff8a3d';
 
 /** The mark beside "Powered by": a plate seen from above with a flame-lit rim. Drawn once, reused by the print and the vector download. */
 const BRAND_MARK = `<circle cx="10" cy="10" r="9" fill="#ff8a3d"/><circle cx="10" cy="10" r="5.6" fill="none" stroke="#17110d" stroke-width="1.6"/><circle cx="10" cy="10" r="1.9" fill="#17110d"/>`;
@@ -88,7 +88,7 @@ function slip(content: SlipContent, restaurantName: string): string {
     <p class="cue">Point your camera here</p>
     <div class="foot">
       <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">${BRAND_MARK}</svg>
-      <span>Powered by <b>${BRAND}</b></span>
+      <span>Powered by <b>Feasto<span style="color:${BRAND_X}">X</span></b></span>
     </div>
   </div>`;
 }
@@ -179,7 +179,7 @@ function slipSvgDocument(content: SlipContent, restaurantName: string): string {
     `<text x="160" y="396" font-family="${serif}" font-style="italic" font-size="15" fill="#17110d">Point your camera here</text>`,
     `<line x1="24" y1="414" x2="296" y2="414" stroke="#17110d" stroke-opacity=".3" stroke-dasharray="3 3"/>`,
     `<g transform="translate(86 424) scale(.7)">${BRAND_MARK}</g>`,
-    `<text x="168" y="436" font-size="10" letter-spacing=".8" fill="#6a5a45">Powered by <tspan font-weight="700" fill="#17110d">${BRAND}</tspan></text>`,
+    `<text x="168" y="436" font-size="10" letter-spacing=".8" fill="#6a5a45">Powered by <tspan font-weight="700" fill="#17110d">Feasto<tspan fill="${BRAND_X}">X</tspan></tspan></text>`,
     '</svg>',
   ].join('');
 }

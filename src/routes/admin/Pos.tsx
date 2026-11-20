@@ -26,6 +26,7 @@ import { TablePaySheet } from '../../components/admin/TablePaySheet';
 import { PosCustomer } from '../../components/admin/PosCustomer';
 import type { Guest } from '../../components/admin/PosCustomer';
 import { QuantityStepper } from '../../components/Bits';
+import { BrandName } from '../../components/BrandName';
 import { Bell, Check, ChevronLeft, Maximize, Minimize, Volume, VolumeOff } from '../../components/icons';
 import { BTN_FLAME, BTN_GHOST, CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
@@ -50,9 +51,10 @@ interface Guard {
  * calls the dashboard already uses.
  */
 export function Pos() {
-  // Reached only from the Orders page, whose button carries this state (a reload keeps it). Anything else, a typed address or an
-  // old bookmark, goes back to Orders.
-  const entered = (useLocation().state as { pos?: boolean } | null)?.pos === true;
+  // Reached from the Orders button (`?enter=1`, its own tab) or an in-app link that carries state. A reload keeps either.
+  // Anything else, a typed address or an old bookmark, goes back to Orders.
+  const location = useLocation();
+  const entered = (location.state as { pos?: boolean } | null)?.pos === true || new URLSearchParams(location.search).get('enter') === '1';
   return entered ? <PosScreen /> : <Navigate to="/admin/orders" replace />;
 }
 
@@ -161,7 +163,7 @@ function PosScreen() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 pt-[calc(10px+var(--safe-t))]">
-        <span className={cx(DISPLAY, 'truncate text-[22px]')}>{menu.restaurant.name} <span className="text-flame-3">POS</span></span>
+        <span className={cx(DISPLAY, 'truncate text-[22px]')}><BrandName /> <span className="text-flame-3">POS</span></span>
 
         <div className="flex gap-1 rounded-xl bg-surface-2 p-1" role="tablist" aria-label="Service style">
           {(
@@ -707,7 +709,7 @@ function Terminal({
       setAddress('');
       onChanged();
       haptic.success();
-      push(`${order.reference} placed · ${order.status === 'PENDING' ? 'waiting on the pass' : 'sent to the kitchen'}`, <Check size={16} />);
+      push(`${order.reference} placed · ${order.status === 'PENDING' ? 'waiting on the pass' : order.status === 'UNPAID' ? 'awaiting payment' : 'sent to the kitchen'}`, <Check size={16} />);
     });
   };
 

@@ -25,6 +25,7 @@ const MAX_OUTPUT_WIDTH: Record<UploadTarget, number> = {
   'restaurant-cover': 1600,
   'restaurant-logo': 512,
   'staff-avatar': 384,
+  'payment-qr': 1200,
 };
 
 /** Shown as a circle wherever they appear, so the crop window is a circle too. The saved file is still the square behind it. */
