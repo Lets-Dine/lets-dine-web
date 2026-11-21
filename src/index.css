@@ -219,7 +219,7 @@
 
 :root {
   --radius: 0.875rem;
-  --flame: oklch(53.9% .163 36);
+  --flame: oklch(61.5% .175 25);
 
   /* Brasserie docket palette */
   --board: oklch(0.185 0.014 62);
@@ -229,7 +229,7 @@
   --ink: oklch(0.232 0.019 70);
   --inksoft: oklch(0.463 0.031 74);
   --brass: oklch(0.665 0.111 70);
-  --occupied: oklch(0.539 0.163 36);
+  --occupied: oklch(0.615 0.175 25);
   --freedot: oklch(0.578 0.081 111);
 
   /*
@@ -566,7 +566,7 @@ html[data-admin-theme='light'] {
   --color-mint-ink: #187a4e;
   --color-berry-ink: #c12d4c;
   --color-pass: #3d5cb0;
-  --color-pending-ink: #c24a22;
+  --color-pending-ink: #b23a3d;
 
   /* On the light admin theme the docket surface IS the literal paper — no separate dark card. */
   --docket-surface: var(--paper);
@@ -662,10 +662,10 @@ html[data-page='landing'] .night {
   --color-ink-3: #a29485;
   --color-ink-4: #83766a;
 
-  --flame: #d4472a;
+  --flame: #ea5f59;
   --color-flame-1: #ff9e6b;
   --color-flame-2: #f2703f;
-  --color-flame-3: #d4472a;
+  --color-flame-3: #ea5f59;
   --color-ember: #20100a;
 
   --color-gold: #e8b44a;
