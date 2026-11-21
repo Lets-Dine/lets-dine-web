@@ -67,7 +67,7 @@ for (const p of pages) {
   if (p.title) {
     const swap = (re, to) => {
       if (!re.test(html)) throw new Error(`prerender: ${re} not found in index.html`);
-      html = html.replace(re, (_, p1 = '') => p1 + to);
+      html = html.replace(re, (_, p1) => (typeof p1 === 'string' ? p1 : '') + to); // p1 is the match offset when the regex has no group
     };
     swap(/<title>.*?<\/title>/s, `<title>${esc(p.title)}</title>`);
     swap(/(<meta\s+name="description"\s+content=")[^"]*/, `${esc(p.description)}`);
