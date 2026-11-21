@@ -63,7 +63,7 @@ export function GrowthLoop() {
     <Band ref={ref} night rule={false} className="overflow-hidden">
       <div className={cx(RAIL, 'flex flex-col gap-8 lg:grid lg:grid-cols-12')}>
         <div className="lg:col-span-7">
-          <Mark n="09">The growth loop</Mark>
+          <Mark n="10">The growth loop</Mark>
           <SplitHeading text="Every order makes your restaurant smarter." className={cx(DISPLAY_LG, 'mt-6 text-ink')} />
         </div>
         <p data-reveal className={cx(LEAD, 'lg:col-span-4 lg:col-start-9 lg:self-end')}>

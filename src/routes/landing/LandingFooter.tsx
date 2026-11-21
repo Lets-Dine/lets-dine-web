@@ -17,29 +17,6 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
       ...features.map((f) => ({ label: f.name, href: `/${f.slug}` })),
     ],
   },
-  {
-    title: 'Company',
-    links: [
-      { label: 'About', href: '/about' },
-      { label: 'Contact', href: '/contact' },
-      { label: 'Careers', href: '/careers' },
-    ],
-  },
-  {
-    title: 'Resources',
-    links: [
-      { label: 'Help centre', href: '/help' },
-      { label: 'Documentation', href: '/docs' },
-      { label: 'Blog', href: '/blog' },
-    ],
-  },
-  {
-    title: 'Legal',
-    links: [
-      { label: 'Privacy', href: '/privacy' },
-      { label: 'Terms', href: '/terms' },
-    ],
-  },
 ];
 
 /**
@@ -56,15 +33,15 @@ export function LandingFooter() {
           Better menus. Better decisions. <span className="italic text-flame-2">Better dining.</span>
         </p>
 
-        <div className="mt-14 grid gap-10 border-t border-hairline pt-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
+        <div className="mt-14 grid gap-10 border-t border-hairline pt-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr]">
           <div>
             <span className="font-display text-[19px] font-semibold tracking-[-0.03em] text-ink">
               <BrandName />
               <span className="text-flame-1">.</span>
             </span>
             <p className="mt-3 max-w-[32ch] text-[13.5px] leading-relaxed text-ink-3">
-              A dining experience platform: digital menus, QR table ordering, verified reviews and dish-level
-              intelligence, in one place.
+              Restaurant software for Nepal: QR table ordering, POS, kitchen display, inventory, accounts and
+              delivery, with verified dish ratings.
             </p>
           </div>
 

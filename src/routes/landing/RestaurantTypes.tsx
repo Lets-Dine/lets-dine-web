@@ -15,7 +15,7 @@ export function RestaurantTypes() {
     <Band ref={ref} className="bg-stock">
       <div className={cx(RAIL, 'flex flex-col gap-8 lg:grid lg:grid-cols-12')}>
         <div className="lg:col-span-7">
-          <Mark n="10">Built for</Mark>
+          <Mark n="11">Built for</Mark>
           <SplitHeading
             text="Any room where people sit down and decide what to eat."
             className={cx(DISPLAY_LG, 'mt-6 text-ink')}

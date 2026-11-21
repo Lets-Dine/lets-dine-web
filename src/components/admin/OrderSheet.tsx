@@ -99,7 +99,7 @@ export function OrderSheet({
 
           {/* The place leads, a sentence says what it is, and where it stands sits under it — as on the stock sheet. */}
           <header className="px-5 pt-2 pb-5">
-            <h2 className={cx(DISPLAY, 'animate-rise wrap-break-word text-[clamp(30px,6vw,44px)] leading-[1] tracking-[-0.03em]')}>{place}</h2>
+            <h2 className={cx(DISPLAY, 'animate-rise wrap-break-word text-[clamp(30px,6vw,44px)] leading-none tracking-[-0.03em]')}>{place}</h2>
             <p className="mt-3 max-w-[40ch] animate-rise text-[clamp(17px,2.2vw,21px)] font-medium leading-[1.35] text-ink-2 [animation-delay:80ms]">
               {order.reference} · {kind}, placed {relativeTime(order.createdAt)}.
             </p>
@@ -192,7 +192,7 @@ export function OrderSheet({
               <ol className="grid gap-2.5 text-[14px]">
                 {events.map((e) => (
                   <li key={e.label} className="flex items-baseline gap-3">
-                    <span className={cx('size-1.5 shrink-0 translate-y-[-1px] rounded-full', e.label === 'Cancelled' ? 'bg-berry' : 'bg-ink-4')} aria-hidden />
+                    <span className={cx('size-1.5 shrink-0 -translate-y-px rounded-full', e.label === 'Cancelled' ? 'bg-berry' : 'bg-ink-4')} aria-hidden />
                     <span className="font-semibold">{e.label}</span>
                     <span className="ml-auto text-right text-ink-3 tnum">{stamp(e.at)}</span>
                   </li>

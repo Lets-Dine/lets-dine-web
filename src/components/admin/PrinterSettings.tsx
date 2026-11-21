@@ -192,7 +192,7 @@ function SlipPreview({ draft, printed }: { draft: PrinterDraft; printed: number 
       <p className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-ink-4">Preview</p>
       <div className={cx('transition-[width] duration-300 ease-out-quart', narrow ? 'w-44' : 'w-60')}>
         {/* the printer's mouth */}
-        <div className="h-3 rounded-full bg-bg-deep shadow-[inset_0_2px_4px_rgb(0_0_0_/_0.6)] ring-1 ring-hairline-strong ring-inset" aria-hidden />
+        <div className="h-3 rounded-full bg-bg-deep shadow-[inset_0_2px_4px_rgb(0_0_0/0.6)] ring-1 ring-hairline-strong ring-inset" aria-hidden />
         <div className="-mt-1.5 px-2">
           <div
             ref={paper}

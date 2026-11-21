@@ -27,7 +27,7 @@ export function Entry() {
   return (
     <main className={cx(SHELL, 'relative overflow-hidden')}>
       <div
-        className="pointer-events-none absolute -top-45 left-1/2 h-105 w-115 -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgb(255_138_61_/_0.3),transparent_66%)] blur-[10px] lg:left-1/4"
+        className="pointer-events-none absolute -top-45 left-1/2 h-105 w-115 -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgb(255_138_61/0.3),transparent_66%)] blur-[10px] lg:left-1/4"
         aria-hidden
       />
 
@@ -72,7 +72,7 @@ export function Entry() {
               ) : (
                 <div className="size-full bg-surface-2" aria-hidden />
               )}
-              <span className="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent" aria-hidden />
+              <span className="absolute inset-0 bg-linear-to-t from-surface via-surface/40 to-transparent" aria-hidden />
             </div>
 
             <div className="flex items-center gap-3.5 p-4">

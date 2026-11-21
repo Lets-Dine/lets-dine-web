@@ -1,0 +1,70 @@
+{
+  "title": "Restaurant Management Software & QR Ordering in Nepal · FeastoX",
+  "description": "Restaurant software for Nepal: QR ordering, POS, kitchen display, inventory, accounts and delivery in one system, with purchase-verified ratings on every dish.",
+  "h1": "One system to run the whole restaurant, and it knows what is worth ordering",
+  "intro": "FeastoX combines QR table ordering, a point of sale, kitchen display, inventory, accounts and delivery with purchase-verified dish ratings, built for restaurants and cafes in Nepal.",
+  "sections": [
+    {
+      "h": "QR menu and table ordering",
+      "p": "Diners scan a code at the table, browse photos and prices, order and track their food in the phone browser. No app and no account."
+    },
+    {
+      "h": "POS and kitchen display",
+      "p": "Take orders at the counter or the table, send them to the kitchen or bar, print guest receipts and show the bill to the customer."
+    },
+    {
+      "h": "Inventory and dish margins",
+      "p": "Track stock by ingredient, take recipes off stock as dishes are cooked (on plans that include it), log waste, build a buy list and see what each dish really earns."
+    },
+    {
+      "h": "Accounts and delivery",
+      "p": "Sales, receivables, a cash book and profit and loss, plus delivery partners and riders with their balances."
+    },
+    {
+      "h": "Branches, floors and staff",
+      "p": "Run several branches and floors from one account, with staff roles, approvals and an audit log of every change."
+    },
+    {
+      "h": "Verified dish ratings",
+      "p": "Only diners who ordered a dish can rate it, so you see taste, portion, value and reorder rate for every plate."
+    }
+  ],
+  "faqs": [
+    {
+      "q": "What is FeastoX?",
+      "a": "FeastoX is restaurant management software for Nepal. It covers QR table ordering, a POS, a kitchen display, inventory, accounts, delivery and multi-branch control, and adds purchase-verified ratings on every dish."
+    },
+    {
+      "q": "Do my customers need to install an app or create an account?",
+      "a": "No. Diners scan the QR code on the table and the menu opens in their phone browser. There is nothing to download and no sign-up."
+    },
+    {
+      "q": "Can FeastoX replace my POS?",
+      "a": "Staff take and settle orders from the POS, the kitchen sees tickets on its own display, and guest receipts can be printed. Sales, receivables, a cash book and profit and loss are kept in the same system. Receipts are guest copies, not IRD tax invoices, so check your VAT billing requirements."
+    },
+    {
+      "q": "Does it track inventory and food cost?",
+      "a": "Yes. Stock is tracked by ingredient, on plans that include it dishes take their recipe off stock as they are cooked, waste is logged, and dish margins show what each plate earns after ingredient cost."
+    },
+    {
+      "q": "Does it work for more than one branch?",
+      "a": "Yes. Branches and floors are managed from one account, with staff roles, approvals and an audit log."
+    },
+    {
+      "q": "How do dish ratings work?",
+      "a": "Only a diner who actually ordered and received a dish can rate it, so every rating is purchase-verified. Diners score taste, portion and value, and say whether they would order it again."
+    },
+    {
+      "q": "Is FeastoX available in Nepal?",
+      "a": "Yes. FeastoX is built Nepal-first, with prices in Rs., eSewa for subscription payments and support for the way Nepali restaurants and cafes run their floor."
+    },
+    {
+      "q": "How much does it cost?",
+      "a": "A new restaurant starts on a free trial, then pays monthly or yearly. See the pricing page for current plans."
+    },
+    {
+      "q": "How long does setup take?",
+      "a": "A few minutes to create your account, then add your menu and print a QR code for each table."
+    }
+  ]
+}

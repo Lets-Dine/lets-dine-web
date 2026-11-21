@@ -91,7 +91,7 @@ export function FinalCta() {
           experience — theirs and yours.
         </p>
         <div data-reveal className="mt-10 flex flex-wrap items-center justify-center gap-3">
-          <PrimaryCta to="/platform" size="lg">
+          <PrimaryCta to="/get-started" size="lg">
             Get started
           </PrimaryCta>
           {/* <SecondaryCta to="/" size="lg">

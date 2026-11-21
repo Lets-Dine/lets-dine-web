@@ -6,6 +6,8 @@ import { Hero } from './landing/Hero';
 import { Marquee } from './landing/Marquee';
 import { Problem } from './landing/Problem';
 import { ProductIntro } from './landing/ProductIntro';
+import { Operations } from './landing/Operations';
+import home from '../content/home.json';
 import { TaglineReveal } from './landing/TaglineReveal';
 import { DishIntelligence } from './landing/DishIntelligence';
 import { CustomerExperience } from './landing/CustomerExperience';
@@ -37,10 +39,7 @@ const DINER = '#12100e';
 export function Landing() {
   const { hash } = useLocation();
 
-  usePageTitle(
-    'QR Menu & Table Ordering for Restaurants in Nepal · FeastoX',
-    'FeastoX gives restaurants a digital QR menu, table ordering without waiters, and purchase-verified ratings on every dish. Start a free trial.',
-  );
+  usePageTitle(home.title, home.description);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -77,6 +76,7 @@ export function Landing() {
         <Marquee />
         <Problem />
         <ProductIntro />
+        <Operations />
         <TaglineReveal />
         <DishIntelligence />
         <CustomerExperience />

@@ -364,7 +364,7 @@ function SignedIn({ allows, signOut }: { allows: (p: Permission) => boolean; sig
             <PrintAgent />
             <Outlet />
             {/* Alerts float over the screen: in the flow they would shove the header down and shrink the terminal mid-service. */}
-            <div className="pointer-events-none absolute top-[calc(88px+var(--safe-t))] right-4 z-30 w-[min(440px,calc(100vw-2rem))] [&>*]:pointer-events-auto">
+            <div className="pointer-events-none absolute top-[calc(88px+var(--safe-t))] right-4 z-30 w-[min(440px,calc(100vw-2rem))] *:pointer-events-auto">
               <KitchenWatch />
               <ServiceRequests />
             </div>

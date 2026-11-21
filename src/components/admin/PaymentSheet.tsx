@@ -1339,7 +1339,7 @@ export function PickerModal({ title, onClose, children }: { title: string; onClo
   }, [onClose]);
   return (
     <div
-      className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4"
+      className="fixed inset-0 z-60 grid place-items-center bg-black/50 p-4"
       role="presentation"
       onClick={(e) => {
         e.stopPropagation();

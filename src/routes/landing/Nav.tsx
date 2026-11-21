@@ -7,10 +7,9 @@ import { scrollToSection } from './motion';
 
 const LINKS = [
   { href: '#product', label: 'Product' },
-  { href: '#dish-intelligence', label: 'Features' },
+  { href: '#operations', label: 'Features' },
   { href: '#how-it-works', label: 'How it works' },
   { href: '/pricing', label: 'Pricing' },
-  { href: '/resources', label: 'Resources' },
 ];
 
 const isAnchor = (href: string) => href.startsWith('#');
@@ -113,7 +112,7 @@ export function LandingNav() {
     <>
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-ink focus:px-5 focus:py-2.5 focus:text-[14px] focus:font-semibold focus:text-bg"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-60 focus:rounded-full focus:bg-ink focus:px-5 focus:py-2.5 focus:text-[14px] focus:font-semibold focus:text-bg"
       >
         Skip to content
       </a>
@@ -129,9 +128,9 @@ export function LandingNav() {
         <nav
           aria-label="Primary"
           className={cx(
-            'mx-auto flex w-full max-w-[1200px] items-center justify-between gap-6 px-5 sm:px-8 lg:px-12',
+            'mx-auto flex w-full max-w-300 items-center justify-between gap-6 px-5 sm:px-8 lg:px-12',
             'transition-[height] duration-400 ease-out-quart',
-            compact ? 'h-[62px]' : 'h-[80px]',
+            compact ? 'h-15.5' : 'h-20',
           )}
         >
           <Link to="/" className="shrink-0 rounded-md" aria-label="FeastoX — home">
@@ -183,7 +182,7 @@ export function LandingNav() {
 
       {/* Mobile sheet — a full menu card, not a cramped dropdown. */}
       {open && (
-        <div className="fixed inset-0 z-[55] lg:hidden">
+        <div className="fixed inset-0 z-55 lg:hidden">
           <button
             type="button"
             aria-label="Close menu"

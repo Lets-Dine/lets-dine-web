@@ -654,7 +654,7 @@ function TabBlock({ customer, sample, currency, canSettle, onSettled }: { custom
                 onChange={(e) => /^\d*\.?\d{0,2}$/.test(e.target.value) && setAmount(e.target.value)}
                 aria-invalid={over}
                 aria-describedby="settle-hint"
-                className="w-full rounded-xl bg-surface px-3.5 py-3 text-[24px] font-semibold tracking-tight text-ink outline-none ring-1 ring-hairline ring-inset tnum focus:ring-[1.5px] focus:ring-flame-2/50 aria-[invalid=true]:ring-berry/60"
+                className="w-full rounded-xl bg-surface px-3.5 py-3 text-[24px] font-semibold tracking-tight text-ink outline-none ring-1 ring-hairline ring-inset tnum focus:ring-[1.5px] focus:ring-flame-2/50 aria-invalid:ring-berry/60"
               />
             </label>
             <div className="flex flex-wrap gap-2" role="group" aria-label="Quick amounts">

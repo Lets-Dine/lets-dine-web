@@ -348,7 +348,7 @@ function PosV2Screen() {
       )}
 
       {leaving && guard && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" role="presentation" onClick={() => setLeaving(null)}>
+        <div className="fixed inset-0 z-60 grid place-items-center bg-black/50 p-4" role="presentation" onClick={() => setLeaving(null)}>
           <div
             role="alertdialog"
             aria-modal="true"
@@ -650,13 +650,13 @@ function ServiceBoard({
                       onOpen({ kind: 'TABLE', table: t });
                     }}
                     className={cx(
-                      'flex h-[122px] w-full flex-col justify-between rounded-xl p-3.5 text-left ring-1 ring-inset',
+                      'flex h-30.5 w-full flex-col justify-between rounded-xl p-3.5 text-left ring-1 ring-inset',
                       'transition-[background-color,scale,box-shadow] duration-150 ease-out-quart active:scale-[0.97]',
                       'outline-none focus-visible:ring-2 focus-visible:ring-flame',
                       s?.urgent === 'critical'
-                        ? 'bg-berry/12 ring-berry/45 hover:bg-berry/[0.16]'
+                        ? 'bg-berry/12 ring-berry/45 hover:bg-berry/16'
                         : s?.urgent === 'warn'
-                          ? 'bg-gold/12 ring-gold/45 hover:bg-gold/[0.16]'
+                          ? 'bg-gold/12 ring-gold/45 hover:bg-gold/16'
                           : seated
                             ? 'bg-flame/10 ring-flame/40 hover:bg-flame/[0.14]'
                             : 'bg-surface-2 ring-hairline hover:bg-surface-3',
@@ -695,7 +695,7 @@ function ServiceBoard({
       </section>
 
       {/* Below xl the board stacks: the counter comes first, so ringing a sale never means scrolling past every table. */}
-      <section aria-label="Counter" className="order-first flex min-h-0 flex-col xl:order-none xl:overflow-hidden xl:border-l xl:border-hairline xl:pl-4">
+      <section aria-label="Counter" className="order-first flex min-h-0 flex-col xl:order-0 xl:overflow-hidden xl:border-l xl:border-hairline xl:pl-4">
         <h2 className={cx(DISPLAY, 'py-3 text-[19px]')}>Counter</h2>
         <div className="grid gap-2.5 sm:grid-cols-3 xl:grid-cols-1">
           <CounterCard
@@ -1217,7 +1217,7 @@ function Terminal({
         listRef={listRef}
       />
 
-      <aside className="m-3 flex max-h-[52dvh] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-surface ring-1 ring-hairline ring-inset lg:m-0 lg:max-h-none lg:w-[400px] lg:rounded-none lg:border-l lg:border-hairline lg:ring-0">
+      <aside className="m-3 flex max-h-[52dvh] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-surface ring-1 ring-hairline ring-inset lg:m-0 lg:max-h-none lg:w-100 lg:rounded-none lg:border-l lg:border-hairline lg:ring-0">
         <div className="grid gap-2 border-b border-hairline p-3">
           <div className="flex items-center gap-2">
             <button
@@ -1504,7 +1504,7 @@ function Shortcuts({ onClose, onClassic }: { onClose: () => void; onClassic: () 
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/55 p-4" role="presentation" onClick={onClose}>
+    <div className="fixed inset-0 z-60 grid place-items-center bg-black/55 p-4" role="presentation" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"

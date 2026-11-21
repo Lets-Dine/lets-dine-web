@@ -48,7 +48,7 @@ export function SignIn() {
   return (
     <main className={cx(SHELL, 'relative grid place-items-center px-4 py-10')}>
       <AdminThemeToggle className="absolute right-4 top-[calc(12px+var(--safe-t))]" />
-      <div className="w-full max-w-[440px]">
+      <div className="w-full max-w-110">
         <div className="mb-6 text-center">
           <Link to="/" aria-label="FeastoX home" className="mb-4 inline-block font-display text-[24px] font-semibold tracking-[-0.03em] text-ink">
             <BrandName />
@@ -85,7 +85,7 @@ export function SignIn() {
 
         {!IS_LIVE_API && (
           <div className="mt-6">
-            <p className="mb-2 text-center text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-4">
+            <p className="mb-2 text-center text-[12px] font-semibold uppercase tracking-widest text-ink-4">
               Demo accounts · PIN {DEMO_PIN}
             </p>
             <div className="grid gap-2">

@@ -50,7 +50,7 @@ export function CustomerExperience() {
     <Band ref={ref} className="overflow-hidden bg-stock">
       <div className={cx(RAIL, 'flex flex-col gap-8 lg:grid lg:grid-cols-12')}>
         <div className="lg:col-span-7">
-          <Mark n="04">The customer experience</Mark>
+          <Mark n="05">The customer experience</Mark>
           <SplitHeading text="Give your customers more than a menu." className={cx(DISPLAY_LG, 'mt-6 text-ink')} />
         </div>
         <div className="lg:col-span-4 lg:col-start-9 lg:self-end">

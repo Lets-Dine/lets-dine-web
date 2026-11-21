@@ -324,7 +324,7 @@ function PosScreen() {
       {sheet === 'receipts' && <ReceiptsSheet tables={tables.data ?? []} menu={menu} onClose={() => setSheet(null)} />}
 
       {leaving && guard && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" role="presentation" onClick={() => setLeaving(null)}>
+        <div className="fixed inset-0 z-60 grid place-items-center bg-black/50 p-4" role="presentation" onClick={() => setLeaving(null)}>
           <div
             role="alertdialog"
             aria-modal="true"
@@ -792,7 +792,7 @@ function Terminal({
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
       <DishMenu pos menu={menu} busy={busy} counts={ticket.counts} lines={ticket.draft} onPick={pickDish} onQty={changeQty} autoFocusSearch={false} />
 
-      <aside className="m-3 flex max-h-[48dvh] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-surface ring-1 ring-hairline ring-inset lg:mt-0 lg:max-h-none lg:w-[390px]">
+      <aside className="m-3 flex max-h-[48dvh] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-surface ring-1 ring-hairline ring-inset lg:mt-0 lg:max-h-none lg:w-97.5">
         <div className="grid gap-2 p-3">
           {chooser ??
             (target.kind === 'TABLE' && (

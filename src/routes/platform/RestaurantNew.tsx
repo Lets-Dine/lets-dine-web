@@ -216,7 +216,7 @@ export function PlatformRestaurantNew() {
                         }}
                       />
                     </div>
-                    <p className="mt-1.5 min-h-[18px] text-[12.5px]" aria-live="polite">
+                    <p className="mt-1.5 min-h-4.5 text-[12.5px]" aria-live="polite">
                       {form.slug && !slugValid && <span className="text-berry-ink">Use only lowercase letters, numbers and single dashes.</span>}
                       {slugState === 'checking' && <span className="text-ink-4">Checking…</span>}
                       {slugState === 'free' && <span className="font-semibold text-mint-ink">Available</span>}

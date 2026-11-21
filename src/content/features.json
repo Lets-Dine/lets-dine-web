@@ -174,5 +174,169 @@
         "a": "Create an account on the Get started page, add your menu, then print a QR code for each table."
       }
     ]
+  },
+  {
+    "slug": "restaurant-pos",
+    "name": "POS",
+    "title": "Restaurant POS Software in Nepal · FeastoX",
+    "description": "A restaurant POS for Nepal that takes orders at the counter or table, sends them to the kitchen, prints receipts and settles bills. Part of one system with QR ordering.",
+    "h1": "A restaurant POS that shares one menu with your QR ordering",
+    "intro": "Take orders at the counter or the table, settle the bill and print a guest receipt. Everything lands in the same system as your QR orders, so there is one menu, one order queue and one set of sales.",
+    "sections": [
+      {
+        "h": "One order queue",
+        "p": "QR orders and POS orders arrive in the same place, tagged by table, so staff are never reconciling two systems at the end of the night."
+      },
+      {
+        "h": "Guest receipts and a customer display",
+        "p": "Print guest receipts and show the running bill to the customer on a second window on the same computer. Receipts are not IRD tax invoices."
+      },
+      {
+        "h": "Settle by payment mode",
+        "p": "Record how each bill was paid and see sales broken down by mode, including QR payments."
+      },
+      {
+        "h": "Staff roles and approvals",
+        "p": "Give staff, managers and owners different access, and require approval for sensitive actions. Every change is written to an audit log."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Do I need special hardware?",
+        "a": "No. The POS runs in a browser. Receipts print through the browser, or directly to a thermal printer with the QZ Tray desktop agent."
+      },
+      {
+        "q": "Does the POS work with QR ordering?",
+        "a": "Yes. Both feed the same orders, menu and sales."
+      }
+    ]
+  },
+  {
+    "slug": "kitchen-display-system",
+    "name": "Kitchen display",
+    "title": "Kitchen Display System for Restaurants in Nepal · FeastoX",
+    "description": "Replace paper tickets with a kitchen display. Orders appear by station, move from new to ready, and the table sees the status live.",
+    "h1": "A kitchen display that replaces paper tickets",
+    "intro": "Orders appear on a screen in the kitchen the moment they are placed, grouped by station, so cooks work from a clear queue instead of a spike of paper.",
+    "sections": [
+      {
+        "h": "Kitchen and bar screens",
+        "p": "Send food to the kitchen screen and drinks to the bar screen, so each side works from its own queue."
+      },
+      {
+        "h": "Status that reaches the table",
+        "p": "When the kitchen moves an order along, the diner sees it on their phone without calling a waiter."
+      },
+      {
+        "h": "Unavailable dishes, handled",
+        "p": "Mark a dish sold out and diners see it greyed out with a Sold out badge, so nobody orders what you cannot serve."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Can I run more than one screen?",
+        "a": "Yes. The kitchen and the bar each have their own screen."
+      },
+      {
+        "q": "Does it need an app?",
+        "a": "No. It opens in a browser on any screen."
+      }
+    ]
+  },
+  {
+    "slug": "restaurant-inventory",
+    "name": "Inventory",
+    "title": "Restaurant Inventory and Food Cost Software · FeastoX",
+    "description": "Track ingredients, take recipes off stock automatically, log waste, build a buy list and see dish margins. Inventory built into your restaurant system.",
+    "h1": "Restaurant inventory that knows what each dish costs",
+    "intro": "Track stock by ingredient and let each dish take its recipe off stock when it is cooked, so you can see what you use, what you waste and what each plate actually earns.",
+    "sections": [
+      {
+        "h": "Recipes and automatic consumption",
+        "p": "Attach a recipe to a dish and stock goes down as orders are cooked, instead of at the end-of-month count. Available on plans that include automatic stock use."
+      },
+      {
+        "h": "Waste, stock takes and a buy list",
+        "p": "Log waste, reconcile a stock take, and get a buy list of what is running low."
+      },
+      {
+        "h": "Dish margins",
+        "p": "See each dish against its ingredient cost to learn which plates make money and which only look popular."
+      },
+      {
+        "h": "Suppliers",
+        "p": "Keep suppliers and what you owe them next to the stock they provide."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Do I have to enter recipes for every dish?",
+        "a": "No. Start with the dishes that matter most and add more over time."
+      },
+      {
+        "q": "Is automatic consumption on every plan?",
+        "a": "It depends on the plan. See the pricing page."
+      }
+    ]
+  },
+  {
+    "slug": "restaurant-accounting",
+    "name": "Accounts",
+    "title": "Restaurant Accounting and Cash Book Software · FeastoX",
+    "description": "Sales, receivables, a cash book, recurring expenses and profit and loss for restaurants, kept in the same system as your orders.",
+    "h1": "Restaurant accounts that update as you sell",
+    "intro": "Sales are recorded as bills are settled, so the books are not a separate chore. See sales, what customers owe you, a cash book and profit and loss in one place.",
+    "sections": [
+      {
+        "h": "Sales and payments",
+        "p": "See sales by day and by payment mode, drawn from the bills your staff actually settled."
+      },
+      {
+        "h": "Receivables",
+        "p": "Track customers who run a tab and what each one owes."
+      },
+      {
+        "h": "Cash book and recurring costs",
+        "p": "Record money in and out, and list rent, salaries and other recurring costs so each one is due on time. Due items are posted by hand."
+      },
+      {
+        "h": "Profit and loss",
+        "p": "Put sales and costs together to see how the restaurant is really doing."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Does it replace my accountant?",
+        "a": "No. It gives you and your accountant clean, current records."
+      }
+    ]
+  },
+  {
+    "slug": "restaurant-delivery",
+    "name": "Delivery",
+    "title": "Restaurant Delivery Management Software · FeastoX",
+    "description": "Manage delivery partners and your own riders, see who holds the cash and who is owed fees, and take delivery orders from a link.",
+    "h1": "Delivery orders, partners and riders in one place",
+    "intro": "Take delivery orders from a link, and keep track of the partners and riders who carry them, including the cash each one holds and the fees each is owed.",
+    "sections": [
+      {
+        "h": "Delivery ordering link",
+        "p": "Share a delivery link and orders arrive in the same queue as dine-in."
+      },
+      {
+        "h": "Partners and riders",
+        "p": "Keep delivery partners and your own riders as accounts, each with a running balance."
+      },
+      {
+        "h": "Cash and fees",
+        "p": "See who is holding branch cash and who is owed fees, so the end of the day balances."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Do I need my own riders?",
+        "a": "No. You can work with partners, your own riders, or both."
+      }
+    ]
   }
 ]

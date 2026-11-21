@@ -79,7 +79,7 @@ export function PosGrid({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
-      <nav aria-label="Category" className="hidden w-[168px] shrink-0 flex-col border-r border-hairline lg:flex">
+      <nav aria-label="Category" className="hidden w-42 shrink-0 flex-col border-r border-hairline lg:flex">
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain py-3 pr-2 pl-3">
           <RailButton active={categoryId === null} onClick={() => onCategory(null)}>
             Everything
@@ -166,18 +166,18 @@ export function PosGrid({
                       onClick={() => onPick(dish)}
                       aria-label={`${dish.name}, ${price}${n ? `, ${n} on the ticket` : ''}`}
                       className={cx(
-                        'flex h-[84px] w-full items-stretch gap-2.5 rounded-xl p-2.5 text-left ring-1 ring-inset',
+                        'flex h-21 w-full items-stretch gap-2.5 rounded-xl p-2.5 text-left ring-1 ring-inset',
                         'transition-[background-color,box-shadow,scale] duration-150 ease-out-quart active:scale-[0.97] disabled:opacity-40',
                         'outline-none focus-visible:ring-2 focus-visible:ring-flame',
                         n > 0 ? 'bg-flame/[0.09] ring-flame/50' : 'bg-surface-2 ring-hairline hover:bg-surface-3',
-                        i === cursor && 'ring-2 ring-flame shadow-[0_0_0_4px_rgb(255_120_55_/_0.14)]',
+                        i === cursor && 'ring-2 ring-flame shadow-[0_0_0_4px_rgb(255_120_55/0.14)]',
                       )}
                     >
                       {/* Only a dish that actually has a photo gives up width for one. A monogram placeholder would
                           cost every tile on a menu with no pictures the same space, and say nothing in return. */}
                       {dish.imageUrl && <DishImage dish={dish} className="size-14 shrink-0 self-center rounded-lg" />}
                       <span className="flex min-w-0 flex-1 flex-col justify-between">
-                        <span className="line-clamp-2 text-[14px] leading-[1.25] font-semibold text-balance text-ink">{dish.name}</span>
+                        <span className="line-clamp-2 text-[14px] leading-tight font-semibold text-balance text-ink">{dish.name}</span>
                         <span className="flex w-full items-end justify-between gap-1">
                           <span className="font-mono text-[12.5px] tracking-tight text-ink-2 tnum">{price}</span>
                           {(variants.length > 0 || addOns.length > 0 || dish.dietaryType) && (

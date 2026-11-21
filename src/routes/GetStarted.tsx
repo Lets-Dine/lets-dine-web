@@ -134,12 +134,12 @@ function ProgressRail({ step }: { step: number }) {
   const activeGroup = groupForStep(step);
 
   return (
-    <div className="mx-auto flex w-full max-w-[360px] gap-2.5 px-5" role="list" aria-label="Sign-up progress">
+    <div className="mx-auto flex w-full max-w-90 gap-2.5 px-5" role="list" aria-label="Sign-up progress">
       {GROUPS.map((label, i) => {
         const state = step === SUCCESS_STEP ? 'done' : i < activeGroup ? 'done' : i === activeGroup ? 'active' : 'upcoming';
         return (
           <div key={label} className="flex-1" role="listitem" aria-current={state === 'active' ? 'step' : undefined}>
-            <div className="h-[3px] w-full overflow-hidden rounded-full bg-hairline-strong">
+            <div className="h-0.75 w-full overflow-hidden rounded-full bg-hairline-strong">
               <div
                 className={cx(
                   'h-full origin-left bg-flame transition-transform duration-500 ease-out-quart',
@@ -191,7 +191,7 @@ function QuestionStage({
   }
 
   return (
-    <div className="animate-rise mx-auto flex w-full max-w-[560px] flex-col gap-7 px-5">
+    <div className="animate-rise mx-auto flex w-full max-w-140 flex-col gap-7 px-5">
       <div>
         <h1 className={cx(DISPLAY_LG, 'text-balance text-ink')}>{question.question}</h1>
         {question.helper && <p className="mt-3 text-[15px] leading-relaxed text-ink-3">{question.helper}</p>}
@@ -225,7 +225,7 @@ function QuestionStage({
             className={cx(
               'min-w-0 flex-1 rounded-full bg-surface-2 px-6 py-4 text-[19px] font-medium text-ink outline-none ring-1 ring-hairline ring-inset',
               'placeholder:font-normal placeholder:text-ink-3 focus:ring-[1.5px] focus:ring-flame-2/35',
-              'sm:px-7 sm:py-[18px] sm:text-[23px]',
+              'sm:px-7 sm:py-4.5 sm:text-[23px]',
               question.type === 'tel' && 'tnum',
             )}
           />
@@ -276,7 +276,7 @@ function ConfirmStage({
   ];
 
   return (
-    <div className="animate-rise mx-auto flex w-full max-w-[560px] flex-col gap-7 px-5">
+    <div className="animate-rise mx-auto flex w-full max-w-140 flex-col gap-7 px-5">
       <div>
         <h1 className={cx(DISPLAY_LG, 'text-balance text-ink')}>Look right?</h1>
         <p className="mt-3 text-[15px] text-ink-3">You can change anything before we create your account.</p>
@@ -328,7 +328,7 @@ function ConfirmStage({
 
 function SuccessStage({ restaurantName }: { restaurantName: string }) {
   return (
-    <div className="animate-pop mx-auto flex w-full max-w-[480px] flex-col items-center gap-6 px-5 text-center">
+    <div className="animate-pop mx-auto flex w-full max-w-120 flex-col items-center gap-6 px-5 text-center">
       <div className="grid size-16 place-items-center rounded-full bg-flame text-white shadow-flame">
         <Check size={26} />
       </div>

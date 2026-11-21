@@ -318,7 +318,7 @@ function StaticQrDialog({ current, onClose, onSaved }: { current: StaticQr | nul
             void choose(e.dataTransfer.files[0]);
           }}
           className={cx(
-            'mt-5 flex cursor-pointer flex-col items-center gap-3 rounded-2xl bg-surface-2 p-5 text-center ring-2 ring-inset transition-[box-shadow,background-color] duration-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-flame-2',
+            'mt-5 flex cursor-pointer flex-col items-center gap-3 rounded-2xl bg-surface-2 p-5 text-center ring-2 ring-inset transition-[box-shadow,background-color] duration-200 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-flame-2',
             tone,
             dragging && 'bg-surface-3',
             busy && 'pointer-events-none opacity-60',

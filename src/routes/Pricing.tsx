@@ -109,7 +109,7 @@ function Offer({
         <div className="mt-10">
           {loading && !catalogue && <PlanSkeleton />}
           {!loading && error && (
-            <div className="max-w-[46ch] rounded-[20px] bg-surface px-6 py-8 ring-1 ring-hairline ring-inset">
+            <div className="max-w-[46ch] rounded-4xl bg-surface px-6 py-8 ring-1 ring-hairline ring-inset">
               <p className="font-display text-[26px] font-semibold tracking-[-0.02em] text-ink">The plans could not be loaded.</p>
               <p className="mt-2 text-[15.5px] leading-relaxed text-ink-2">{error.message}</p>
               <div className="mt-6">
@@ -211,7 +211,7 @@ function PlanCard({
   return (
     <article
       className={cx(
-        'flex flex-col rounded-[20px] p-6 sm:p-8',
+        'flex flex-col rounded-4xl p-6 sm:p-8',
         featured ? 'bg-ink text-bg shadow-deep' : 'bg-surface text-ink ring-1 ring-hairline ring-inset',
         className,
       )}
@@ -292,8 +292,8 @@ function extraBranchLine(plan: Plan): string {
 function PlanSkeleton() {
   return (
     <div className="grid gap-4 lg:grid-cols-12" aria-hidden>
-      <div className="h-[420px] rounded-[20px] bg-surface ring-1 ring-hairline ring-inset lg:col-span-5" />
-      <div className="h-[420px] rounded-[20px] bg-surface-3 lg:col-span-7" />
+      <div className="h-105 rounded-4xl bg-surface ring-1 ring-hairline ring-inset lg:col-span-5" />
+      <div className="h-105 rounded-4xl bg-surface-3 lg:col-span-7" />
     </div>
   );
 }
@@ -313,7 +313,7 @@ function Compare({ plans, trialPlanKey }: { plans: Plan[]; trialPlanKey: string 
         </p>
 
         <div data-reveal className="mt-10 overflow-x-auto">
-          <table className="w-full min-w-[680px] border-collapse text-left text-[15px]">
+          <table className="w-full min-w-170 border-collapse text-left text-[15px]">
             <caption className="sr-only">{plans.map((plan) => plan.name).join(', ')} compared</caption>
             <thead>
               <tr>
@@ -517,7 +517,7 @@ function Close({ plans, trialDays, trialPlanKey }: { plans: Plan[]; trialDays: n
             alt="Chicken sekuwa on the FeastoX demo menu."
             width={800}
             height={1000}
-            className="aspect-[4/5] w-full rounded-[20px] object-cover"
+            className="aspect-4/5 w-full rounded-4xl object-cover"
           />
         </div>
       </div>

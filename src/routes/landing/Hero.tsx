@@ -72,20 +72,20 @@ export function Hero() {
         <div className="lg:col-span-7 lg:pr-6">
           <p data-hero-rise className="label flex items-center gap-2.5 text-ink-4">
             <span className="inline-block size-1.5 rounded-full bg-flame-2" aria-hidden />
-            QR menu &amp; table ordering for restaurants in Nepal
+            Restaurant software for Nepal · QR ordering, POS, kitchen &amp; stock
           </p>
 
           <h1 className="mt-5">
             <span aria-hidden>
               <span className="block max-w-[18ch] font-display text-[clamp(16px,1.6vw,21px)] font-normal italic leading-[1.35] text-ink-3">
-                {'Your menu tells them what’s available.'.split(' ').map((w, i) => (
+                {'One system for the whole restaurant.'.split(' ').map((w, i) => (
                   <span key={i} data-hero-word className="inline-block overflow-hidden align-bottom">
                     <span className="inline-block">{w}&nbsp;</span>
                   </span>
                 ))}
               </span>
               <span className={cx(DISPLAY_XL, 'mt-2.5 block max-w-[13ch] text-ink')}>
-                {['We', 'tell', 'them', 'what’s'].map((w, i) => (
+                {['And', 'it', 'knows', 'what’s'].map((w, i) => (
                   <span key={i} data-hero-word className="inline-block overflow-hidden align-bottom pb-[0.06em]">
                     <span className="inline-block">{w}&nbsp;</span>
                   </span>
@@ -99,13 +99,13 @@ export function Hero() {
               </span>
             </span>
             <span className="sr-only">
-              Your menu tells them what’s available. We tell them what’s worth ordering.
+              One system for the whole restaurant. And it knows what’s worth ordering.
             </span>
           </h1>
 
           <p data-hero-rise className={cx(LEAD, 'mt-6 max-w-[47ch]')}>
-            A digital menu, table ordering by QR code, and a rating on every single dish — taste, portion and value,
-            left only by the people who actually ate it. Your kitchen finally finds out what the room thinks.
+            QR table ordering, POS, kitchen display, inventory, accounts and delivery in one place — plus a rating on every
+            dish, left only by the people who actually ate it. Run the floor and find out what the room really thinks.
           </p>
 
           <div data-hero-rise className="mt-7 flex flex-wrap items-center gap-3">

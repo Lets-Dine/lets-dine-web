@@ -29,7 +29,7 @@ export function MenuManagement() {
     <Band ref={ref} className="bg-stock">
       <div className={cx(RAIL, 'flex flex-col gap-12 lg:grid lg:grid-cols-12 lg:gap-10')}>
         <div className="lg:col-span-5">
-          <Mark n="07">Menu management</Mark>
+          <Mark n="08">Menu management</Mark>
           <SplitHeading
             text="Your menu changes. Your digital menu should too."
             className={cx(DISPLAY_LG, 'mt-6 text-ink')}

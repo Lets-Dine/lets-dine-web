@@ -19,7 +19,7 @@ function PrintedLine({ name, description, price }: { name: string; description: 
     <li className="py-3.5">
       <div className="flex items-baseline gap-2">
         <span className="font-display text-[15.5px] font-semibold tracking-tight text-ink-2">{name}</span>
-        <span className="min-w-6 flex-1 translate-y-[-3px] border-b border-dotted border-ink-4/50" aria-hidden />
+        <span className="min-w-6 flex-1 -translate-y-0.75 border-b border-dotted border-ink-4/50" aria-hidden />
         <span className="font-mono text-[13px] tabular-nums text-ink-3">{price}</span>
       </div>
       <p className="mt-1 max-w-[38ch] text-[12.5px] leading-relaxed text-ink-4">{description}</p>
@@ -58,7 +58,7 @@ export function Problem() {
           {/* Paper */}
           <figure
             data-reveal
-            className="flex flex-col rounded-[20px] bg-surface-2/70 p-6 ring-1 ring-hairline ring-inset sm:p-8"
+            className="flex flex-col rounded-4xl bg-surface-2/70 p-6 ring-1 ring-hairline ring-inset sm:p-8"
           >
             <figcaption className="label flex items-center justify-between text-ink-4">
               <span>The printed menu</span>
@@ -94,7 +94,7 @@ export function Problem() {
           {/* Product */}
           <figure
             data-reveal
-            className="flex flex-col overflow-hidden rounded-[20px] bg-surface shadow-deep ring-1 ring-hairline ring-inset"
+            className="flex flex-col overflow-hidden rounded-4xl bg-surface shadow-deep ring-1 ring-hairline ring-inset"
           >
             <figcaption className="label flex items-center justify-between border-b border-hairline px-6 py-4 text-ink-4 sm:px-8">
               <span>On <BrandName /></span>
@@ -111,7 +111,7 @@ export function Problem() {
                   width={320}
                   height={320}
                   loading="lazy"
-                  className="size-[86px] shrink-0 rounded-[14px] object-cover ring-1 ring-hairline ring-inset"
+                  className="size-21.5 shrink-0 rounded-[14px] object-cover ring-1 ring-hairline ring-inset"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-3">
