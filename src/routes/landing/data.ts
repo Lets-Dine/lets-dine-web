@@ -5,7 +5,6 @@
  */
 
 export const RESTAURANT_NAME = 'Sekuwa Ghar';
-export const RESTAURANT_TAGLINE = 'Charcoal grill & Newari kitchen · Thamel, Kathmandu';
 
 export interface LandingDish {
   name: string;
@@ -159,14 +158,6 @@ export const TOP_DISHES = [
   { name: 'Chicken Sekuwa', rating: 4.8, orders: 212 },
 ];
 
-export const DASHBOARD_STATS = {
-  ordersToday: 184,
-  revenueToday: 'Rs. 96,420',
-  avgRating: 4.6,
-  ratingCount: 1248,
-  repeatRate: 0.412,
-};
-
 export const CROSS_SELL_INSIGHT = '72% of Chicken Sekuwa orders this month also added extra chilli achar.';
 
 /** Covers served per day, Monday through Sunday, for the week the dashboard shows. */
@@ -190,12 +181,12 @@ export const NEEDS_ATTENTION = [
 ] as const;
 
 export const RESTAURANT_TYPES = [
-  { name: 'Cafés', description: 'Fast turnover, high repeat visits — let regulars rediscover the menu.', image: '/img/mango-lassi.jpg' },
-  { name: 'Casual dining', description: 'Big menus, mixed parties — help the table decide faster.', image: '/img/thakali-set.jpg' },
-  { name: 'Fine dining', description: 'Every plate is a decision — back it with the room’s own verdict.', image: '/img/mutton-sekuwa.jpg' },
-  { name: 'Food courts', description: 'Dozens of counters, one scan — surface what each stall is known for.', image: '/img/chowmein.jpg' },
-  { name: 'Restaurant chains', description: 'One dashboard across every branch, dish by dish.', image: '/img/tandoori-chicken.jpg' },
-  { name: 'Dessert bars', description: 'Small menus where every item has to earn its place.', image: '/img/sikarni.jpg' },
+  { name: 'Cafes', description: 'Fast turnover and regulars. Quick counter billing, a QR menu for the tables and daily sales at a glance.' },
+  { name: 'Casual dining', description: 'Big menus and mixed parties. One order queue across tables, the counter and delivery, with the kitchen on a screen.' },
+  { name: 'Fine dining', description: 'Few covers, high stakes. Staff roles and approvals, careful stock and a clear view of what each plate earns.' },
+  { name: 'Food courts', description: 'Many orders at once from every table. One queue for the counter, a screen for the kitchen and a bar screen for drinks.' },
+  { name: 'Restaurant chains', description: 'Branches and floors in one account, with sales, stock and staff kept per branch.' },
+  { name: 'Dessert bars', description: 'Small menus where every item has to earn its place. Margins by dish, and stock for ingredients that spoil.' },
 ];
 
 export const VERIFIED_REVIEWS = [

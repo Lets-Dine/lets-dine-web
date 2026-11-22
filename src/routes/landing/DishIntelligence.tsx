@@ -67,7 +67,7 @@ export function DishIntelligence() {
       <div className={RAIL}>
         <div className="flex flex-col gap-8 lg:grid lg:grid-cols-12">
           <div className="lg:col-span-7">
-            <Mark n="04">Dish intelligence</Mark>
+            <Mark>Dish intelligence</Mark>
             <SplitHeading text="Every dish has a story." className={cx(DISPLAY_LG, 'mt-6 text-ink')} />
           </div>
           <p data-reveal className={cx(LEAD, 'lg:col-span-4 lg:col-start-9 lg:self-end')}>

@@ -33,6 +33,15 @@
         "q": "Can I update my digital menu after printing the QR codes?",
         "a": "Yes. The QR code only points to your restaurant and table. Menu and price changes appear immediately without reprinting."
       }
+    ],
+    "keywords": [
+      "QR menu Nepal",
+      "QR code menu for restaurants",
+      "digital menu Nepal",
+      "QR code menu for cafe",
+      "contactless menu",
+      "restaurant menu QR code generator",
+      "online menu for restaurant"
     ]
   },
   {
@@ -69,6 +78,14 @@
         "q": "What happens if the diner taps the order button twice?",
         "a": "The order is idempotent, so a retried submission returns the original order instead of creating a duplicate."
       }
+    ],
+    "keywords": [
+      "QR table ordering Nepal",
+      "order from table QR code",
+      "contactless ordering restaurant",
+      "self ordering restaurant",
+      "QR code ordering system",
+      "table ordering app for cafe"
     ]
   },
   {
@@ -105,6 +122,13 @@
         "q": "How do diners leave a rating?",
         "a": "After an order is completed, the diner is prompted to rate the dishes they ate, straight from the order page."
       }
+    ],
+    "keywords": [
+      "dish rating system for restaurants",
+      "verified restaurant reviews",
+      "menu item ratings",
+      "restaurant feedback software",
+      "customer feedback for restaurants"
     ]
   },
   {
@@ -137,6 +161,14 @@
         "q": "Is FeastoX suitable for a small cafe with a few tables?",
         "a": "Yes. The same menu, ordering and rating flow works for six tables or six branches."
       }
+    ],
+    "keywords": [
+      "cafe POS Nepal",
+      "cafe software",
+      "coffee shop ordering software",
+      "QR menu for cafe",
+      "cafe billing software",
+      "bakery POS"
     ]
   },
   {
@@ -173,13 +205,20 @@
         "q": "How do I get started?",
         "a": "Create an account on the Get started page, add your menu, then print a QR code for each table."
       }
+    ],
+    "keywords": [
+      "restaurant software Nepal",
+      "restaurant ordering system",
+      "digital menu and ordering system",
+      "restaurant management system",
+      "casual dining software"
     ]
   },
   {
     "slug": "restaurant-pos",
     "name": "POS",
     "title": "Restaurant POS Software in Nepal · FeastoX",
-    "description": "A restaurant POS for Nepal that takes orders at the counter or table, sends them to the kitchen, prints receipts and settles bills. Part of one system with QR ordering.",
+    "description": "A restaurant POS for Nepal that takes orders at the counter or table, sends them to the kitchen, prints guest receipts and settles bills. Part of one system with QR ordering.",
     "h1": "A restaurant POS that shares one menu with your QR ordering",
     "intro": "Take orders at the counter or the table, settle the bill and print a guest receipt. Everything lands in the same system as your QR orders, so there is one menu, one order queue and one set of sales.",
     "sections": [
@@ -209,15 +248,24 @@
         "q": "Does the POS work with QR ordering?",
         "a": "Yes. Both feed the same orders, menu and sales."
       }
+    ],
+    "keywords": [
+      "restaurant POS Nepal",
+      "billing software for restaurant Nepal",
+      "cafe POS system",
+      "restaurant billing software",
+      "POS for bar and restaurant",
+      "restaurant POS Kathmandu",
+      "receipt printing restaurant"
     ]
   },
   {
     "slug": "kitchen-display-system",
     "name": "Kitchen display",
     "title": "Kitchen Display System for Restaurants in Nepal · FeastoX",
-    "description": "Replace paper tickets with a kitchen display. Orders appear by station, move from new to ready, and the table sees the status live.",
+    "description": "Replace paper tickets with kitchen and bar screens. Orders move from new to ready, and the table sees the status live.",
     "h1": "A kitchen display that replaces paper tickets",
-    "intro": "Orders appear on a screen in the kitchen the moment they are placed, grouped by station, so cooks work from a clear queue instead of a spike of paper.",
+    "intro": "Orders appear on a screen in the kitchen the moment they are placed, split between the kitchen and the bar, so cooks work from a clear queue instead of a spike of paper.",
     "sections": [
       {
         "h": "Kitchen and bar screens",
@@ -241,13 +289,21 @@
         "q": "Does it need an app?",
         "a": "No. It opens in a browser on any screen."
       }
+    ],
+    "keywords": [
+      "kitchen display system",
+      "KDS for restaurants",
+      "KOT software",
+      "paperless kitchen orders",
+      "kitchen order ticket",
+      "bar display screen"
     ]
   },
   {
     "slug": "restaurant-inventory",
     "name": "Inventory",
     "title": "Restaurant Inventory and Food Cost Software · FeastoX",
-    "description": "Track ingredients, take recipes off stock automatically, log waste, build a buy list and see dish margins. Inventory built into your restaurant system.",
+    "description": "Track ingredients, log waste, build a buy list and see dish margins. Recipe-based stock use on plans that include it. Inventory built into your restaurant system.",
     "h1": "Restaurant inventory that knows what each dish costs",
     "intro": "Track stock by ingredient and let each dish take its recipe off stock when it is cooked, so you can see what you use, what you waste and what each plate actually earns.",
     "sections": [
@@ -277,6 +333,15 @@
         "q": "Is automatic consumption on every plan?",
         "a": "It depends on the plan. See the pricing page."
       }
+    ],
+    "keywords": [
+      "restaurant inventory software",
+      "food cost software",
+      "recipe costing software",
+      "restaurant stock management",
+      "wastage tracking restaurant",
+      "dish margin",
+      "restaurant buy list"
     ]
   },
   {
@@ -309,6 +374,14 @@
         "q": "Does it replace my accountant?",
         "a": "No. It gives you and your accountant clean, current records."
       }
+    ],
+    "keywords": [
+      "restaurant accounting software",
+      "restaurant cash book",
+      "restaurant profit and loss",
+      "restaurant expense manager",
+      "daily sales report restaurant",
+      "receivables for restaurants"
     ]
   },
   {
@@ -337,6 +410,140 @@
         "q": "Do I need my own riders?",
         "a": "No. You can work with partners, your own riders, or both."
       }
+    ],
+    "keywords": [
+      "restaurant delivery management",
+      "rider management software",
+      "delivery partner tracking",
+      "restaurant delivery orders link",
+      "delivery cash tracking"
+    ]
+  },
+  {
+    "slug": "table-management",
+    "name": "Table management",
+    "title": "Restaurant Table and Floor Management with QR Codes · FeastoX",
+    "description": "Set up floors and tables, give each table its own QR code, and see every order by table. Retire a printed code in one click.",
+    "h1": "Floors, tables and a QR code for each one",
+    "intro": "Lay out your floors and tables once. Each table gets its own QR code, so every order arrives tagged with the right table, and you can see what each table has ordered.",
+    "sections": [
+      {
+        "h": "Floors and tables",
+        "p": "Group tables into floors and keep each one named and numbered the way your staff already call them."
+      },
+      {
+        "h": "One QR code per table",
+        "p": "Print a code for each table. The code carries no prices or personal data, so a change to the menu never makes a printed code out of date."
+      },
+      {
+        "h": "Retire a code when needed",
+        "p": "If a printed code goes missing or is misused, rotate that table’s code and the old one stops working at once."
+      },
+      {
+        "h": "Orders by table",
+        "p": "See the orders on each table in the dashboard and the kitchen queue, from the first order to the settled bill."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Do I have to print new codes when I change the menu?",
+        "a": "No. The code only identifies the table, so menu and price changes show up straight away."
+      },
+      {
+        "q": "Can I have more than one floor?",
+        "a": "Yes. Tables are grouped into floors."
+      }
+    ],
+    "keywords": [
+      "restaurant table management",
+      "floor plan restaurant software",
+      "QR code for each table",
+      "table QR code ordering",
+      "restaurant floor management"
+    ]
+  },
+  {
+    "slug": "refer-and-earn",
+    "name": "Refer and earn",
+    "title": "Refer a Restaurant, Earn a Free Month · FeastoX",
+    "description": "Share your FeastoX referral code with another restaurant. When they make their first payment, a month is added to your plan.",
+    "h1": "Refer another restaurant and get a month added to your plan",
+    "intro": "Every restaurant on FeastoX has a referral code. Share it with another restaurant owner, and when their first payment goes through, a month is added to yours.",
+    "sections": [
+      {
+        "h": "Your code is ready",
+        "p": "Find your restaurant’s referral code in the dashboard under Referrals, and share it with other owners."
+      },
+      {
+        "h": "A month for their first payment",
+        "p": "Your reward is added when the restaurant you referred makes its first payment, not when they sign up."
+      },
+      {
+        "h": "No limit to point at",
+        "p": "Refer as many restaurants as you like. Each first payment adds a month."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "When do I get the free month?",
+        "a": "When the restaurant you referred makes its first payment."
+      },
+      {
+        "q": "Where do I find my code?",
+        "a": "In the dashboard, on the Referrals page."
+      }
+    ],
+    "keywords": [
+      "restaurant software referral",
+      "refer a restaurant",
+      "free month restaurant software"
+    ]
+  },
+  {
+    "slug": "dish-ratings-and-qr-menu",
+    "name": "Menu and ratings",
+    "title": "QR Menu and Verified Dish Ratings for Restaurants · FeastoX",
+    "description": "A QR menu diners order from, with purchase-verified ratings on every dish. See which plates to push and which to fix, with no app for diners to install.",
+    "h1": "A QR menu that shows diners what is worth ordering",
+    "intro": "Diners scan a code at the table, browse photos and prices, order and follow their food in the phone browser. Every dish carries ratings from people who actually ordered it, so you see which plates to push and which to fix.",
+    "sections": [
+      {
+        "h": "A menu that updates in seconds",
+        "p": "Edit dishes, prices and categories from the dashboard and every table sees the change at once. Mark a dish sold out when the kitchen runs out."
+      },
+      {
+        "h": "Ordering from the table",
+        "p": "A scan opens the menu, the cart and the order on the table’s own phone. Orders arrive in your kitchen queue tagged with the table, with live status back to the diner."
+      },
+      {
+        "h": "Ratings only real diners can leave",
+        "p": "Only a diner who ordered a dish can rate it. They score taste, portion and value and say whether they would order it again."
+      },
+      {
+        "h": "What it tells you",
+        "p": "See each dish’s rating, tags from what diners wrote and how often it is reordered, so you know what to promote, fix or remove."
+      }
+    ],
+    "faqs": [
+      {
+        "q": "Do diners need an app or an account?",
+        "a": "No. They scan the QR code and the menu opens in their phone browser."
+      },
+      {
+        "q": "Who can rate a dish?",
+        "a": "Only a diner with a completed order that included the dish, once per dish per order."
+      },
+      {
+        "q": "Is this separate from the POS and kitchen display?",
+        "a": "No. QR orders arrive in the same queue as counter orders, in the same system."
+      }
+    ],
+    "keywords": [
+      "QR menu with ratings",
+      "dish ratings for restaurants",
+      "verified dish reviews",
+      "restaurant QR menu and reviews",
+      "what to order at restaurant"
     ]
   }
 ]

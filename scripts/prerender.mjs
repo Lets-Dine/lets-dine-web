@@ -8,6 +8,8 @@ const SITE = 'https://feastox.com';
 const dist = new URL('../dist/', import.meta.url);
 const features = JSON.parse(await readFile(new URL('../src/content/features.json', import.meta.url), 'utf8'));
 const home = JSON.parse(await readFile(new URL('../src/content/home.json', import.meta.url), 'utf8'));
+const legal = JSON.parse(await readFile(new URL('../src/content/legal.json', import.meta.url), 'utf8'));
+const fill = (t) => t.replace(/\{\{(company|email|updated)\}\}/g, (_, k) => legal[k]);
 const template = await readFile(new URL('index.html', dist), 'utf8');
 await writeFile(new URL('app.html', dist), template); // untouched shell: app routes fall back to this, not the homepage
 
@@ -26,6 +28,7 @@ const pages = [
       home.faqs.map((q) => `<h3>${esc(q.q)}</h3><p>${esc(q.a)}</p>`).join('') +
       `<nav><a href="/pricing">Pricing</a> <a href="/get-started">Get started</a> ${features.map((o) => `<a href="/${o.slug}">${esc(o.name)}</a>`).join(' ')}</nav>`,
     faqs: home.faqs,
+    keywords: home.keywords,
     priority: '1.0',
   },
   {
@@ -57,8 +60,20 @@ const pages = [
       `<p><a href="/get-started">Get started</a></p>` +
       `<nav>${features.filter((o) => o.slug !== f.slug).map((o) => `<a href="/${o.slug}">${esc(o.name)}</a>`).join(' ')}</nav>`,
     faqs: f.faqs,
+    keywords: f.keywords,
     priority: '0.9',
   })),
+  // Policies stay out of the sitemap and static HTML until legal.json is `ready` (company name and email filled in).
+  ...(legal.ready
+    ? legal.pages.map((l) => ({
+        path: `/${l.slug}`,
+        title: l.title,
+        description: l.description,
+        h1: l.h1,
+        body: `<p>${esc(fill(l.intro))}</p>` + l.sections.map((s) => `<h2>${esc(s.h)}</h2><p>${esc(fill(s.p))}</p>`).join(''),
+        priority: '0.3',
+      }))
+    : []),
 ];
 
 for (const p of pages) {
@@ -71,6 +86,7 @@ for (const p of pages) {
     };
     swap(/<title>.*?<\/title>/s, `<title>${esc(p.title)}</title>`);
     swap(/(<meta\s+name="description"\s+content=")[^"]*/, `${esc(p.description)}`);
+    swap(/(<meta name="keywords" content=")[^"]*/, esc((p.keywords ?? home.keywords).join(', ')));
     swap(/(<meta property="og:title" content=")[^"]*/, `${esc(p.title)}`);
     swap(/(<meta name="twitter:title" content=")[^"]*/, `${esc(p.title)}`);
     swap(/(<meta property="og:description" content=")[^"]*/, `${esc(p.description)}`);
@@ -89,5 +105,10 @@ const urls = pages.map((p) => `  <url><loc>${SITE}${p.path === '/' ? '/' : p.pat
 await writeFile(
   new URL('sitemap.xml', dist),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`,
+);
+const line = (p) => `- [${(p.title ?? p.path).replace(/ · FeastoX$/, '')}](${SITE}${p.path}): ${p.description ?? ''}`.trimEnd();
+await writeFile(
+  new URL('llms.txt', dist),
+  `# FeastoX\n\n> ${home.description}\n\n${home.intro}\n\n## Pages\n\n${pages.map(line).join('\n')}\n`,
 );
 console.log(`prerendered ${pages.filter((p) => p.title).length} pages + sitemap`);

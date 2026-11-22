@@ -1,0 +1,150 @@
+{
+  "ready": false,
+  "company": "FeastoX",
+  "email": "[[contact email]]",
+  "updated": "21 November 2026",
+  "pages": [
+    {
+      "slug": "privacy",
+      "name": "Privacy Policy",
+      "title": "Privacy Policy · FeastoX",
+      "description": "How FeastoX collects, uses and protects information about restaurants, their staff and their diners.",
+      "h1": "Privacy Policy",
+      "intro": "This policy explains what {{company}} (\"FeastoX\", \"we\") collects when restaurants and diners use FeastoX, why, and the choices you have. Last updated {{updated}}.",
+      "sections": [
+        {
+          "h": "Who this covers",
+          "p": "Restaurant owners and staff who create an account, and diners who open a restaurant’s menu by scanning a QR code. For diner data, the restaurant decides why the data is collected, and we process it for the restaurant."
+        },
+        {
+          "h": "What we collect from restaurants",
+          "p": "Your name, email address, phone number, restaurant details, menu, prices, tables, staff accounts and their roles, orders, sales and accounting records you enter, and the actions recorded in your audit log. For subscriptions we keep the plan, invoices and payment reference. Payment card or wallet credentials are handled by the payment provider, not stored by us."
+        },
+        {
+          "h": "What we collect from diners",
+          "p": "Dining at a table needs no account. We create an anonymous session tied to the restaurant and table so your cart, orders and one review per dish stay together. For delivery or pick-up we ask for a name and phone number, and a delivery address where needed. Ratings and comments you leave are linked to the dish you ordered and shown as verified."
+        },
+        {
+          "h": "How we use information",
+          "p": "To run the service: show menus, take and track orders, show ratings, bill subscriptions, keep records, prevent misuse, fix problems and improve the product. We do not sell personal information."
+        },
+        {
+          "h": "Who sees it",
+          "p": "The restaurant you order from sees your orders, and your name and phone number if you gave them. Ratings are shown to the restaurant and to other diners without your phone number. We share data with service providers that host the service or process payments, only as needed to provide it, and where the law requires."
+        },
+        {
+          "h": "Cookies and local storage",
+          "p": "We use browser storage to keep your session, cart and preferences. We do not use it for advertising."
+        },
+        {
+          "h": "How long we keep it",
+          "p": "We keep restaurant records while the account is active and for the period the law or legitimate business needs require afterwards. Order records keep the dish name and price as they were at the time of the order. Ask us to delete personal data and we will, unless we must keep it."
+        },
+        {
+          "h": "Security",
+          "p": "Prices and totals are recalculated on our servers, access is limited by role, and sensitive changes are recorded in an audit log. No system is perfectly secure, and we cannot guarantee absolute security."
+        },
+        {
+          "h": "Your choices",
+          "p": "You can ask to see, correct or delete personal information we hold about you. Diners should first contact the restaurant. Contact us at {{email}}."
+        },
+        {
+          "h": "Changes",
+          "p": "We will update this page when the policy changes and change the date at the top."
+        }
+      ]
+    },
+    {
+      "slug": "terms",
+      "name": "Terms and Conditions",
+      "title": "Terms and Conditions · FeastoX",
+      "description": "The terms for using FeastoX: accounts, subscriptions, acceptable use and responsibilities.",
+      "h1": "Terms and Conditions",
+      "intro": "These terms govern use of FeastoX, provided by {{company}} (\"FeastoX\", \"we\"). By creating an account or using the service you agree to them. Last updated {{updated}}.",
+      "sections": [
+        {
+          "h": "The service",
+          "p": "FeastoX provides software for restaurants: QR menus and ordering, a POS, kitchen display, inventory, accounts, delivery tools and dish ratings. Features available to you depend on your plan."
+        },
+        {
+          "h": "Accounts",
+          "p": "The person who creates a restaurant account is its owner and is responsible for the accounts they give to staff, for keeping sign-in details secure, and for what is done under the account. Information you give us must be accurate."
+        },
+        {
+          "h": "Subscriptions and billing",
+          "p": "A new restaurant starts with a free trial. After the trial a paid plan is billed monthly or yearly in NPR, with extra branches and staff seats charged as shown on the pricing page. Plans and prices may change, and we will tell you before a change reaches your next period. If a payment is missed, access may be restricted or suspended as described in the dashboard. Refunds are covered in the Refund Policy."
+        },
+        {
+          "h": "Your restaurant’s content and orders",
+          "p": "You are responsible for your menu, prices, taxes, availability, food quality and safety, and for fulfilling the orders placed with you. FeastoX is software and is not a party to the sale between a restaurant and its diners. Receipts produced by FeastoX are guest copies and are not tax invoices unless the product states otherwise, so you remain responsible for meeting your own tax and billing obligations."
+        },
+        {
+          "h": "Ratings and reviews",
+          "p": "Only diners with a completed order containing a dish can rate it. You may not pay for, fake, or pressure diners into particular ratings, and we may remove ratings that break these rules."
+        },
+        {
+          "h": "Acceptable use",
+          "p": "Do not use FeastoX unlawfully, to harm others, to attack or overload the service, to access data that is not yours, or to resell it without our written consent."
+        },
+        {
+          "h": "Availability",
+          "p": "We work to keep FeastoX running, but we do not promise it will be uninterrupted or error-free. Keep your own backups of records you cannot afford to lose, such as exports of your sales."
+        },
+        {
+          "h": "Ending the account",
+          "p": "You can cancel at any time and your plan continues until the end of the paid period. We may suspend or end accounts that break these terms or are unpaid. On request we will give you an export of your records before an account is closed."
+        },
+        {
+          "h": "Liability",
+          "p": "To the extent the law allows, FeastoX is not liable for indirect or consequential loss, and our total liability for any claim is limited to the fees you paid us in the three months before it arose."
+        },
+        {
+          "h": "Governing law",
+          "p": "These terms are governed by the laws of Nepal, and the courts of Nepal have jurisdiction."
+        },
+        {
+          "h": "Contact and changes",
+          "p": "Questions: {{email}}. We may update these terms and will change the date at the top. Continuing to use the service after an update means you accept it."
+        }
+      ]
+    },
+    {
+      "slug": "refund",
+      "name": "Refund Policy",
+      "title": "Refund Policy · FeastoX",
+      "description": "When FeastoX subscription payments are refunded, and how to ask.",
+      "h1": "Refund Policy",
+      "intro": "This policy covers FeastoX subscription payments made by restaurants. Last updated {{updated}}.",
+      "sections": [
+        {
+          "h": "Free trial",
+          "p": "Every new restaurant starts on a free trial and is not charged during it. Use it to check that FeastoX suits your restaurant before you pay."
+        },
+        {
+          "h": "When we refund",
+          "p": "We refund a charge that was made in error, was taken twice, or was larger than the invoice. We will refund within a reasonable time to the payment method used, or credit the amount to your next invoice if you prefer."
+        },
+        {
+          "h": "First payment",
+          "p": "If your first paid period was a mistake, ask within 7 days of the payment and we will refund it in full, as long as the account has not used the service beyond its normal trial activity."
+        },
+        {
+          "h": "When we do not refund",
+          "p": "Subscription fees are otherwise not refunded for a period already started, including part-months, yearly plans partly used, or periods in which you did not use the service. Extra branches and staff seats added during a period are charged for that period."
+        },
+        {
+          "h": "Cancelling",
+          "p": "You can cancel at any time. Your plan continues until the end of the period you paid for and does not renew. Downgrades take effect at the end of the paid period."
+        },
+        {
+          "h": "Referral months",
+          "p": "A month added to your plan through a referral has no cash value and cannot be refunded."
+        },
+        {
+          "h": "How to ask",
+          "p": "Email {{email}} with your restaurant name and the invoice number, and tell us what went wrong. We will reply with the outcome."
+        }
+      ]
+    }
+  ]
+}

@@ -220,7 +220,7 @@ export function OrderingFlow() {
       <div ref={pinRef} className="lg:flex lg:min-h-[74vh] lg:flex-col lg:justify-center">
         <div className={cx(RAIL, 'flex flex-col gap-8 lg:grid lg:grid-cols-12')}>
           <div className="lg:col-span-7">
-            <Mark n="06">How it works</Mark>
+            <Mark>How it works</Mark>
             <SplitHeading
               text="From QR scan to kitchen, without the friction."
               className={cx(DISPLAY_LG, 'mt-6 text-ink')}

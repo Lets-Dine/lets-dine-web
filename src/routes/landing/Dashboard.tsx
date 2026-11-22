@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { cx } from '../../components/ui';
 import { Star } from '../../components/icons';
-import { Band, DISPLAY_LG, LEAD, Mark, Panel, PanelBar, RAIL, SplitHeading } from './kit';
+import { Band, DISPLAY_LG, LEAD, Panel, PanelBar, RAIL, SplitHeading } from './kit';
 import { gsap, prefersReducedMotion, useCountUp, useReveal } from './motion';
 import {
   CROSS_SELL_INSIGHT,
@@ -27,14 +27,13 @@ export function Dashboard() {
     <Band id="dashboard" ref={ref} className="bg-stock">
       <div className={cx(RAIL, 'flex flex-col gap-8 lg:grid lg:grid-cols-12')}>
         <div className="lg:col-span-7">
-          <Mark n="07">Restaurant insights</Mark>
           <SplitHeading
-            text="See what your customers are really telling you."
-            className={cx(DISPLAY_LG, 'mt-6 text-ink')}
+            text="Know how the day went before you close the till."
+            className={cx(DISPLAY_LG, 'text-ink')}
           />
         </div>
         <p data-reveal className={cx(LEAD, 'lg:col-span-4 lg:col-start-9 lg:self-end')}>
-          Every order and every rating lands in one place, attached to the dish that earned it.
+          Every order, payment and rating lands in one place, attached to the dish that earned it.
         </p>
       </div>
 
@@ -48,10 +47,7 @@ export function Dashboard() {
                   <span className="hidden rounded-full bg-surface-2 px-2.5 py-1 text-[11.5px] font-medium text-ink-3 ring-1 ring-hairline ring-inset sm:inline">
                     Last 7 days
                   </span>
-                  <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-mint-ink">
-                    <span className="size-1.5 rounded-full bg-mint" aria-hidden />
-                    Live
-                  </span>
+                  <span className="text-[11.5px] font-medium text-ink-3">Sample data</span>
                 </span>
               }
             />

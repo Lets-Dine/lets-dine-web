@@ -35,7 +35,7 @@ export function Problem() {
       <div className={RAIL}>
         <div className="flex flex-col gap-10 lg:grid lg:grid-cols-12">
           <div className="lg:col-span-7">
-            <Mark n="01">The problem</Mark>
+            <Mark>The problem</Mark>
             <SplitHeading
               text="A menu tells you what’s on the table. It doesn’t tell you what belongs on yours."
               className={cx(DISPLAY_LG, 'mt-6 text-ink')}

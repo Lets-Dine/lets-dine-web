@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import features from '../content/features.json';
+import { legal } from '../content/legal';
 
 const SITE = 'https://feastox.com';
 /** Only these routes are marketing pages worth indexing; diner, admin and platform routes are private/per-table. */
-const INDEXABLE = new Set(['/', '/get-started', '/pricing', ...features.map((f) => `/${f.slug}`)]);
+const INDEXABLE = new Set(['/', '/get-started', '/pricing', ...features.map((f) => `/${f.slug}`), ...(legal.ready ? legal.pages.map((p) => `/${p.slug}`) : [])]);
 
 function setMeta(selector: string, attr: 'name' | 'property', key: string, content: string) {
   let el = document.head.querySelector(selector);
@@ -16,13 +17,14 @@ function setMeta(selector: string, attr: 'name' | 'property', key: string, conte
 }
 
 /** Keeps the tab title and SEO tags (description, canonical, robots, Open Graph) in sync with whichever page is mounted. */
-export function usePageTitle(title: string, description?: string) {
+export function usePageTitle(title: string, description?: string, keywords?: string[]) {
   useEffect(() => {
     const path = window.location.pathname.replace(/\/+$/, '') || '/';
     const indexable = INDEXABLE.has(path);
     const url = SITE + (path === '/' ? '/' : path);
 
     document.title = title;
+    if (keywords) setMeta('meta[name="keywords"]', 'name', 'keywords', keywords.join(', '));
     if (description) {
       setMeta('meta[name="description"]', 'name', 'description', description);
       setMeta('meta[property="og:description"]', 'property', 'og:description', description);
@@ -40,5 +42,5 @@ export function usePageTitle(title: string, description?: string) {
       document.head.appendChild(link);
     }
     link.href = url;
-  }, [title, description]);
+  }, [title, description, keywords]);
 }

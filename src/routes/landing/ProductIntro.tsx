@@ -21,7 +21,7 @@ export function ProductIntro() {
       <div className={RAIL}>
         <div className="flex flex-col gap-8 lg:grid lg:grid-cols-12">
           <div className="lg:col-span-7">
-            <Mark n="02">The platform</Mark>
+            <Mark>The platform</Mark>
             <SplitHeading text="Turn your menu into a dining experience." className={cx(DISPLAY_LG, 'mt-6 text-ink')} />
           </div>
           <p data-reveal className={cx(LEAD, 'lg:col-span-4 lg:col-start-9 lg:self-end')}>

@@ -13,7 +13,7 @@ export type FeatureContent = (typeof features)[number];
 /** A keyword landing page. Its copy lives in `content/features.json`, which `scripts/prerender.mjs` also bakes into static HTML. */
 export function Feature({ slug }: { slug: string }) {
   const page = features.find((f) => f.slug === slug)!;
-  usePageTitle(page.title, page.description);
+  usePageTitle(page.title, page.description, page.keywords);
 
   useLayoutEffect(() => {
     const root = document.documentElement;

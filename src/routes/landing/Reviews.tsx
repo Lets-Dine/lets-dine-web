@@ -45,7 +45,7 @@ export function Reviews() {
     <Band id="reviews" ref={ref} className="bg-stock">
       <div className={cx(RAIL, 'flex flex-col gap-8 lg:grid lg:grid-cols-12')}>
         <div className="lg:col-span-7">
-          <Mark n="09">Verified feedback</Mark>
+          <Mark>Verified feedback</Mark>
           <SplitHeading text="Feedback you can actually trust." className={cx(DISPLAY_LG, 'mt-6 text-ink')} />
         </div>
         <p data-reveal className={cx(LEAD, 'lg:col-span-4 lg:col-start-9 lg:self-end')}>

@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react';
 import features from './content/features.json';
 import { Feature } from './routes/Feature';
+import { RatingsAndMenu } from './routes/RatingsAndMenu';
+import { Legal } from './routes/Legal';
+import { legal } from './content/legal';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigationType } from 'react-router-dom';
 import { AuthProvider } from './state/AuthContext';
 import { AdminThemeProvider } from './state/AdminTheme';
@@ -199,8 +202,15 @@ export default function App() {
               {/* Where an owner activates a restaurant that was already set up for them (from the order welcome screen). */}
               <Route path="/claim" element={<Claim />} />
               <Route path="/pricing" element={<Pricing />} />
+              {legal.pages.map((p) => (
+                <Route key={p.slug} path={`/${p.slug}`} element={<Legal slug={p.slug} />} />
+              ))}
               {features.map((f) => (
-                <Route key={f.slug} path={`/${f.slug}`} element={<Feature slug={f.slug} />} />
+                <Route
+                  key={f.slug}
+                  path={`/${f.slug}`}
+                  element={f.slug === 'dish-ratings-and-qr-menu' ? <RatingsAndMenu /> : <Feature slug={f.slug} />}
+                />
               ))}
               {/* Stands in for the physical QR code on the table — the live product starts at /r/:slug/t/:token. */}
               {/* <Route path="/demo" element={<Entry />} /> */}

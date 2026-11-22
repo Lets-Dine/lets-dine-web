@@ -71,11 +71,11 @@ export function Band({
   );
 }
 
-/** `03 — Dish intelligence`. The page numbers itself like a menu. */
-export function Mark({ n, children, className }: { n: string; children: ReactNode; className?: string }) {
+/** A small label with a printed rule. The number is optional: only use one where the order carries meaning. */
+export function Mark({ n, children, className }: { n?: string; children: ReactNode; className?: string }) {
   return (
     <p data-reveal className={cx('label flex items-center gap-2.5 text-ink-4', className)}>
-      <span className="text-flame-1">{n}</span>
+      {n && <span className="text-flame-1">{n}</span>}
       <span className="h-px w-6 bg-hairline-strong" aria-hidden />
       {children}
     </p>
@@ -293,7 +293,7 @@ export function Panel({ children, className, label }: { children: ReactNode; cla
         'overflow-hidden rounded-[20px] bg-surface shadow-deep ring-1 ring-hairline ring-inset',
         className,
       )}
-      role={label ? 'img' : undefined}
+      role={label ? 'group' : undefined}
       aria-label={label}
     >
       {children}

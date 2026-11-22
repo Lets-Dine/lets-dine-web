@@ -17,7 +17,7 @@ export function TaglineReveal() {
           <SplitHeading
             as="p"
             start="top 78%"
-            text="Restaurants don’t just know what they sell. They know what the room thinks of every single plate."
+            text="One order, from the table to the kitchen to the books. Nothing typed in twice."
             className="font-display text-[clamp(28px,5.4vw,62px)] font-normal leading-[1.14] tracking-[-0.028em] text-ink [font-optical-sizing:auto]"
           />
         </div>

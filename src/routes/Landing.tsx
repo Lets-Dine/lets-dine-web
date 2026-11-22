@@ -4,18 +4,11 @@ import { usePageTitle } from '../state/usePageTitle';
 import { LandingNav } from './landing/Nav';
 import { Hero } from './landing/Hero';
 import { Marquee } from './landing/Marquee';
-import { Problem } from './landing/Problem';
-import { ProductIntro } from './landing/ProductIntro';
 import { Operations } from './landing/Operations';
 import home from '../content/home.json';
 import { TaglineReveal } from './landing/TaglineReveal';
-import { DishIntelligence } from './landing/DishIntelligence';
-import { CustomerExperience } from './landing/CustomerExperience';
-import { OrderingFlow } from './landing/OrderingFlow';
 import { Dashboard } from './landing/Dashboard';
-import { MenuManagement } from './landing/MenuManagement';
-import { Reviews } from './landing/Reviews';
-import { GrowthLoop } from './landing/GrowthLoop';
+import { RatingsTeaser } from './landing/RatingsTeaser';
 import { RestaurantTypes } from './landing/RestaurantTypes';
 import { Faq } from './landing/Faq';
 import { FinalCta } from './landing/FinalCta';
@@ -39,7 +32,7 @@ const DINER = '#12100e';
 export function Landing() {
   const { hash } = useLocation();
 
-  usePageTitle(home.title, home.description);
+  usePageTitle(home.title, home.description, home.keywords);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -74,17 +67,10 @@ export function Landing() {
       <main id="main">
         <Hero />
         <Marquee />
-        <Problem />
-        <ProductIntro />
         <Operations />
         <TaglineReveal />
-        <DishIntelligence />
-        <CustomerExperience />
-        <OrderingFlow />
         <Dashboard />
-        <MenuManagement />
-        <Reviews />
-        <GrowthLoop />
+        <RatingsTeaser />
         <RestaurantTypes />
         <Faq />
         <FinalCta />

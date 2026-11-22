@@ -182,19 +182,27 @@ export function useWordReveal<T extends HTMLElement>(start = 'top 80%') {
     const words = root.querySelectorAll<HTMLElement>('[data-reveal-word] > span');
     if (words.length === 0) return;
 
-    const ctx = gsap.context(() => {
-      gsap.set(words, { yPercent: 108, opacity: 0 });
-      gsap.to(words, {
-        yPercent: 0,
-        opacity: 1,
-        duration: 0.9,
-        ease: 'power4.out',
-        stagger: 0.045,
-        scrollTrigger: { trigger: root, start },
-      });
-    }, root);
+    // An IntersectionObserver, not a ScrollTrigger: it cannot be killed by another component's cleanup or
+    // mis-measured while the layout settles, and under React's dev double-mount it simply re-observes.
+    // `start` keeps its ScrollTrigger spelling ("top 80%") and becomes the viewport line the heading must cross.
+    const line = Number(/(\d+)%/.exec(start)?.[1] ?? 80);
+    let tween: gsap.core.Tween | undefined;
+    gsap.set(words, { yPercent: 108, opacity: 0 });
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        observer.disconnect();
+        tween = gsap.to(words, { yPercent: 0, opacity: 1, duration: 0.9, ease: 'power4.out', stagger: 0.045 });
+      },
+      { rootMargin: `0px 0px -${100 - line}% 0px` },
+    );
+    observer.observe(root);
 
-    return () => ctx.revert();
+    return () => {
+      observer.disconnect();
+      tween?.kill();
+      gsap.set(words, { clearProps: 'transform,opacity' });
+    };
   }, [start]);
 
   return ref;

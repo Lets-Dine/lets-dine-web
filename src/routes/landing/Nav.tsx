@@ -6,9 +6,9 @@ import { X } from '../../components/icons';
 import { scrollToSection } from './motion';
 
 const LINKS = [
-  { href: '#product', label: 'Product' },
   { href: '#operations', label: 'Features' },
-  { href: '#how-it-works', label: 'How it works' },
+  { href: '#dashboard', label: 'Reports' },
+  { href: '/dish-ratings-and-qr-menu', label: 'Menu & ratings' },
   { href: '/pricing', label: 'Pricing' },
 ];
 

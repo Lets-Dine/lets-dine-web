@@ -4,15 +4,14 @@ import { cx } from '../../components/ui';
 import { RAIL } from './kit';
 import { scrollToSection } from './motion';
 import features from '../../content/features.json';
+import { legal } from '../../content/legal';
 
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
     title: 'Product',
     links: [
-      { label: 'Digital menu', href: '#product' },
-      { label: 'Table ordering', href: '#how-it-works' },
-      { label: 'Reviews', href: '#reviews' },
-      { label: 'Analytics', href: '#dashboard' },
+      { label: 'Features', href: '#operations' },
+      { label: 'Reports', href: '#dashboard' },
       { label: 'Pricing', href: '/pricing' },
       ...features.map((f) => ({ label: f.name, href: `/${f.slug}` })),
     ],
@@ -30,7 +29,7 @@ export function LandingFooter() {
     <footer className="rule-t bg-stock">
       <div className={cx(RAIL, 'py-16 lg:py-20')}>
         <p className="max-w-[22ch] font-display text-[clamp(28px,4.6vw,52px)] font-semibold leading-[1.05] tracking-[-0.03em] text-ink [font-optical-sizing:auto]">
-          Better menus. Better decisions. <span className="italic text-flame-2">Better dining.</span>
+          One system. <span className="italic text-flame-2">Every part of the restaurant.</span>
         </p>
 
         <div className="mt-14 grid gap-10 border-t border-hairline pt-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr]">
@@ -79,6 +78,12 @@ export function LandingFooter() {
 
         <div className="mt-14 flex flex-col gap-3 border-t border-hairline pt-6 text-[12.5px] text-ink-4 sm:flex-row sm:items-center sm:justify-between">
           <span>© {new Date().getFullYear()} <BrandName />. Built for dining rooms.</span>
+          <nav aria-label="Legal" className="flex flex-wrap gap-x-5 gap-y-1">
+            {legal.ready && legal.pages.map((p) => (
+              <Link key={p.slug} to={`/${p.slug}`} className="hover:text-flame-1">{p.name}</Link>
+            ))}
+            <a href="/llms.txt" className="hover:text-flame-1">Info for AI</a>
+          </nav>
           {/* <span>
             Dishes, ratings and figures throughout this page come from Sekuwa Ghar, the demo restaurant you can open
             at <Link to="/demo" className="font-medium text-ink-3 underline underline-offset-2 hover:text-flame-1">/demo</Link>.
