@@ -1,8 +1,8 @@
 {
-  "title": "Restaurant Management Software & QR Ordering in Nepal · FeastoX",
+  "title": "Restaurant Software & QR Ordering in Nepal · FeastoX",
   "description": "Restaurant software for Nepal: QR ordering, POS, kitchen display, inventory, accounts and delivery in one system, with purchase-verified ratings on every dish.",
-  "h1": "One system to run the whole restaurant, and it knows what is worth ordering",
-  "intro": "FeastoX combines QR table ordering, a point of sale, kitchen display, inventory, accounts and delivery with purchase-verified dish ratings, built for restaurants and cafes in Nepal.",
+  "h1": "Run the whole restaurant from one system.",
+  "intro": "FeastoX is one system to run the whole restaurant: QR table ordering, a point of sale, kitchen display, inventory, accounts and delivery, built for restaurants and cafes in Nepal. And it knows what is worth ordering, because every dish rating comes from a diner who actually ordered it.",
   "sections": [
     {
       "h": "QR menu and table ordering",
