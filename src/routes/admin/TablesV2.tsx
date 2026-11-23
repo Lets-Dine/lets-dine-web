@@ -312,6 +312,7 @@ export function TablesV2() {
         restaurantName={menu.restaurant.name}
         legalName={menu.restaurant.legalName}
         vatPanNumber={menu.restaurant.vatPanNumber}
+        vatRegistered={menu.restaurant.vatRegistered}
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}
         pending={pending}

@@ -168,19 +168,30 @@ function pair(label: string, value: string, cols: number): string {
   return `${ascii(label).slice(0, Math.max(1, cols - v.length - 1)).padEnd(cols - v.length)}${v}`;
 }
 
-/** The guest receipt / bill, the same content `printReceipt` shows in the browser. */
+/** The guest receipt / invoice / credit note, the same content `printReceipt` shows in the browser. */
 export function buildReceiptSlip(r: ReceiptBody, paper: Paper = '80mm'): Uint8Array {
   const cols = COLUMNS[paper];
   const { currency, subtotal, serviceCharge, tax, discount, total } = r.totals;
+  const { doc } = r;
   const money = (n: number) => formatMoney(n, currency);
   const rule = '-'.repeat(cols);
   const s = new Slip().raw(INIT, ALIGN.center, SIZE(0x11), BOLD(true));
   for (const l of wrap(r.restaurant.name, cols / 2)) s.text(l);
   s.raw(SIZE(0x00), BOLD(false));
   if (r.legalName) for (const l of wrap(r.legalName, cols)) s.text(l);
-  if (r.vatPan) s.text(`VAT/PAN: ${r.vatPan}`);
+  if (r.vatPan) s.text(`${r.vatRegistered ? 'VAT/PAN' : 'PAN'}: ${r.vatPan}`);
+  s.raw(BOLD(true));
+  for (const l of wrap(doc.title, cols)) s.text(l);
+  s.raw(BOLD(false));
+  if (doc.copyLabel) s.raw(BOLD(true)).text(doc.copyLabel).raw(BOLD(false));
   s.text(r.table.name + (r.table.capacity ? ` - ${r.table.capacity} seats` : '')).raw(ALIGN.left).text(rule);
-  if (r.customerName) s.text(pair('Customer', r.customerName, cols));
+  if (doc.number) s.text(pair(doc.numberLabel ?? 'Invoice no.', doc.number, cols));
+  if (doc.against) s.text(pair('Against invoice', doc.against, cols));
+  if (doc.issuedAt) s.text(pair('Date', doc.issuedAt.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }), cols));
+  if (doc.miti) s.text(pair('Miti (BS)', doc.miti, cols));
+  if (doc.buyerName) s.text(pair('Buyer', doc.buyerName, cols));
+  if (doc.buyerPan) s.text(pair('Buyer PAN', doc.buyerPan, cols));
+  else if (r.customerName && !doc.buyerName) s.text(pair('Customer', r.customerName, cols));
   if (r.payment) {
     s.text(pair('Paid by', r.paidBy, cols));
     if (r.payment.takenBy) s.text(pair('Served by', r.payment.takenBy, cols));
@@ -194,10 +205,14 @@ export function buildReceiptSlip(r: ReceiptBody, paper: Paper = '80mm'): Uint8Ar
   }
   s.text(rule).text(pair('Subtotal', money(subtotal), cols));
   if (discount > 0) s.text(pair('Discount', `-${money(discount)}`, cols));
-  s.text(pair('Service', money(serviceCharge), cols)).text(pair('Tax', money(tax), cols));
+  if (serviceCharge > 0 || doc.title !== 'CREDIT NOTE') s.text(pair('Service', money(serviceCharge), cols));
+  if (doc.otherCharges) s.text(pair('Delivery fee', money(doc.otherCharges), cols));
+  if (doc.taxable !== undefined) s.text(pair('Taxable amount', money(doc.taxable), cols));
+  s.text(pair(doc.taxLabel, money(tax), cols));
   s.raw(BOLD(true), SIZE(0x01)).text(pair('TOTAL', money(total), cols)).raw(BOLD(false), SIZE(0x00));
+  if (doc.words) for (const l of wrap(`In words: ${doc.words}`, cols)) s.text(l);
   s.text(rule).raw(ALIGN.center);
-  for (const l of wrap('This is not a tax invoice. Please collect the original bill from the counter.', cols)) s.text(l);
-  s.text(`Thank you - ${new Date().toLocaleString()}`).raw([LF, LF, LF], CUT);
+  if (doc.notice) for (const l of wrap(doc.notice, cols)) s.text(l);
+  s.text(doc.issuedAt ? 'Thank you' : `Thank you - ${new Date().toLocaleString()}`).raw([LF, LF, LF], CUT);
   return Uint8Array.from(s.bytes);
 }

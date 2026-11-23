@@ -20,6 +20,7 @@ export const RESTAURANT: Restaurant = {
   taxRate: 0.13,
   deliveryFeeAmount: rs(50),
   vatPanNumber: null,
+  vatRegistered: false,
 };
 
 /** The floor plan. Tokens are opaque and stable — they get printed on tables. */

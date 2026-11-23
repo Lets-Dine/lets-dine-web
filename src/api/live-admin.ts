@@ -1,4 +1,5 @@
 import { takeApproval } from './approval';
+import { currentBuyer } from './buyer';
 import type { BilledItem, BillLine, DeliveryChannel, PaymentRefund, PaymentStatus, PaymentTender, ServiceKind, ServiceRequest, SplitLine } from '../domain/types';
 import type { AddOnDraft, DishDraft, ItemOptions, DishVariantDraft, SettingsPatch, StaffDraft, UploadSignature, UploadTarget } from './admin';
 import type { BranchPerformance, OrderComparison, Period, RevenueComparison, RevenueTrend, TopSellingDish, TrendPeriod } from '../domain/adminMetrics';
@@ -139,6 +140,7 @@ interface ApiRestaurant {
   deliveryChannel?: DeliveryChannel;
   whatsappNumber?: string | null;
   vatPanNumber?: string | null;
+  vatRegistered?: boolean;
   addressName?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -322,6 +324,11 @@ export interface ApiPayment {
   createdByName: string | null;
   customerName?: string | null;
   customerId?: string | null;
+  fiscalYear?: string | null;
+  invoiceNumber?: number | null;
+  taxRate?: number;
+  buyerName?: string | null;
+  buyerPan?: string | null;
   items: ApiPaymentItem[];
   tenders: PaymentTender[];
   refunds: PaymentRefund[];
@@ -365,6 +372,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     deliveryChannel: api.deliveryChannel ?? 'APP',
     whatsappNumber: api.whatsappNumber ?? null,
     vatPanNumber: api.vatPanNumber ?? null,
+    vatRegistered: api.vatRegistered ?? false,
     addressName: api.addressName ?? null,
     latitude: api.latitude ?? null,
     longitude: api.longitude ?? null,
@@ -553,6 +561,11 @@ export function toPayment(api: ApiPayment): Payment {
     createdBy: api.createdBy,
     createdByName: api.createdByName,
     customerName: api.customerName ?? null,
+    fiscalYear: api.fiscalYear ?? null,
+    invoiceNumber: api.invoiceNumber ?? null,
+    taxRate: api.taxRate ?? 0,
+    buyerName: api.buyerName ?? null,
+    buyerPan: api.buyerPan ?? null,
     items: api.items.map((item) => ({
       id: item.id,
       dishId: item.dishId,
@@ -1333,10 +1346,46 @@ export async function completePayment(
       customerId,
       idempotencyKey,
       approval: takeApproval() ?? undefined,
+      ...currentBuyer(),
     }),
   });
   pendingBillKeys.delete(fingerprint);
-  return toPayment(payment);
+  lastSettled = toPayment(payment);
+  return lastSettled;
+}
+
+let lastSettled: Payment | null = null;
+/**
+ * The bill this till just settled, so the "Payment successful" screen can print its invoice number without every caller
+ * of the payment sheet handing the payment back. One cashier settles one bill at a time in a browser, so one slot is enough.
+ */
+export const lastSettledPayment = (): Payment | null => lastSettled;
+
+export interface RegisterRow {
+  number: string;
+  against: string | null;
+  issuedAt: string;
+  buyerName: string | null;
+  buyerPan: string | null;
+  total: number;
+  exempt: number;
+  taxable: number;
+  vat: number;
+}
+
+/** A fiscal year's invoices and credit notes, restaurant-wide, for the books. Omit the year for the current one. */
+export function fetchPaymentRegister(fiscalYear?: string): Promise<{ sales: RegisterRow[]; returns: RegisterRow[] }> {
+  const query = fiscalYear ? `?fiscalYear=${encodeURIComponent(fiscalYear)}` : '';
+  return apiRequest(`/restaurant/payments/register${query}`, { headers: authHeaders() });
+}
+
+/** Logs a print of an invoice and returns how many there have been; the first is the original, later ones read "Copy of Original". */
+export async function recordPrint(paymentId: string): Promise<number> {
+  const { printCount } = await apiRequest<{ printCount: number }>(`/restaurant/payments/${encodeURIComponent(paymentId)}/prints`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  return printCount;
 }
 
 export interface PaymentApprover {

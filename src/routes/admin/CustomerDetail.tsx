@@ -28,6 +28,7 @@ import { BrandName } from '../../components/BrandName';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
 import { DatePicker } from '../../components/admin/DatePicker';
+import { usePayingOrder } from '../../components/admin/usePayingOrder';
 
 /** Tags the kitchen must hear about before the order is fired, not just nice-to-know. */
 const KITCHEN_FLAGS = ['Nut allergy', 'No onion/garlic'];
@@ -71,8 +72,7 @@ function Page({ item: base, profile, reloadProfile }: { item: CustomerListItem; 
   // Manage the order here, on the same page: the sheet and the payment step are the ones the Orders screen uses.
   const now = useNow(15_000);
   const { pending: payBusy, run: payRun } = useCommand();
-  const [payingId, setPayingId] = useState<string | null>(null);
-  const payingOrder = orders.find((o) => o.id === payingId) ?? null;
+  const { setPayingId, payingOrder } = usePayingOrder(orders);
   const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
   const refreshAfter = () => {
     reloadOrders();
@@ -371,6 +371,7 @@ function Page({ item: base, profile, reloadProfile }: { item: CustomerListItem; 
         restaurantName={menu.restaurant.name}
         legalName={menu.restaurant.legalName}
         vatPanNumber={menu.restaurant.vatPanNumber}
+        vatRegistered={menu.restaurant.vatRegistered}
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}
         pending={payBusy}

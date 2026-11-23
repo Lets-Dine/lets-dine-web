@@ -7,12 +7,12 @@ import { fetchPaymentsSummary } from '../../api/finance';
 import { getPayment, listPayments, listTables } from '../../api/staff';
 import { ADMIN_GHOST, Empty, Loading, Select } from '../../components/admin/kit';
 import { Block, Num, Result, Step, reduced, useCountUp } from '../../components/admin/profile';
-import { printReceipt } from '../../components/admin/receipt';
+import { printCreditNote, printReceipt } from '../../components/admin/receipt';
 import { Collections, METHOD_LABEL, SaleActions, StatusChip, owedOn } from '../../components/admin/SaleSettle';
 import { ChevronRight } from '../../components/icons';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { formatMoney } from '../../domain/money';
-import type { Payment, PaymentMethod, PaymentStatus } from '../../domain/types';
+import type { Payment, PaymentMethod, PaymentRefund, PaymentStatus } from '../../domain/types';
 import { useStaff } from '../../state/AuthContext';
 import { useAsync } from '../../state/useAsync';
 import { useDashboard } from './AdminLayout';
@@ -139,7 +139,11 @@ export function Sales() {
         takenBy: p.createdByName,
       },
       p.customerName,
+      p,
     );
+
+  const printCredit = (p: Payment, refund: PaymentRefund) =>
+    printCreditNote({ name: tableName(p.tableId) }, p, refund, menu.restaurant);
 
   const sold = useCountUp(summary?.sold ?? 0);
   const owedNow = useCountUp(summary?.owed ?? 0);
@@ -221,7 +225,7 @@ export function Sales() {
                       <ChevronRight size={16} className={cx('hidden text-ink-4 transition-transform sm:block', open && 'rotate-90')} />
                     </button>
 
-                    {open && <SaleDetail p={p} money={money} where={tableName(p.tableId)} onPrint={() => print(p)} onChanged={replace} />}
+                    {open && <SaleDetail p={p} money={money} where={tableName(p.tableId)} onPrint={() => print(p)} onPrintCredit={(r) => printCredit(p, r)} onChanged={replace} />}
                   </li>
                 );
               })}
@@ -254,7 +258,7 @@ function Cell({ title, sub, tone, alert, children }: { title: string; sub: strin
 const at = (n: number) => 60 + Math.min(n, 12) * 40;
 
 /** One sale opened: the bill as a sum on the left, the money against it — and what can still be done — on the right. */
-function SaleDetail({ p, money, where, onPrint, onChanged }: { p: Payment; money: (v: number) => string; where: string; onPrint: () => void; onChanged: (next: Payment) => void }) {
+function SaleDetail({ p, money, where, onPrint, onPrintCredit, onChanged }: { p: Payment; money: (v: number) => string; where: string; onPrint: () => void; onPrintCredit: (refund: PaymentRefund) => void; onChanged: (next: Payment) => void }) {
   const owed = owedOn(p);
   let n = 0;
   return (
@@ -262,7 +266,7 @@ function SaleDetail({ p, money, where, onPrint, onChanged }: { p: Payment; money
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
           <p className="text-[13px] text-ink-3 tnum">
-            {where}{p.customerName ? ` · ${p.customerName}` : ''} · {stampText(p.createdAt)} · #{p.id.slice(0, 8).toUpperCase()}
+            {where}{p.customerName ? ` · ${p.customerName}` : ''} · {stampText(p.createdAt)} · {p.invoiceNumber != null ? `Invoice ${p.fiscalYear}-${p.invoiceNumber}` : `#${p.id.slice(0, 8).toUpperCase()}`}
           </p>
           <p className={cx(DISPLAY, 'mt-1.5 text-[clamp(32px,4.6vw,48px)] leading-none tnum')}>{money(p.total)}</p>
           <p className="mt-2 flex flex-wrap items-center gap-2 text-[14px] text-ink-3">
@@ -272,7 +276,10 @@ function SaleDetail({ p, money, where, onPrint, onChanged }: { p: Payment; money
         </div>
         <div className="flex flex-wrap gap-2">
           <Link className={cx(ADMIN_GHOST, 'h-10 px-4 text-[14px]')} to={p.tableId ? `/admin/tables/${p.tableId}` : '/admin/delivery'}>{p.tableId ? 'Open the table' : 'Open delivery'}</Link>
-          <button type="button" className={cx(ADMIN_GHOST, 'h-10 px-4 text-[14px]')} onClick={onPrint}>Print receipt</button>
+          <button type="button" className={cx(ADMIN_GHOST, 'h-10 px-4 text-[14px]')} onClick={onPrint}>{p.invoiceNumber != null ? 'Print invoice' : 'Print receipt'}</button>
+          {(p.refunds ?? []).filter((r) => r.creditNoteNumber != null).map((r) => (
+            <button key={r.id} type="button" className={cx(ADMIN_GHOST, 'h-10 px-4 text-[14px]')} onClick={() => onPrintCredit(r)}>Print credit note {r.fiscalYear}-{r.creditNoteNumber}</button>
+          ))}
         </div>
       </div>
 

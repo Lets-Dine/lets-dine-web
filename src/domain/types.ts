@@ -52,8 +52,10 @@ export interface Restaurant {
   deliveryChannel?: DeliveryChannel;
   /** Digits with country code, no "+". Required for the WHATSAPP channel. */
   whatsappNumber?: string | null;
-  /** VAT/PAN registration number printed on receipts. `null` = none on file. */
+  /** PAN (in Nepal the VAT number is the PAN) printed on receipts. `null` = none on file. */
   vatPanNumber: string | null;
+  /** Registered for VAT: only then are bills tax invoices. Off, they say they are not. */
+  vatRegistered?: boolean;
   /** Pinned restaurant location — where delivery routes start. Absent/null = not set yet. */
   addressName?: string | null;
   latitude?: number | null;
@@ -358,6 +360,11 @@ export interface PaymentRefund {
   reason: string;
   createdAt: string;
   createdByName: string | null;
+  /** The IRD credit note this refund is: its fiscal year and number. Absent on refunds from before numbering. */
+  fiscalYear?: string | null;
+  creditNoteNumber?: number | null;
+  /** The VAT inside `amount`. */
+  taxReversed?: Minor;
 }
 
 export interface PaymentItem {
@@ -393,6 +400,13 @@ export interface Payment {
   /** The paying customer, when the settled orders were placed under one. */
   customerName: string | null;
   customerId?: string | null;
+  /** IRD invoice identity ("2083/84", 41). Absent on bills from before numbering, and in the demo. */
+  fiscalYear?: string | null;
+  invoiceNumber?: number | null;
+  /** The VAT rate the bill was charged at (a ratio, 0.13). */
+  taxRate?: number;
+  buyerName?: string | null;
+  buyerPan?: string | null;
   items: PaymentItem[];
   /** Every collection taken against this sale, oldest first. */
   tenders: PaymentTender[];

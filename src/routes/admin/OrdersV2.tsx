@@ -14,6 +14,7 @@ import { NewOrderButton } from '../../components/admin/NewOrder';
 import { PosModeButton } from '../../components/admin/PosModeButton';
 import { useDashboard } from './AdminLayout';
 import { useLaneOrders } from './useLaneOrders';
+import { usePayingOrder } from '../../components/admin/usePayingOrder';
 
 /*
  * Orders, take two — the pass with plain stage chips (as Profit & loss's period picker) and
@@ -57,8 +58,7 @@ export function OrdersV2() {
   // Each tab asks the server for its own orders; the live queue is laid over them.
   const { orders, loading } = useLaneOrders(LANES.find((l) => l.value === lane)!.statuses);
   const { pending, run } = useCommand();
-  const [payingId, setPayingId] = useState<string | null>(null);
-  const payingOrder = orders.find((o) => o.id === payingId) ?? null;
+  const { setPayingId, payingOrder } = usePayingOrder(orders);
   const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
 
   /** One pass over the queue per tick — every lane, count and card reads its flag from here. */
@@ -195,6 +195,7 @@ export function OrdersV2() {
         restaurantName={menu.restaurant.name}
         legalName={menu.restaurant.legalName}
         vatPanNumber={menu.restaurant.vatPanNumber}
+        vatRegistered={menu.restaurant.vatRegistered}
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}
         pending={pending}

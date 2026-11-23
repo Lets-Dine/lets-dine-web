@@ -113,6 +113,7 @@ export function ReceiptsSheet({ tables, menu, onClose }: { tables: DiningTable[]
         takenBy: p.createdByName,
       },
       p.customerName,
+      p,
     );
     if (!opened) push('Allow pop-ups for this site to print the receipt', '⚠️');
   };

@@ -90,6 +90,7 @@ function SettingsForm({ onDiscard }: { onDiscard: () => void }) {
   const [service, setService] = useState((restaurant.serviceChargeRate * 100).toFixed(1));
   const [tax, setTax] = useState((restaurant.taxRate * 100).toFixed(1));
   const [vatPan, setVatPan] = useState(restaurant.vatPanNumber ?? '');
+  const [vatOn, setVatOn] = useState(restaurant.vatRegistered ?? false);
   // The pin is the source of truth for coordinates; the name starts as the map's guess and the owner can retype it.
   const [pin, setPin] = useState<LatLng | null>(
     restaurant.latitude != null && restaurant.longitude != null ? { lat: restaurant.latitude, lng: restaurant.longitude } : null,
@@ -120,6 +121,7 @@ function SettingsForm({ onDiscard }: { onDiscard: () => void }) {
       tagline !== restaurant.tagline ||
       description !== restaurant.description ||
       vatPan.trim() !== (restaurant.vatPanNumber ?? '') ||
+      vatOn !== (restaurant.vatRegistered ?? false) ||
       pin?.lat !== (restaurant.latitude ?? undefined) ||
       pin?.lng !== (restaurant.longitude ?? undefined) ||
       addressName.trim() !== (restaurant.addressName ?? ''),
@@ -186,6 +188,7 @@ function SettingsForm({ onDiscard }: { onDiscard: () => void }) {
           coverImageUrl: coverImageUrl.trim() || null,
           logoUrl: logoUrl.trim() || null,
           vatPanNumber: vatPan.trim() || null,
+          vatRegistered: vatOn && !!vatPan.trim(),
           addressName: pin ? addressName.trim() || null : null,
           latitude: pin?.lat ?? null,
           longitude: pin?.lng ?? null,
@@ -260,9 +263,17 @@ function SettingsForm({ onDiscard }: { onDiscard: () => void }) {
               <Field label="Description">
                 <TextArea value={description} onChange={setDescription} maxLength={400} rows={3} />
               </Field>
-              <Field label="VAT / PAN number" hint="Printed on every receipt. Leave blank to omit it.">
+              <Field label="PAN number" hint="Printed on every receipt. Leave blank to omit it.">
                 <TextInput value={vatPan} onChange={setVatPan} maxLength={30} placeholder="e.g. 123456789" />
               </Field>
+              <Toggle
+                checked={vatOn && !!vatPan.trim()}
+                onChange={(on) => {
+                  if (vatPan.trim()) setVatOn(on);
+                }}
+                label="Registered for VAT"
+                hint={vatPan.trim() ? 'On: bills are tax invoices (with VAT shown and an optional buyer PAN). Off: bills say they are not tax invoices, even though they are still numbered.' : 'Add your PAN first. Without it bills cannot be tax invoices.'}
+              />
               <Field label="WhatsApp number" hint="Where delivery orders go when delivery runs through WhatsApp." error={whatsappError}>
                 <TextInput
                   type="tel"

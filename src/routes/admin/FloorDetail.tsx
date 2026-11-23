@@ -24,6 +24,7 @@ import {
 import { ChevronLeft } from '../../components/icons';
 import { cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
+import { usePayingOrder } from '../../components/admin/usePayingOrder';
 
 /**
  * §16b continued. Every order a floor's shared QR has produced, with the one
@@ -53,7 +54,6 @@ export function FloorDetail() {
   const menuDishes = menu.dishes.filter((d) => !d.isArchived && d.isAvailable);
 
   const [showQr, setShowQr] = useState(false);
-  const [payingId, setPayingId] = useState<string | null>(null);
   const orderSheet = useOrderSheet({ orders, now, onApply: applyOrder, onResync: reloadOrders, onTakePayment: (o) => setPayingId(o.id) });
 
   // `Order.floorName` is the only thread back to a floor — it's joined in read-side from the
@@ -73,7 +73,7 @@ export function FloorDetail() {
     [floorOrders],
   );
   const openCount = floorOrders.filter((o) => isTableOpen(o.status)).length;
-  const payingOrder = floorOrders.find((o) => o.id === payingId) ?? null;
+  const { setPayingId, payingOrder } = usePayingOrder(floorOrders);
 
   const act = (key: string, action: () => Promise<unknown>, message: string) =>
     void run(key, action, message).then((ok) => {
@@ -219,6 +219,7 @@ export function FloorDetail() {
         restaurantName={menu.restaurant.name}
         legalName={menu.restaurant.legalName}
         vatPanNumber={menu.restaurant.vatPanNumber}
+        vatRegistered={menu.restaurant.vatRegistered}
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}
         pending={pending}

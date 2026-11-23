@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import type { KitchenTicket } from '../src/api/kitchen';
+import { amountInWords } from '../src/domain/amountInWords';
+import { toMiti } from '../src/domain/nepaliDate';
 import { ascii, buildJobSlip, buildReceiptSlip, buildSlip, COLUMNS, wrap } from '../src/printing/escpos';
 
 assert.equal(ascii('2× Momo – “hot”'), '2x Momo - "hot"');
@@ -50,6 +52,68 @@ const receipt = text(
     restaurant: { name: 'Cafe' },
     paidBy: '',
     legalName: '',
+    doc: { title: 'BILL', taxLabel: 'Tax', notice: 'This is not a tax invoice.' },
   }),
 );
 assert.ok(receipt.includes('2x Chicken Momo') && receipt.includes('Rs. 400') && receipt.includes('TOTAL'));
+assert.ok(receipt.includes('BILL') && receipt.includes('This is not a tax invoice.') && !receipt.includes('Invoice no.'));
+
+const invoice = text(
+  buildReceiptSlip({
+    table: { name: 'Table 4' },
+    lines: [{ dishNameSnapshot: 'Chicken Momo', quantity: 2, total: 40000 }],
+    totals: { currency: 'NPR', subtotal: 40000, serviceCharge: 0, tax: 5200, discount: 0, total: 45200 },
+    restaurant: { name: 'Cafe' },
+    paidBy: '',
+    legalName: '',
+    vatPan: '123456789',
+    vatRegistered: true,
+    doc: {
+      title: 'TAX INVOICE',
+      numberLabel: 'Invoice no.',
+      number: '2083/84-41',
+      issuedAt: new Date('2026-11-23T05:00:00Z'),
+      copyLabel: 'COPY OF ORIGINAL (2)',
+      buyerName: 'Himal Traders',
+      buyerPan: '987654321',
+      taxable: 40000,
+      taxLabel: 'VAT 13%',
+    },
+  }),
+);
+for (const want of ['TAX INVOICE', 'Invoice no.', '2083/84-41', 'COPY OF ORIGINAL (2)', 'Himal Traders', '987654321', 'Taxable amount', 'VAT 13%']) {
+  assert.ok(invoice.includes(want), `invoice slip is missing "${want}"`);
+}
+assert.ok(!invoice.includes('not a tax invoice'));
+console.log('escpos receipts: ok');
+
+assert.equal(amountInWords(123050, 'NPR'), 'Rs. One Thousand Two Hundred Thirty and Fifty Paisa Only');
+assert.equal(amountInWords(12345600, 'NPR'), 'Rs. One Lakh Twenty Three Thousand Four Hundred Fifty Six Only');
+assert.equal(amountInWords(1_000_000_000, 'NPR'), 'Rs. One Crore Only');
+assert.equal(amountInWords(5, 'NPR'), 'Rs. Zero and Five Paisa Only');
+assert.equal(amountInWords(100, 'USD'), null);
+// Baisakh 1 2083 was 14 April 2026, Shrawan 1 2083 was 17 July 2026 (Hamro Patro); 1am NPT on Shrawan 1 is still 16 July in UTC.
+assert.equal(toMiti(new Date('2026-04-14T06:00:00Z')), '2083-01-01');
+assert.equal(toMiti(new Date('2026-07-16T20:00:00Z')), '2083-04-01');
+assert.equal(toMiti(new Date('2026-07-16T17:00:00Z')), '2083-03-32');
+assert.equal(toMiti(new Date('2024-01-01T00:00:00Z')), null);
+assert.equal(toMiti(new Date('2031-08-01T00:00:00Z')), null);
+console.log('miti and words: ok');
+
+// A restaurant that is not VAT-registered: its numbered bill says so, and heads the PAN line "PAN".
+const bill = text(
+  buildReceiptSlip({
+    table: { name: 'Table 4' },
+    lines: [{ dishNameSnapshot: 'Chicken Momo', quantity: 2, total: 40000 }],
+    totals: { currency: 'NPR', subtotal: 40000, serviceCharge: 0, tax: 0, discount: 0, total: 40000 },
+    restaurant: { name: 'Cafe' },
+    paidBy: '',
+    legalName: '',
+    vatPan: '123456789',
+    vatRegistered: false,
+    doc: { title: 'BILL', numberLabel: 'Bill no.', number: '2083/84-7', issuedAt: new Date('2026-11-23T05:00:00Z'), taxLabel: 'Tax', notice: 'This is not a tax invoice.' },
+  }),
+);
+for (const want of ['PAN: 123456789', 'Bill no.', '2083/84-7', 'This is not a tax invoice.']) assert.ok(bill.includes(want), `bill slip is missing "${want}"`);
+assert.ok(!bill.includes('VAT/PAN') && !bill.includes('Invoice no.') && !bill.includes('TAX INVOICE'));
+console.log('non-vat bill: ok');

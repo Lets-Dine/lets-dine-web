@@ -3,6 +3,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { isTableOpen } from '../../api/admin';
 import { randomId } from '../../api/store';
+import { lastSettledPayment } from '../../api/staff';
+import { setBuyer } from '../../api/buyer';
 import { fetchCustomerLoyalty, listCustomers } from '../../api/customers';
 import { STATIC_QR_ENABLED, getStaticQr } from '../../api/staticQr';
 import { STATUS_LABEL } from '../../domain/orderStatus';
@@ -130,18 +132,19 @@ export interface CustomerPayQr {
 }
 
 export function PaymentSheet({
-  table,
+  table: tableProp,
   orders,
   dishes,
   restaurantName,
   legalName,
   vatPanNumber,
+  vatRegistered = false,
   serviceChargeRate,
   taxRate,
   pending,
   billed,
   payOrderId,
-  onClose,
+  onClose: onCloseProp,
   onSettle,
   onEndSession,
   onCustomerQr,
@@ -152,6 +155,7 @@ export function PaymentSheet({
   restaurantName: string;
   legalName: string;
   vatPanNumber: string | null;
+  vatRegistered?: boolean;
   serviceChargeRate: number;
   taxRate: number;
   pending: string | null;
@@ -200,6 +204,20 @@ export function PaymentSheet({
   // "Take payment" no longer settles directly — it freezes the bill into `committed` and hands off
   // to a payment-method step. Nothing is charged until cash is confirmed or the QR step resolves.
   const [step, setStep] = useState<PayStep>('bill');
+  // Settling can take the bill's subject away from the parent (a paid order drops out of the open list and reloads), which
+  // would close the sheet before the cashier sees "Payment successful". Once it is done the sheet keeps what it was showing.
+  const keptTable = useRef(tableProp);
+  if (tableProp) keptTable.current = tableProp;
+  // Closing the sheet ends that, so the parent dropping its subject afterwards still hides it.
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    if (tableProp) setDismissed(false);
+  }, [tableProp?.id]);
+  const table = tableProp ?? (step === 'done' && !dismissed ? keptTable.current : null);
+  const onClose = () => {
+    setDismissed(true);
+    onCloseProp();
+  };
   const [method, setMethod] = useState<'cash' | 'qr' | 'credit' | null>(null);
   const [committed, setCommitted] = useState<CommittedBill | null>(null);
   const [qrPayload, setQrPayload] = useState<string | null>(null);
@@ -209,6 +227,9 @@ export function PaymentSheet({
   const [paidNowText, setPaidNowText] = useState('');
   const [paidNowQr, setPaidNowQr] = useState(false);
   const [dueInDays, setDueInDays] = useState<number | null>(14);
+  // Who the invoice is made out to. Name with a PAN makes a full tax invoice; a name alone, or nothing, an abbreviated one.
+  const [buyerName, setBuyerName] = useState('');
+  const [buyerPan, setBuyerPan] = useState('');
   const staticQr = useAsync(() => (STATIC_QR_ENABLED ? getStaticQr() : Promise.resolve(null)), [table?.id]);
   const qrImage = staticQr.data?.enabled ? staticQr.data.imageUrl : null;
 
@@ -221,6 +242,11 @@ export function PaymentSheet({
   const loyalty = useAsync(() => (customerId ? fetchCustomerLoyalty(customerId) : Promise.resolve(null)), [customerId, table?.id, step === 'done']);
   // Orders often carry only the customer's id, so fall back to the name the loyalty lookup returns for it.
   const customerName = picked === undefined ? (orderCustomerName ?? (loyalty.data?.customerId === customerId ? loyalty.data?.name : null) ?? null) : (picked?.name ?? null);
+  // The invoice goes to the customer on the bill unless another name is typed (the server applies the same default,
+  // for a real customer only: a walk-in's typed name on an order is not one).
+  const defaultBuyer = customerId ? (customerName ?? '') : '';
+  const effectiveBuyer = buyerName.trim() || defaultBuyer;
+  const buyerBad = buyerPan !== '' && (!/^\d{9}$/.test(buyerPan) || !effectiveBuyer);
 
   // The sheet stays mounted (just hidden) between tables, so its own UI state
   // — the dish picker being expanded, any unsent edits, which step of taking
@@ -247,6 +273,8 @@ export function PaymentSheet({
     setPaidNowText('');
     setPaidNowQr(false);
     setDueInDays(14);
+    setBuyerName('');
+    setBuyerPan('');
     // Opened from one order's "Pay this order": start in split mode with that order's lines taken (clamped to what's unbilled below),
     // unless that order is the whole bill.
     const only = payOrderId && canSplit ? orders.find((o) => o.id === payOrderId) : undefined;
@@ -263,6 +291,7 @@ export function PaymentSheet({
   const finalize = async (chosenMethod: 'cash' | 'qr' | 'credit') => {
     if (!committed) return;
     setMethod(chosenMethod);
+    setBuyer(buyerName.trim() || buyerPan ? { buyerName: effectiveBuyer, buyerPan: buyerPan || undefined } : null);
     const ok = await onSettle({
       items: committed.items,
       split: committed.split,
@@ -275,7 +304,7 @@ export function PaymentSheet({
       redeemPoints: committed.redeemPoints,
       endSession: true,
       customerId: committed.customerId,
-    });
+    }).finally(() => setBuyer(null));
     // A refusal may mean the balance moved: read it again so the next try starts from what is true.
     if (!ok) loyalty.reload();
     setStep(ok ? 'done' : chosenMethod === 'credit' ? 'credit' : 'method');
@@ -520,7 +549,7 @@ export function PaymentSheet({
     ? takenRows.map((r) => ({ dishNameSnapshot: r.name, quantity: r.taken, total: r.unitPrice * r.taken }))
     : draftLines.map((l) => ({ dishNameSnapshot: l.dishNameSnapshot, quantity: l.quantity, total: l.total }));
   const billTotals: ReceiptTotals = { currency, subtotal, serviceCharge, tax, discount: appliedDiscount + pointsDiscount, total };
-  const printBill = () => printReceipt(table, billLines, billTotals, { name: restaurantName, legalName, vatPanNumber }, undefined, customerName);
+  const printBill = () => printReceipt(table, billLines, billTotals, { name: restaurantName, legalName, vatPanNumber, vatRegistered }, undefined, customerName);
 
   // "Take payment" freezes the bill into `committed` and hands off to the method step. Nothing is charged until then.
   const takePayment = () => {
@@ -1013,10 +1042,41 @@ export function PaymentSheet({
 
             <CommittedSummary committed={committed} />
 
+            {taxRate > 0 && vatRegistered && vatPanNumber && (
+              <div className="flex flex-col gap-2">
+                <p className="text-[13px] font-bold text-[oklch(0.463_0.031_74)]">Invoice to (optional)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    aria-label="Buyer name"
+                    value={buyerName}
+                    placeholder={defaultBuyer ? `Buyer: ${defaultBuyer}` : 'Buyer name'}
+                    maxLength={120}
+                    disabled={busy}
+                    onChange={(e) => setBuyerName(e.target.value)}
+                    className="min-w-0 rounded-full bg-[oklch(0.879_0.033_85)] px-4 py-3 text-[14px] font-bold text-[oklch(0.232_0.019_70)] outline-none placeholder:font-normal placeholder:text-[oklch(0.463_0.031_74)]/70 disabled:opacity-40"
+                  />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    aria-label="Buyer PAN"
+                    aria-invalid={buyerBad}
+                    value={buyerPan}
+                    placeholder="Buyer PAN (9 digits)"
+                    disabled={busy}
+                    onChange={(e) => setBuyerPan(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                    className="min-w-0 rounded-full bg-[oklch(0.879_0.033_85)] px-4 py-3 text-[14px] font-bold tnum text-[oklch(0.232_0.019_70)] outline-none placeholder:font-normal placeholder:text-[oklch(0.463_0.031_74)]/70 disabled:opacity-40"
+                  />
+                </div>
+                {buyerBad && <p className="text-[13px] text-[oklch(0.539_0.163_36)]">A PAN needs the buyer's name and exactly 9 digits.</p>}
+                {!buyerBad && !(effectiveBuyer && buyerPan) && <p className="text-[13px] text-[oklch(0.463_0.031_74)]">Without name and PAN this prints as an abbreviated tax invoice.</p>}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || buyerBad}
                 onClick={() => void finalize('cash')}
                 className="flex flex-col items-center gap-2 rounded-2xl bg-[oklch(0.879_0.033_85)] py-6 text-[oklch(0.232_0.019_70)] ring-2 ring-transparent transition-move active:scale-[0.97] disabled:opacity-40"
               >
@@ -1028,7 +1088,7 @@ export function PaymentSheet({
               {/* QR: the guest paid by scanning the restaurant's own QR; staff just record it, and it settles as a card payment. */}
               <button
                 type="button"
-                disabled={busy || (STATIC_QR_ENABLED && staticQr.loading)}
+                disabled={busy || buyerBad || (STATIC_QR_ENABLED && staticQr.loading)}
                 onClick={() => (qrImage ? setStep('static') : void finalize('qr'))}
                 className="flex flex-col items-center gap-2 rounded-2xl bg-[oklch(0.879_0.033_85)] py-6 text-[oklch(0.232_0.019_70)] ring-2 ring-transparent transition-move active:scale-[0.97] disabled:opacity-40"
               >
@@ -1040,7 +1100,7 @@ export function PaymentSheet({
               {/* Credit has its own step: the cashier either settles now (above) or leaves some of it owed (next screen). */}
               <button
                 type="button"
-                disabled={busy || !owedBy}
+                disabled={busy || buyerBad || !owedBy}
                 onClick={() => setStep('credit')}
                 className="col-span-2 flex items-center justify-center gap-2 rounded-2xl py-4 text-[oklch(0.232_0.019_70)] ring-1 ring-[oklch(0.232_0.019_70)]/25 transition-move active:scale-[0.98] disabled:opacity-40"
               >
@@ -1260,13 +1320,19 @@ export function PaymentSheet({
             <div className="mt-1 grid w-full grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  printReceipt(table, committed.lines, committed.totals, { name: restaurantName, legalName, vatPanNumber }, {
+                onClick={() => {
+                  // The recorded bill, not the screen's own sums: the server priced it, and the invoice must match the register.
+                  const settled = lastSettledPayment();
+                  const lines = settled ? settled.items.map((i) => ({ dishNameSnapshot: i.dishNameSnapshot, quantity: i.quantity, total: i.unitPrice * i.quantity })) : committed.lines;
+                  const totals = settled
+                    ? { currency: settled.currency, subtotal: settled.subtotal, serviceCharge: settled.serviceCharge, tax: settled.tax, discount: settled.discount, total: settled.total }
+                    : committed.totals;
+                  return printReceipt(table, lines, totals, { name: restaurantName, legalName, vatPanNumber, vatRegistered }, {
                     method: method === 'qr' ? 'QR' : 'CASH',
                     label: method === 'credit' ? (paidNow > 0 ? 'Part paid — rest on credit' : 'On credit — unpaid') : undefined,
                     takenBy: staff.name,
-                  }, committed.customerName)
-                }
+                  }, committed.customerName, settled);
+                }}
                 className="rounded-[14px] bg-[oklch(0.232_0.019_70)] py-3.5 text-[12px] font-bold tracking-wide text-[oklch(0.943_0.024_85)] transition-transform active:translate-y-px"
               >
                 Print receipt

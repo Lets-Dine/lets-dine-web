@@ -2033,6 +2033,8 @@ export interface SettingsPatch {
   legalName?: string;
   /** VAT/PAN number for receipts; `null`/`''` clears it. */
   vatPanNumber?: string | null;
+  /** Registered for VAT; needs a PAN to count. */
+  vatRegistered?: boolean;
   /** The pinned address; all three together, or all `null` to clear. */
   addressName?: string | null;
   latitude?: number | null;
@@ -2075,6 +2077,7 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
     deliveryChannel: patch.deliveryChannel ?? before.deliveryChannel,
     whatsappNumber: patch.whatsappNumber !== undefined ? patch.whatsappNumber?.replace(/\D/g, '') || null : before.whatsappNumber,
     vatPanNumber: patch.vatPanNumber !== undefined ? patch.vatPanNumber?.trim() || null : before.vatPanNumber,
+    vatRegistered: patch.vatRegistered ?? before.vatRegistered,
     addressName: patch.addressName !== undefined ? patch.addressName?.trim() || null : before.addressName,
     latitude: patch.latitude !== undefined ? patch.latitude : before.latitude,
     longitude: patch.longitude !== undefined ? patch.longitude : before.longitude,
@@ -2096,7 +2099,8 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
   if (after.deliveryEnabled !== before.deliveryEnabled) changes.push(`Delivery ${after.deliveryEnabled === false ? 'turned off' : 'turned on'}`);
   if (after.deliveryChannel !== before.deliveryChannel) changes.push(`Delivery channel → ${after.deliveryChannel}`);
   if (after.whatsappNumber !== before.whatsappNumber) changes.push('WhatsApp number changed');
-  if (after.vatPanNumber !== before.vatPanNumber) changes.push(`VAT/PAN ${before.vatPanNumber ?? '—'} → ${after.vatPanNumber ?? '—'}`);
+  if (after.vatPanNumber !== before.vatPanNumber) changes.push(`PAN ${before.vatPanNumber ?? '—'} → ${after.vatPanNumber ?? '—'}`);
+  if (after.vatRegistered !== before.vatRegistered) changes.push(`VAT registration ${after.vatRegistered ? 'on' : 'off'}`);
   if (after.addressName !== before.addressName || after.latitude !== before.latitude || after.longitude !== before.longitude)
     changes.push(`Address → ${after.addressName ?? '—'}`);
 
@@ -2118,6 +2122,7 @@ export async function updateSettings(actor: StaffMember, patch: SettingsPatch): 
       deliveryChannel: after.deliveryChannel,
       whatsappNumber: after.whatsappNumber,
       vatPanNumber: after.vatPanNumber,
+      vatRegistered: after.vatRegistered,
       addressName: after.addressName,
       latitude: after.latitude,
       longitude: after.longitude,

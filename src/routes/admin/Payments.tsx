@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { listPayments, listTables } from '../../api/staff';
+import { fetchPaymentRegister, listPayments, listTables } from '../../api/staff';
+import { downloadCsv, registerCsv } from '../../domain/register';
+import { can } from '../../domain/permissions';
 import { printReceipt } from '../../components/admin/receipt';
 import { formatMoney, symbolFor } from '../../domain/money';
 import type { Payment, PaymentMethod } from '../../domain/types';
@@ -172,6 +174,18 @@ export function Payments() {
   const currency = rows[0]?.currency ?? '';
   const filtering = tableId !== 'all' || method !== 'all';
 
+  const [registerBusy, setRegisterBusy] = useState(false);
+  const [registerYear, setRegisterYear] = useState('');
+  const downloadRegister = async () => {
+    setRegisterBusy(true);
+    try {
+      const register = await fetchPaymentRegister(registerYear.trim() || undefined);
+      if (register) downloadCsv(`sales-register-${(registerYear.trim() || 'current').replace('/', '-')}.csv`, registerCsv(register));
+    } finally {
+      setRegisterBusy(false);
+    }
+  };
+
   const printPayment = (payment: Payment) => {
     const table = payment.tableId ? tablesById.get(payment.tableId) : undefined;
     printReceipt(
@@ -181,6 +195,7 @@ export function Payments() {
       menu.restaurant,
       { method: payment.method, takenBy: payment.createdByName },
       payment.customerName,
+      payment,
     );
   };
 
@@ -189,6 +204,22 @@ export function Payments() {
       <div className="animate-rise">
         <PageTitle title="Payments" subtitle="Money taken against sales — how each bill was paid, in as many collections as it took. Figures follow each sale's date; the Cash book follows the day money moved. Unpaid balances are settled from Sales." />
       </div>
+
+      {can(staff.role, 'ledger:manage') && (
+        <div className="mb-4 flex animate-rise flex-wrap items-center gap-2 [animation-delay:30ms]">
+          <input
+            type="text"
+            aria-label="Fiscal year"
+            value={registerYear}
+            placeholder="Fiscal year, e.g. 2083/84"
+            onChange={(e) => setRegisterYear(e.target.value)}
+            className="w-52 rounded-full bg-[oklch(0.879_0.033_85)] px-4 py-2 text-[13px] text-[oklch(0.232_0.019_70)] outline-none placeholder:text-[oklch(0.463_0.031_74)]/70"
+          />
+          <button type="button" disabled={registerBusy} onClick={() => void downloadRegister()} className="rounded-full px-4 py-2 text-[13px] font-bold ring-1 ring-[oklch(0.232_0.019_70)]/25 disabled:opacity-40">
+            {registerBusy ? 'Preparing…' : 'Download sales register (CSV)'}
+          </button>
+        </div>
+      )}
 
       <div className="mb-5 flex animate-rise flex-wrap items-center gap-3 [animation-delay:60ms]">
         <div className="overflow-x-auto no-scrollbar">

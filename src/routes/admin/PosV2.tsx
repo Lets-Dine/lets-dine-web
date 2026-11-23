@@ -36,6 +36,7 @@ import { Bell, Bike, Check, ChevronLeft, Clock, Eye, Maximize, Minimize, Receipt
 import { BrandName } from '../../components/BrandName';
 import { BTN_FLAME, BTN_GHOST, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
+import { usePayingOrder } from '../../components/admin/usePayingOrder';
 
 /*
  * POS mode, take two.
@@ -443,14 +444,13 @@ function PosOrders() {
   const staff = useStaff();
   const now = useNow(TICK_MS);
   const { pending, run } = useCommand();
-  const [payingId, setPayingId] = useState<string | null>(null);
   const flags = useMemo(() => focusMap(orders, now), [orders, now]);
   const orderSheet = useOrderSheet({ orders, flags, now, onApply: applyOrder, onResync: reloadOrders, onTakePayment: (o) => setPayingId(o.id) });
   const openOrders = useMemo(
     () => orders.filter((o) => o.status !== 'COMPLETED' && o.status !== 'CANCELLED').sort(byUrgencyThenAge(flags)),
     [orders, flags],
   );
-  const payingOrder = orders.find((o) => o.id === payingId) ?? null;
+  const { setPayingId, payingOrder } = usePayingOrder(orders);
   const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
 
   return (
@@ -488,6 +488,7 @@ function PosOrders() {
         restaurantName={menu.restaurant.name}
         legalName={menu.restaurant.legalName}
         vatPanNumber={menu.restaurant.vatPanNumber}
+        vatRegistered={menu.restaurant.vatRegistered}
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}
         pending={pending}
@@ -1434,6 +1435,7 @@ function Terminal({
           restaurantName={menu.restaurant.name}
           legalName={menu.restaurant.legalName}
           vatPanNumber={menu.restaurant.vatPanNumber}
+          vatRegistered={menu.restaurant.vatRegistered}
           serviceChargeRate={menu.restaurant.serviceChargeRate}
           taxRate={menu.restaurant.taxRate}
           pending={pending}

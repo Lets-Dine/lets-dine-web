@@ -329,6 +329,21 @@ export function getPayment(actor: StaffMember, paymentId: string): Promise<Payme
   return IS_LIVE_API ? live.getPayment(paymentId) : mock.getPayment(actor, paymentId);
 }
 
+/** Logs a print of an invoice and says which one it is (1 = the original). The demo has no invoices, so it is always the original. */
+export function recordPrint(paymentId: string): Promise<number> {
+  return IS_LIVE_API ? live.recordPrint(paymentId) : Promise.resolve(1);
+}
+
+/** A fiscal year's sales and sales-return registers. `null` in the demo, which issues no numbered invoices. */
+export function fetchPaymentRegister(fiscalYear?: string): Promise<{ sales: live.RegisterRow[]; returns: live.RegisterRow[] } | null> {
+  return IS_LIVE_API ? live.fetchPaymentRegister(fiscalYear) : Promise.resolve(null);
+}
+
+/** The bill this till just settled, for the success screen's invoice. Null in the demo. */
+export function lastSettledPayment(): Payment | null {
+  return IS_LIVE_API ? live.lastSettledPayment() : null;
+}
+
 export function acceptOrder(actor: StaffMember, orderId: string, expected: 'PENDING'): Promise<Order> {
   return IS_LIVE_API ? live.acceptOrder(orderId, expected) : mock.acceptOrder(actor, orderId, expected);
 }

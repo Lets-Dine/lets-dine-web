@@ -32,6 +32,7 @@ import { PaymentSheet } from '../../components/admin/PaymentSheet';
 import { TablePaySheet } from '../../components/admin/TablePaySheet';
 import { DISPLAY, cx } from '../../components/ui';
 import { useDashboard } from './AdminLayout';
+import { usePayingOrder } from '../../components/admin/usePayingOrder';
 
 /** How many of the oldest working tickets the hero grid shows before pointing to the full pass. */
 const PASS_GRID_SIZE = 9;
@@ -99,7 +100,6 @@ export function Dashboard() {
   const now = useNow(TICK_MS);
   const [lane, setLane] = useState<Lane>('all');
   const { pending, run } = useCommand();
-  const [payingId, setPayingId] = useState<string | null>(null);
 
   const orders = history.data;
   const today = useMemo(() => (orders ? periodReport(orders, 'today') : null), [orders]);
@@ -113,7 +113,7 @@ export function Dashboard() {
     [queue],
   );
   const waiting = working.filter((o) => o.status === 'PENDING');
-  const payingOrder = working.find((o) => o.id === payingId) ?? null;
+  const { setPayingId, payingOrder } = usePayingOrder(working);
   const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
 
   /** The same clocks the full pass runs on — one sweep per tick, read by every lane and card. */
@@ -391,6 +391,7 @@ export function Dashboard() {
         restaurantName={menu.restaurant.name}
         legalName={menu.restaurant.legalName}
         vatPanNumber={menu.restaurant.vatPanNumber}
+        vatRegistered={menu.restaurant.vatRegistered}
         serviceChargeRate={menu.restaurant.serviceChargeRate}
         taxRate={menu.restaurant.taxRate}
         pending={pending}

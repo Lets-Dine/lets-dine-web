@@ -43,6 +43,7 @@ interface ApiRestaurant {
   deliveryChannel?: DeliveryChannel;
   whatsappNumber?: string | null;
   vatPanNumber?: string | null;
+  vatRegistered?: boolean;
   latitude?: number | null;
   longitude?: number | null;
   googleUrl?: string | null;
@@ -289,6 +290,7 @@ function toRestaurant(api: ApiRestaurant): Restaurant {
     deliveryChannel: api.deliveryChannel ?? 'APP',
     whatsappNumber: api.whatsappNumber ?? null,
     vatPanNumber: api.vatPanNumber ?? null,
+    vatRegistered: api.vatRegistered ?? false,
     latitude: api.latitude ?? null,
     longitude: api.longitude ?? null,
     googleUrl: api.googleUrl ?? null,
