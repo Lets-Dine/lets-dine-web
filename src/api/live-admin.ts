@@ -1233,6 +1233,11 @@ export function listQueue(): Promise<Order[]> {
   return listOrdersByStatus(OPEN_STATUSES);
 }
 
+/** One order by id — the order page opens on a link, so it cannot rely on the queue holding it. */
+export async function fetchOrder(orderId: string): Promise<Order> {
+  return toOrder(await apiRequest<ApiOrder>(`/restaurant/orders/${encodeURIComponent(orderId)}`, { headers: authHeaders() }));
+}
+
 /** Every order a table's current visit has placed, settled or not — what the payment sheet bills against. */
 export async function fetchOrdersBySession(sessionId: string): Promise<Order[]> {
   const orders = await apiRequest<ApiOrder[]>(`/restaurant/orders/session/${encodeURIComponent(sessionId)}`, {
@@ -1409,7 +1414,7 @@ export function fetchBilledItems(sessionId: string): Promise<BilledItem[]> {
 export async function listPayments(
   offset = 0,
   limit = 20,
-  query: { tableId?: string; from?: string; to?: string; paymentStatus?: PaymentStatus; method?: PaymentMethod; customerId?: string } = {},
+  query: { tableId?: string; from?: string; to?: string; paymentStatus?: PaymentStatus; method?: PaymentMethod; customerId?: string; sessionId?: string } = {},
 ): Promise<{ rows: Payment[]; count: number }> {
   const params = new URLSearchParams({
     offset: String(offset),
@@ -1423,6 +1428,7 @@ export async function listPayments(
   if (query.paymentStatus) params.set('paymentStatus', query.paymentStatus);
   if (query.method) params.set('method', query.method);
   if (query.customerId) params.set('customerId', query.customerId);
+  if (query.sessionId) params.set('sessionId', query.sessionId);
   const page = await apiRequest<Paginated<ApiPayment>>(`/restaurant/payments?${params.toString()}`, {
     headers: authHeaders(),
   });

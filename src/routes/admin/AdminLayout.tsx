@@ -154,7 +154,7 @@ function routeNeedsCatalog(pathname: string): boolean {
 function routeNeedsOrders(pathname: string): boolean {
   return (
     pathname === '/admin' ||
-    pathname === '/admin/orders' ||
+    pathname.startsWith('/admin/orders') ||
     pathname === '/admin/pos' ||
     pathname.startsWith('/admin/tables') ||
     pathname.startsWith('/admin/floors')

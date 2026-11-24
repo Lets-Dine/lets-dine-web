@@ -1,15 +1,12 @@
 import { useMemo, useState } from 'react';
-import { completeOrderPayment } from '../../api/staff';
-import { byUrgencyThenAge, floorBillSubject, focusMap } from '../../domain/orderStatus';
+import { byUrgencyThenAge, focusMap } from '../../domain/orderStatus';
 import type { Order, OrderStatus } from '../../domain/types';
-import { useStaff } from '../../state/AuthContext';
 import { useNow } from '../../state/useNow';
-import { Loading, useCommand } from '../../components/admin/kit';
+import { Loading } from '../../components/admin/kit';
 import { PassCardV2 } from '../../components/admin/PassCardV2';
 import { CHIP, CHIP_OFF, CHIP_ON, DISPLAY, cx } from '../../components/ui';
 import { useOrderSheet } from '../../components/admin/OrderSheet';
-import { PaymentSheet } from '../../components/admin/PaymentSheet';
-import { TablePaySheet } from '../../components/admin/TablePaySheet';
+import { PayOrderHost } from '../../components/admin/PayOrderHost';
 import { NewOrderButton } from '../../components/admin/NewOrder';
 import { PosModeButton } from '../../components/admin/PosModeButton';
 import { useDashboard } from './AdminLayout';
@@ -51,15 +48,12 @@ const LANES: { value: Lane; label: string; statuses: OrderStatus[] | null }[] = 
 const TICK_MS = 15_000;
 
 export function OrdersV2() {
-  const { menu, reloadOrders, applyOrder } = useDashboard();
-  const staff = useStaff();
+  const { reloadOrders, applyOrder } = useDashboard();
   const now = useNow(TICK_MS);
   const [lane, setLane] = useState<Lane>('new');
   // Each tab asks the server for its own orders; the live queue is laid over them.
   const { orders, loading } = useLaneOrders(LANES.find((l) => l.value === lane)!.statuses);
-  const { pending, run } = useCommand();
   const { setPayingId, payingOrder } = usePayingOrder(orders);
-  const menuDishes = useMemo(() => menu.dishes.filter((d) => !d.isArchived && d.isAvailable), [menu.dishes]);
 
   /** One pass over the queue per tick — every lane, count and card reads its flag from here. */
   const flags = useMemo(() => focusMap(orders, now), [orders, now]);
@@ -186,45 +180,7 @@ export function OrdersV2() {
 
       {orderSheet.sheet}
 
-      {/* A table order opens its table's sheet on this order's lines (the whole tab for staff who can't split); floor and quick-sale orders are billed on their own. */}
-      {payingOrder?.tableId && <TablePaySheet order={payingOrder} onClose={() => setPayingId(null)} onPaid={reloadOrders} />}
-      <PaymentSheet
-        table={payingOrder && !payingOrder.tableId ? floorBillSubject(payingOrder) : null}
-        orders={payingOrder && !payingOrder.tableId ? [payingOrder] : []}
-        dishes={menuDishes}
-        restaurantName={menu.restaurant.name}
-        legalName={menu.restaurant.legalName}
-        vatPanNumber={menu.restaurant.vatPanNumber}
-        vatRegistered={menu.restaurant.vatRegistered}
-        serviceChargeRate={menu.restaurant.serviceChargeRate}
-        taxRate={menu.restaurant.taxRate}
-        pending={pending}
-        onClose={() => setPayingId(null)}
-        onSettle={(changes) => {
-          if (!payingOrder) return Promise.resolve(false);
-          const order = payingOrder;
-          return run(
-            order.id,
-            () =>
-              completeOrderPayment(
-                staff,
-                order,
-                changes.items,
-                changes.method,
-                changes.discount,
-                changes.redeemPoints,
-                changes.customerId,
-                changes.credit,
-              ),
-            `${order.reference} paid up`,
-          ).then((ok) => {
-            if (ok) reloadOrders();
-            return ok;
-          });
-        }}
-        onEndSession={() => setPayingId(null)}
-        onShowQr={() => setPayingId(null)}
-      />
+      <PayOrderHost order={payingOrder} onClose={() => setPayingId(null)} onPaid={reloadOrders} />
     </div>
   );
 }

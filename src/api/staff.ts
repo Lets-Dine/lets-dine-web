@@ -246,6 +246,10 @@ export function listOrdersByStatus(actor: StaffMember, statuses: OrderStatus[]):
   return IS_LIVE_API ? live.listOrdersByStatus(statuses) : mock.listQueue(actor).then((orders) => orders.filter((o) => statuses.includes(o.status)));
 }
 
+export function fetchOrder(actor: StaffMember, orderId: string): Promise<Order | null> {
+  return IS_LIVE_API ? live.fetchOrder(orderId) : mock.fetchOrder(actor, orderId);
+}
+
 export function fetchOrdersBySession(actor: StaffMember, sessionId: string): Promise<Order[]> {
   return IS_LIVE_API ? live.fetchOrdersBySession(sessionId) : mock.fetchOrdersBySession(actor, sessionId);
 }
@@ -320,7 +324,7 @@ export function listPayments(
   actor: StaffMember,
   offset?: number,
   limit?: number,
-  query: { tableId?: string; from?: string; to?: string; paymentStatus?: PaymentStatus; method?: PaymentMethod; customerId?: string } = {},
+  query: { tableId?: string; from?: string; to?: string; paymentStatus?: PaymentStatus; method?: PaymentMethod; customerId?: string; sessionId?: string } = {},
 ): Promise<{ rows: Payment[]; count: number }> {
   return IS_LIVE_API ? live.listPayments(offset, limit, query) : mock.listPayments(actor, offset, limit, query);
 }

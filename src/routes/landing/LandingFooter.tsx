@@ -1,10 +1,15 @@
 import { Link, useLocation } from 'react-router-dom';
 import { BrandName } from '../../components/BrandName';
 import { cx } from '../../components/ui';
+import { Android } from '../../components/icons';
 import { RAIL } from './kit';
 import { scrollToSection } from './motion';
 import features from '../../content/features.json';
 import { legal } from '../../content/legal';
+
+// Drive share link ("Anyone with the link") to the APK. Empty hides the footer link.
+// ponytail: swap for the Play Store URL once the app is published.
+const ANDROID_APP_URL = 'https://drive.google.com/file/d/1BCQJkh5rb5_n3gwWvdfn0AfPKf2L8pc3/view?usp=drive_link';
 
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
@@ -42,6 +47,21 @@ export function LandingFooter() {
               Restaurant software for Nepal: QR table ordering, POS, kitchen display, inventory, accounts and
               delivery, with verified dish ratings.
             </p>
+            {ANDROID_APP_URL && (
+              <div className="mt-8">
+                <h2 className="label text-ink-4">Download our app</h2>
+                <a
+                  href={ANDROID_APP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Download the FeastoX app for Android (APK)"
+                  className="group mt-4 inline-flex items-center gap-3 rounded-xl border border-hairline bg-[#171310] py-2.5 pl-3 pr-4 text-[#fdf6ee] transition-colors hover:text-flame-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-1"
+                >
+                  <Android size={22} className="text-[#3ddc84]" />
+                  <span className="text-[14px] font-medium">Android</span>
+                </a>
+              </div>
+            )}
           </div>
 
           {COLUMNS.map((column) => (

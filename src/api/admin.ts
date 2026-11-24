@@ -307,6 +307,12 @@ export async function listQueue(actor: StaffMember): Promise<Order[]> {
   return [...store.orders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 }
 
+/** One order by id, or null when the link is out of date. */
+export async function fetchOrder(actor: StaffMember, orderId: string): Promise<Order | null> {
+  authorize(actor, 'orders:view');
+  return seedQueue(readStore()).orders.find((o) => o.id === orderId) ?? null;
+}
+
 /** Every order a table's current visit has placed, settled or not — what the payment sheet bills against. */
 export async function fetchOrdersBySession(actor: StaffMember, sessionId: string): Promise<Order[]> {
   authorize(actor, 'orders:view');
@@ -834,7 +840,7 @@ export async function listPayments(
   actor: StaffMember,
   offset: number = 0,
   limit: number = 200,
-  query: { tableId?: string; from?: string; to?: string } = {},
+  query: { tableId?: string; from?: string; to?: string; sessionId?: string } = {},
 ): Promise<{ rows: Payment[]; count: number }> {
   authorize(actor, 'payments:view');
   await latency();
@@ -843,6 +849,7 @@ export async function listPayments(
   const to = query.to ? Date.parse(query.to) : null;
   const filtered = store.payments.filter((p) => {
     if (query.tableId && p.tableId !== query.tableId) return false;
+    if (query.sessionId && p.sessionId !== query.sessionId) return false;
     const at = Date.parse(p.createdAt);
     if (from !== null && at < from) return false;
     if (to !== null && at > to) return false;

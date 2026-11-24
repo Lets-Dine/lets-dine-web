@@ -1,5 +1,6 @@
 import { MapLink } from './MapLink';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { formatMoney } from '../../domain/money';
 import { STATUS_LABEL, STATUS_ORDER, itemStatusSummary, unpaidTotal } from '../../domain/orderStatus';
@@ -15,11 +16,11 @@ import { useOrderMoves } from './OrderMoves';
 import { Sheet } from './Sheet';
 import { TablePaySheet, useCanPayTableOrder } from './TablePaySheet';
 
-const stamp = (iso: string) =>
+export const stamp = (iso: string) =>
   `${new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · ${relativeTime(iso)}`;
 
 /** The stages this kind of ticket actually passes through — a table never goes out for delivery, a delivery never sits unpaid. */
-function stagesFor(order: Order): OrderStatus[] {
+export function stagesFor(order: Order): OrderStatus[] {
   const skip: OrderStatus[] = order.orderType === 'DELIVERY' ? ['UNPAID'] : order.floorVisitorName || order.floorName || order.tableId === null ? ['OUT_FOR_DELIVERY', 'SETTLE'] : ['OUT_FOR_DELIVERY', 'SETTLE', 'UNPAID'];
   return STATUS_ORDER.filter((s) => !skip.includes(s));
 }
@@ -49,6 +50,7 @@ export function OrderSheet({
   onPayAtTable: (order: Order) => void;
   onClose: () => void;
 }) {
+  const navigate = useNavigate();
   const payAtTable = useCanPayTableOrder(order);
   const paidQty = useBilledQuantities(order, true);
   const { move, cancel, sheets, courierRun, live } = useOrderMoves(
@@ -86,7 +88,18 @@ export function OrderSheet({
     <Sheet label={`Order ${order.reference}`} onClose={onClose} wide>
       {(close) => (
         <>
-          <div className="flex justify-end px-3 pt-3">
+          <div className="flex items-center justify-between px-5 pt-3 pr-3">
+            <button
+              type="button"
+              className="text-[13px] font-semibold text-flame-1 hover:underline"
+              onClick={() => {
+                // Closing the sheet pops the history entry it pushed (`useDiscardBack`); go only once that has settled, or it undoes the navigation.
+                window.addEventListener('popstate', () => setTimeout(() => navigate(`/admin/orders/${order.id}`)), { once: true });
+                close();
+              }}
+            >
+              Open full page ↗
+            </button>
             <button
               type="button"
               aria-label="Close"
@@ -227,7 +240,7 @@ export function OrderSheet({
   );
 }
 
-function Section({ title, hint, delay, children }: { title: string; hint?: string; delay: number; children: ReactNode }) {
+export function Section({ title, hint, delay = 0, children }: { title: string; hint?: string; delay?: number; children: ReactNode }) {
   return (
     <section aria-label={title} className="animate-rise rounded-3xl bg-surface-2/50 px-5 py-5 ring-1 ring-hairline ring-inset sm:px-6" style={{ animationDelay: `${delay}ms` }}>
       <h3 className="mb-4 flex items-baseline justify-between gap-3 text-[17px] font-semibold tracking-tight">
@@ -239,7 +252,7 @@ function Section({ title, hint, delay, children }: { title: string; hint?: strin
   );
 }
 
-function Line({ k, v }: { k: string; v: ReactNode }) {
+export function Line({ k, v }: { k: string; v: ReactNode }) {
   if (!v) return null;
   return (
     <div className="flex justify-between gap-4">

@@ -41,6 +41,7 @@ import { DishEditorV2 } from './routes/admin/DishEditorV2';
 import { MenuBoard } from './routes/admin/MenuBoard';
 import { Orders } from './routes/admin/Orders';
 import { OrdersV2 } from './routes/admin/OrdersV2';
+import { OrderDetail } from './routes/admin/OrderDetail';
 import { StockTake } from './routes/admin/StockTake';
 import { BuyList } from './routes/admin/BuyList';
 import { Watchlist } from './routes/admin/Watchlist';
@@ -257,6 +258,7 @@ export default function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="orders" element={<OrdersPage />} />
+                <Route path="orders/:orderId" element={<OrderDetail />} />
                 <Route path="menu" element={<MenuBoard />} />
                 <Route path="menu/:dishId" element={<DishEditorPage />} />
                 <Route path="add-ons" element={<AddOns />} />

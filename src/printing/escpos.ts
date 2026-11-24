@@ -113,13 +113,13 @@ function writeWhere(s: Slip, ticket: KitchenTicket, cols: number) {
 
 const SLIP_LABEL: Record<string, string> = { KITCHEN: 'KOT', BAR: 'BOT' };
 
-/** One station's slip: KOT (kitchen) or BOT (bar). */
-export function buildSlip(ticket: KitchenTicket, paper: Paper = '80mm'): Uint8Array {
+/** One station's slip: KOT (kitchen) or BOT (bar). `title` replaces that heading, for a slip that is not a numbered ticket. */
+export function buildSlip(ticket: KitchenTicket, paper: Paper = '80mm', title?: string): Uint8Array {
   const cols = COLUMNS[paper];
   const isVoid = ticket.lines.every((l) => l.qtyDelta < 0);
   const s = new Slip().raw(INIT, ALIGN.center);
 
-  s.raw(SIZE(0x11), BOLD(true)).text(`${SLIP_LABEL[ticket.station] ?? ticket.station} #${ticket.number}`).raw(SIZE(0x00), BOLD(false));
+  s.raw(SIZE(0x11), BOLD(true)).text(title ?? `${SLIP_LABEL[ticket.station] ?? ticket.station} #${ticket.number}`).raw(SIZE(0x00), BOLD(false));
   if (isVoid) s.raw(INVERSE(true), BOLD(true)).text(' CANCELLED - STOP MAKING ').raw(INVERSE(false), BOLD(false));
   writeWhere(s, ticket, cols);
   writeTicketLines(s, ticket, cols);

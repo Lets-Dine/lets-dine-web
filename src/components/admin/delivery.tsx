@@ -672,7 +672,9 @@ export function SettleOrderSheet({
                 <SettleLine label="Order total" strong>
                   {money(order.total)}
                 </SettleLine>
-                <SettleLine label="Recorded as">{paidUpFront ? 'Card payment, paid up front' : 'Cash payment'}</SettleLine>
+                <SettleLine label="Recorded as">
+                    {paidUpFront ? 'Card payment, paid up front' : short > 0 ? `Part payment, ${money(short)} owed by the customer` : 'Cash payment'}
+                  </SettleLine>
               </dl>
             </section>
 
