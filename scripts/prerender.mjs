@@ -7,7 +7,16 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 const SITE = 'https://feastox.com';
 const dist = new URL('../dist/', import.meta.url);
 const features = JSON.parse(await readFile(new URL('../src/content/features.json', import.meta.url), 'utf8'));
+const posts = JSON.parse(await readFile(new URL('../src/content/posts.json', import.meta.url), 'utf8'));
 const home = JSON.parse(await readFile(new URL('../src/content/home.json', import.meta.url), 'utf8'));
+for (const post of posts) {
+  for (const key of ['slug', 'title', 'description', 'h1', 'date', 'intro', 'related']) {
+    if (!post[key]) throw new Error(`posts.json: ${post.slug || '?'} missing ${key}`);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(post.date)) throw new Error(`posts.json: ${post.slug} date must be YYYY-MM-DD`);
+  if (!post.sections?.length) throw new Error(`posts.json: ${post.slug} needs sections`);
+  if (!features.some((f) => f.slug === post.related)) throw new Error(`posts.json: ${post.slug} related "${post.related}" is not a feature`);
+}
 const legal = JSON.parse(await readFile(new URL('../src/content/legal.json', import.meta.url), 'utf8'));
 const fill = (t) => t.replace(/\{\{(company|email|updated)\}\}/g, (_, k) => legal[k]);
 const template = await readFile(new URL('index.html', dist), 'utf8');
@@ -26,7 +35,7 @@ const pages = [
       home.sections.map((s) => `<h2>${esc(s.h)}</h2><p>${esc(s.p)}</p>`).join('') +
       '<h2>Questions</h2>' +
       home.faqs.map((q) => `<h3>${esc(q.q)}</h3><p>${esc(q.a)}</p>`).join('') +
-      `<nav><a href="/pricing">Pricing</a> <a href="/get-started">Get started</a> ${features.map((o) => `<a href="/${o.slug}">${esc(o.name)}</a>`).join(' ')}</nav>`,
+      `<nav><a href="/pricing">Pricing</a> <a href="/blog">Guides</a> <a href="/get-started">Get started</a> ${features.map((o) => `<a href="/${o.slug}">${esc(o.name)}</a>`).join(' ')}</nav>`,
     faqs: home.faqs,
     keywords: home.keywords,
     priority: '1.0',
@@ -47,6 +56,53 @@ const pages = [
     body: '<p>Tell us about your restaurant and create your owner account. Then add your menu and print a QR code for each table.</p>',
     priority: '0.8',
   },
+  {
+    path: '/blog',
+    title: 'Guides for restaurants in Nepal · FeastoX',
+    description: 'Practical guides on QR menus, POS, kitchen display, food cost and dish ratings for restaurants and cafes in Nepal.',
+    h1: 'Guides for running a restaurant in Nepal',
+    body: `<p>How QR menus, a POS, the kitchen screen, food cost and dish ratings fit together.</p><ul>${[...posts].sort((a, b) => b.date.localeCompare(a.date)).map((p) => `<li><a href="/blog/${p.slug}">${esc(p.h1)}</a> ${esc(p.description)}</li>`).join('')}</ul>`,
+    keywords: ['restaurant blog Nepal', 'restaurant guides Nepal'],
+    priority: '0.7',
+    ld: {
+      '@context': 'https://schema.org',
+      '@type': 'Blog',
+      name: 'FeastoX guides',
+      url: `${SITE}/blog`,
+      blogPost: posts.map((p) => ({ '@type': 'BlogPosting', headline: p.h1, datePublished: p.date, url: `${SITE}/blog/${p.slug}` })),
+    },
+  },
+  ...posts.map((post) => {
+    const feature = features.find((f) => f.slug === post.related);
+    return {
+      path: `/blog/${post.slug}`,
+      title: post.title,
+      description: post.description,
+      h1: post.h1,
+      date: post.date,
+      ogType: 'article',
+      keywords: post.keywords,
+      priority: '0.6',
+      body:
+        `<p>${esc(post.intro)}</p>` +
+        post.sections.map((s) => `<h2>${esc(s.h)}</h2><p>${esc(s.p)}</p>`).join('') +
+        `<p>Related: <a href="/${feature.slug}">${esc(feature.name)}</a></p>` +
+        `<nav>${posts.filter((o) => o.slug !== post.slug).map((o) => `<a href="/blog/${o.slug}">${esc(o.h1)}</a>`).join(' ')}</nav>`,
+      ld: {
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: post.h1,
+        description: post.description,
+        datePublished: post.date,
+        dateModified: post.date,
+        keywords: post.keywords.join(', '),
+        mainEntityOfPage: `${SITE}/blog/${post.slug}`,
+        image: `${SITE}/og-image.png`,
+        author: { '@type': 'Organization', name: 'FeastoX', '@id': `${SITE}/#org` },
+        publisher: { '@id': `${SITE}/#org` },
+      },
+    };
+  }),
   ...features.map((f) => ({
     path: `/${f.slug}`,
     title: f.title,
@@ -58,7 +114,7 @@ const pages = [
       '<h2>Questions</h2>' +
       f.faqs.map((q) => `<h3>${esc(q.q)}</h3><p>${esc(q.a)}</p>`).join('') +
       `<p><a href="/get-started">Get started</a></p>` +
-      `<nav>${features.filter((o) => o.slug !== f.slug).map((o) => `<a href="/${o.slug}">${esc(o.name)}</a>`).join(' ')}</nav>`,
+      `<nav><a href="/blog">Guides</a> ${features.filter((o) => o.slug !== f.slug).map((o) => `<a href="/${o.slug}">${esc(o.name)}</a>`).join(' ')}</nav>`,
     faqs: f.faqs,
     keywords: f.keywords,
     priority: '0.9',
@@ -93,7 +149,12 @@ for (const p of pages) {
     swap(/(<meta name="twitter:description" content=")[^"]*/, `${esc(p.description)}`);
     swap(/(<meta property="og:url" content=")[^"]*/, `${url}`);
     swap(/(<link rel="canonical" href=")[^"]*/, `${url}`);
-    const ld = p.faqs ? `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: p.faqs.map((q) => ({ '@type': 'Question', name: q.q, acceptedAnswer: { '@type': 'Answer', text: q.a } })) }).replace(/</g, '\u003c')}</script>` : '';
+    if (p.ogType) swap(/(<meta property="og:type" content=")[^"]*/, p.ogType);
+    const blocks = [];
+    if (p.faqs) blocks.push({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: p.faqs.map((q) => ({ '@type': 'Question', name: q.q, acceptedAnswer: { '@type': 'Answer', text: q.a } })) });
+    if (p.ld) blocks.push(p.ld);
+    const ld = blocks.map((b) => `<script type="application/ld+json">${JSON.stringify(b).replace(/</g, '\\u003c')}</script>`).join('');
+    if (p.date) html = html.replace('</head>', `<meta property="article:published_time" content="${p.date}"></head>`);
     swap(/<div id="root"><\/div>/, `<div id="root">${ld}<div class="sr-only"><h1>${esc(p.h1)}</h1>${p.body ?? ''}</div></div>`);
     const dir = new URL(`.${p.path}/`, dist);
     await mkdir(dir, { recursive: true });
@@ -101,7 +162,11 @@ for (const p of pages) {
   }
 }
 
-const urls = pages.map((p) => `  <url><loc>${SITE}${p.path === '/' ? '/' : p.path}</loc><priority>${p.priority}</priority></url>`);
+const urls = pages.map((p) => {
+  const loc = `${SITE}${p.path === '/' ? '/' : p.path}`;
+  const last = p.date ? `<lastmod>${p.date}</lastmod>` : '';
+  return `  <url><loc>${loc}</loc>${last}<priority>${p.priority}</priority></url>`;
+});
 await writeFile(
   new URL('sitemap.xml', dist),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`,

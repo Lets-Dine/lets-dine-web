@@ -10,6 +10,7 @@ const LINKS = [
   { href: '#dashboard', label: 'Reports' },
   { href: '/dish-ratings-and-qr-menu', label: 'Menu & ratings' },
   { href: '/pricing', label: 'Pricing' },
+  { href: '/blog', label: 'Guides' },
 ];
 
 const isAnchor = (href: string) => href.startsWith('#');
@@ -27,7 +28,7 @@ function NavLink({
   onClick: (event: React.MouseEvent) => void;
   className: string;
 }) {
-  const current = link.href === pathname;
+  const current = pathname === link.href || pathname.startsWith(`${link.href}/`);
   const cls = cx(className, current && 'text-ink');
 
   if (isAnchor(link.href) && onHome) {

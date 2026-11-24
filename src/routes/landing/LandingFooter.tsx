@@ -102,6 +102,7 @@ export function LandingFooter() {
             {legal.ready && legal.pages.map((p) => (
               <Link key={p.slug} to={`/${p.slug}`} className="hover:text-flame-1">{p.name}</Link>
             ))}
+            <Link to="/blog" className="hover:text-flame-1">Guides</Link>
             <a href="/llms.txt" className="hover:text-flame-1">Info for AI</a>
           </nav>
           {/* <span>

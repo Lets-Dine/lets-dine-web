@@ -71,13 +71,15 @@ function Page({ order, onApply, onResync }: { order: Order; onApply: (o: Order) 
   const { menu } = useDashboard();
   const { allows } = useAuth();
   const staff = useStaff();
-  // The bills this order's visit produced — paying is what raises the invoice, so ask once it is paid.
+  // The bills this order's visit produced — paying raises the invoice, so ask once it is paid. A delivery's cash-on-delivery
+  // bill opens when it goes out, before anyone has paid it, so ask from then on.
+  const billed = Boolean(order.paidAt) || (order.orderType === 'DELIVERY' && (order.status === 'OUT_FOR_DELIVERY' || order.status === 'SETTLE'));
   const bills = useAsync(
     () =>
-      allows('payments:view') && order.paidAt
+      allows('payments:view') && billed
         ? listPayments(staff, 0, 10, { sessionId: order.sessionId }).then((p) => p.rows)
         : Promise.resolve([] as Payment[]),
-    [staff, order.sessionId, order.paidAt],
+    [staff, order.sessionId, billed, order.status],
   );
   const { move, cancel, sheets, courierRun, live } = useOrderMoves(
     order,
@@ -95,11 +97,19 @@ function Page({ order, onApply, onResync }: { order: Order; onApply: (o: Order) 
   );
   const printBill = (bill: Payment) =>
     printReceipt(
-      { name: order.tableName ?? order.floorVisitorName ?? 'Quick sale' },
+      {
+        name:
+          order.orderType === 'DELIVERY'
+            ? 'Delivery'
+            : order.orderType === 'PICKUP'
+              ? 'Pick up'
+              : (order.tableName ?? order.floorVisitorName ?? 'Quick sale'),
+      },
       bill.items.map((i) => ({ dishNameSnapshot: i.dishNameSnapshot, quantity: i.quantity, total: i.unitPrice * i.quantity })),
       { currency: bill.currency, subtotal: bill.subtotal, serviceCharge: bill.serviceCharge, tax: bill.tax, discount: bill.discount, total: bill.total },
       menu.restaurant,
-      { method: bill.method, takenBy: bill.createdByName },
+      // Nothing collected yet (a delivery bill still out with the courier): no "Paid by" line to print.
+      bill.paidAmount > 0 ? { method: bill.method, takenBy: bill.createdByName } : undefined,
       bill.customerName,
       bill,
     );
@@ -273,6 +283,7 @@ function Page({ order, onApply, onResync }: { order: Order; onApply: (o: Order) 
               <div key={bill.id} className="mt-3 flex items-center justify-between gap-3 border-t border-hairline pt-3 text-[14px]">
                 <span className="font-semibold tnum">
                   {bill.invoiceNumber != null && bill.fiscalYear ? `Invoice ${bill.invoiceNumber} · ${bill.fiscalYear}` : 'Bill'}
+                  {bill.paymentStatus !== 'PAID' && <span className="ml-2 font-normal text-gold">{money(bill.total - bill.paidAmount)} owed</span>}
                 </span>
                 <button type="button" onClick={() => void printBill(bill)} className="font-semibold text-flame-1 hover:underline">
                   Print

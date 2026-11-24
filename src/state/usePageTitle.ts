@@ -1,10 +1,19 @@
 import { useEffect } from 'react';
 import features from '../content/features.json';
+import posts from '../content/posts.json';
 import { legal } from '../content/legal';
 
 const SITE = 'https://feastox.com';
 /** Only these routes are marketing pages worth indexing; diner, admin and platform routes are private/per-table. */
-const INDEXABLE = new Set(['/', '/get-started', '/pricing', ...features.map((f) => `/${f.slug}`), ...(legal.ready ? legal.pages.map((p) => `/${p.slug}`) : [])]);
+const INDEXABLE = new Set([
+  '/',
+  '/get-started',
+  '/pricing',
+  '/blog',
+  ...posts.map((p) => `/blog/${p.slug}`),
+  ...features.map((f) => `/${f.slug}`),
+  ...(legal.ready ? legal.pages.map((p) => `/${p.slug}`) : []),
+]);
 
 function setMeta(selector: string, attr: 'name' | 'property', key: string, content: string) {
   let el = document.head.querySelector(selector);

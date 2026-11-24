@@ -1,0 +1,354 @@
+[
+  {
+    "slug": "how-to-set-up-a-qr-menu",
+    "title": "How to Set Up a QR Menu for a Restaurant in Nepal · FeastoX",
+    "description": "Replace a paper menu with a QR code in Nepal: one code per table, prices in Rs., and updates that do not need a reprint.",
+    "h1": "How to set up a QR menu for a restaurant in Nepal",
+    "date": "2026-11-04",
+    "related": "qr-menu",
+    "intro": "A QR menu is a web page, not an app. The code on the table only names the restaurant and the table. Dishes, prices and photos live on the server, so a price change does not mean a new print run.",
+    "keywords": ["QR menu Nepal", "how to make a QR code menu", "digital menu for restaurant", "restaurant QR code", "contactless menu Nepal"],
+    "sections": [
+      {
+        "h": "One code per table, not one code for the room",
+        "p": "If every table shares a single code, the kitchen cannot tell who ordered. Print a different code for each table and put it where a diner can scan it without asking. The code carries no prices, so it stays valid when the menu changes. FeastoX encodes the restaurant and an opaque table token, nothing else."
+      },
+      {
+        "h": "Put the real menu behind the code",
+        "p": "List every dish you still sell, with the price in Rs. and a short description. A photo helps more than a long paragraph. Hide a dish the moment the kitchen runs out, instead of telling the table after they have already chosen it. A laminated backup that disagrees with the QR menu will win the argument, so say on the paper that the code is the current menu."
+      },
+      {
+        "h": "Diners should not need an account",
+        "p": "The menu has to open in the phone browser after the scan. An app install or a sign-up drops most of the table, especially on a slow connection. Mid-range Android phones are the normal case in Nepal, so the page has to load there without a special browser. Ordering can stay anonymous: the table token is enough to know where the food goes."
+      },
+      {
+        "h": "Change the price in one place",
+        "p": "Edit a dish, a price or a category in the dashboard and every table sees it. That is the reason to leave paper. Reprinting a QR stand because a price moved means the code was doing the menu's job. It should only point at the menu."
+      },
+      {
+        "h": "Check it before service, from a phone that is not on the restaurant Wi-Fi",
+        "p": "Scan a code on mobile data. Confirm the table name is right, a sold-out dish is hidden, and the price on the dish is the price you intend to charge. Totals, tax and service charge are calculated on the server from your menu, so a diner's phone cannot change what the order costs. Then leave the printed codes alone."
+      }
+    ]
+  },
+  {
+    "slug": "restaurant-pos-vs-paper-bills",
+    "title": "Restaurant POS vs Paper Bills for a Small Restaurant · FeastoX",
+    "description": "What changes when a small restaurant in Nepal moves from paper bills to a POS: the ticket, the total, and the end-of-day count.",
+    "h1": "What changes when a small restaurant leaves paper bills",
+    "date": "2026-11-08",
+    "related": "restaurant-pos",
+    "intro": "A POS is not a bigger calculator. It is the place an order is written once, priced from the menu, and still there at the end of the night. Paper can run a quiet lunch. It starts losing items when two people sell at once.",
+    "keywords": ["restaurant POS Nepal", "POS for small restaurant", "paper bill vs POS", "restaurant billing software Nepal"],
+    "sections": [
+      {
+        "h": "The bill should not depend on memory",
+        "p": "On paper, an add-on or a cancelled dish lives in someone's head until the bill is written. A POS keeps the ticket: table, dishes, notes and status. The person who closes the bill is not the person who has to remember it. The same ticket can come from a QR order or from staff at the counter, so the floor and the till are not two notebooks."
+      },
+      {
+        "h": "Totals come from the menu, not from the till",
+        "p": "Tax and service charge should be calculated from the prices you set, on the server, every time. A calculator at the counter can be tapped wrong, and a handwritten rate drifts from the menu. When you change a price, the next bill should use the new one without anyone re-teaching the till."
+      },
+      {
+        "h": "The day has a number you can close",
+        "p": "Paper bills get lost, rewritten or added in a hurry. A POS can show what was sold, by dish and by payment, for that day. You still count the cash drawer. You stop reconstructing the evening from a spike of bills. That daily sales number is the one later reports, from margins to a profit and loss, are built on."
+      },
+      {
+        "h": "One sale, wherever it was taken",
+        "p": "A table order, a takeaway and a bill paid at the counter are the same kind of sale. If they land in different books, the evening total is a guess. One queue means one sales number, and the kitchen sees the ticket instead of hearing it."
+      },
+      {
+        "h": "When paper is still fine",
+        "p": "A single person who cooks and takes the money, with a short menu and no service charge, can stay on paper for a while. The switch is worth it when more than one person sells, when prices move often, or when you want the kitchen to work from a ticket. FeastoX is that till: orders, payments and the day's sales in one place, with prices in Rs."
+      }
+    ]
+  },
+  {
+    "slug": "track-food-cost-in-a-restaurant",
+    "title": "How to Track Food Cost in a Restaurant · FeastoX",
+    "description": "How a restaurant in Nepal can track ingredients and food cost: what to count, what to ignore, and how a sale should reduce stock.",
+    "h1": "How to track food cost without living in a spreadsheet",
+    "date": "2026-11-12",
+    "related": "restaurant-inventory",
+    "intro": "Food cost is the gap between what you bought and what you sold. A spreadsheet can hold the purchases. It goes stale the night nobody updates it. The count has to move when a dish is sold, or it is a diary, not a control.",
+    "keywords": ["restaurant food cost", "restaurant inventory Nepal", "ingredient tracking", "food cost control restaurant"],
+    "sections": [
+      {
+        "h": "Start with the ingredients that move money",
+        "p": "Do not inventory the toothpicks. List the items you buy often and that sit inside your best-selling dishes: meat, oil, dairy, the dry goods you would notice if they ran out mid-service. A short list you trust beats a long list nobody counts. FeastoX is built for that short list, not for a warehouse catalogue."
+      },
+      {
+        "h": "Tie a dish to what it uses",
+        "p": "A recipe on the dish — how much of each ingredient one plate takes — is what turns a sale into a stock movement. Without that link you can see revenue and you can see purchases, and you still cannot see which plate is expensive. Write the recipe once, in the same place you edit the menu."
+      },
+      {
+        "h": "Count on a rhythm, not when something feels wrong",
+        "p": "Pick a day. Count the short list. The difference between what the sales said you used and what is on the shelf is waste, a missed bill, or a recipe that is wrong. That difference is the number worth looking at. A feeling that chicken is low is not a count."
+      },
+      {
+        "h": "Let a completed order reduce the shelf",
+        "p": "If stock only changes when someone types a purchase, you will always be late. When an order is completed, the ingredients on those dishes should come off the count. Purchases add stock back. Anything else is an adjustment you can see, not a silent edit."
+      },
+      {
+        "h": "Use the count to buy",
+        "p": "A buy list from what is low, before the next market run, is the practical output. The report that matters at month end is food cost against sales. Extra columns that nobody opens are not a system. Start with the dishes you already sell, then let the sales move the stock."
+      }
+    ]
+  },
+  {
+    "slug": "kitchen-display-for-small-restaurants",
+    "title": "Does a Small Restaurant Need a Kitchen Display? · FeastoX",
+    "description": "When a kitchen display is worth it for a small restaurant, and when a paper ticket is still the right tool.",
+    "h1": "Does a small restaurant need a kitchen display?",
+    "date": "2026-11-18",
+    "related": "kitchen-display-system",
+    "intro": "A kitchen display is a screen of live tickets, in the order they should be cooked, instead of a stack of paper that can be buried. It is worth it when tickets get lost or shouted. It is not worth it as a decoration.",
+    "keywords": ["kitchen display system", "KDS for small restaurant", "kitchen order screen", "restaurant kitchen display Nepal"],
+    "sections": [
+      {
+        "h": "Paper fails in a specific way",
+        "p": "A chit falls behind the pass. Two tables order the same dish and one is forgotten. A modifier is said out loud and never written down. The ticket stopped being the source of truth the moment it could leave the rail. A screen does not cook faster. It keeps the older ticket in front of the newer one."
+      },
+      {
+        "h": "What the screen has to show",
+        "p": "The dish, the table, the notes, and how long it has been waiting. Status should move in one direction: accepted, preparing, ready, completed. A wall of colours with no order is harder to cook from than paper. The diner can see the same status on their phone, so the pass is not the only place that knows the dish is up."
+      },
+      {
+        "h": "One queue for QR orders and counter orders",
+        "p": "If diners order from the table and staff also punch bills at the counter, both have to land on the same screen. A kitchen that watches one system and listens for the other will miss whichever it is not looking at. FeastoX sends both into one queue, tagged with the table."
+      },
+      {
+        "h": "Split stations only if you actually have stations",
+        "p": "A single kitchen can share one screen. Split into grill and bar only when those people do not work from the same ticket. Extra screens that show the same list just move the argument about whose ticket it is. Add a station when a ticket is being ignored, not because the software offered the option."
+      },
+      {
+        "h": "Size is the wrong test",
+        "p": "A busy cafe with a short menu hits lost tickets sooner than a large dining room that turns tables slowly. The question is whether two orders can be in flight and the kitchen still knows which one is older. If the answer is no, a display is the cheaper fix. If the answer is yes, keep the paper and spend the money on the menu."
+      }
+    ]
+  },
+  {
+    "slug": "why-dish-ratings-matter",
+    "title": "Why Dish Ratings Beat a Restaurant Star Score · FeastoX",
+    "description": "A restaurant star score hides which plates people reorder. A dish rating, tied to a real order, tells you what to keep and what to fix.",
+    "h1": "Why a dish rating is more useful than a restaurant star",
+    "date": "2026-11-22",
+    "related": "dish-ratings",
+    "intro": "A single star for the whole restaurant mixes the food, the wait and one bad table. The cook cannot act on it. A rating on the dish, from someone who ordered it, is a smaller claim and a more useful one.",
+    "keywords": ["dish ratings", "restaurant reviews Nepal", "verified dish reviews", "restaurant rating vs dish rating"],
+    "sections": [
+      {
+        "h": "Ask after the order, not on the way in",
+        "p": "A rating from a person who did not buy the dish is an opinion about the photo. Tie the question to the completed order, and only to dishes that were on it. The number beside the dish should say how many people it came from. FeastoX asks for that rating on the order the diner already placed, so the score is tied to a purchase."
+      },
+      {
+        "h": "Put the rating where the next diner chooses",
+        "p": "The score belongs on the menu, beside the price, not only on a review site the table will not open. People deciding between two plates will use a number that is already in front of them. People who have left rarely come back to update a profile. On a QR menu, that number sits on the dish."
+      },
+      {
+        "h": "Read it as a menu edit",
+        "p": "A dish that sells and rates poorly is a recipe or a portion problem. A dish that rates well and rarely sells is a placement problem: move it, photograph it, or name it more clearly. A restaurant-wide average hides both. Sort the menu by the dishes people finished, not by the ones that were easy to add."
+      },
+      {
+        "h": "Show the count next to the average",
+        "p": "If low scores disappear, diners learn to ignore the number. A dish with four ratings is not the same as a dish with forty, even when the average matches. Publish the count. A new dish can say it is new instead of pretending to a score it has not earned."
+      },
+      {
+        "h": "Keep the place-level star for the door",
+        "p": "Maps and search will keep showing a score for the restaurant. That number brings people to the door. The dish score decides what they order, and what you take off the menu next month. They answer different questions. Do not average them into one."
+      }
+    ]
+  },
+  {
+    "slug": "what-to-look-for-in-restaurant-software",
+    "title": "What to Look for in Restaurant Software in Nepal · FeastoX",
+    "description": "A buyer's checklist for restaurant software in Nepal: one ticket from QR or POS to the kitchen, the bill and the stock.",
+    "h1": "What to look for in restaurant software in Nepal",
+    "date": "2026-11-25",
+    "related": "for-restaurants",
+    "intro": "The useful test is not the length of the feature list. It is whether the order, the kitchen, the bill and the stock all describe the same sale. A stack of apps that do not share a ticket recreates the notebook you were trying to leave.",
+    "keywords": ["restaurant management software Nepal", "restaurant software Nepal", "restaurant POS system Nepal", "best restaurant software Nepal"],
+    "sections": [
+      {
+        "h": "The order has to survive the handoff",
+        "p": "However the table orders — a QR code, a waiter on a POS, a delivery — the kitchen should see one ticket with the table or the address on it. If the QR system and the billing system are different products, someone is retyping, and the retyped ticket is the one that will be wrong. FeastoX keeps QR orders, counter bills and delivery on one queue."
+      },
+      {
+        "h": "Prices in Rs., rules on the server",
+        "p": "Tax, service charge and discounts should be settings, calculated where the diner cannot edit them. Software written for another country's tax model will fight the way you actually bill. Confirm you can show prices in Rs. and change them during service without a reprint or a new app build."
+      },
+      {
+        "h": "The menu is something you edit during service",
+        "p": "A digital menu that cannot hide a finished dish is a PDF with extra steps. You want to mark a dish unavailable and have every table, and the POS, stop selling it. A verified rating on the dish is part of that menu, not a separate marketing site. Diners decide in the room, from the page already open."
+      },
+      {
+        "h": "Stock that can move when you sell",
+        "p": "You can turn inventory on later, but only if a dish can name its ingredients. A POS that cannot do that leaves food cost in a spreadsheet forever. You do not need a full warehouse on day one. You need the link between a sold plate and what it used, then a buy list when those ingredients run low."
+      },
+      {
+        "h": "What to leave for later",
+        "p": "Payroll, a loyalty app and a branded diner app show up in a lot of bundles. None of them fix a lost ticket. Start with the path from order to payment to a daily sales number. Add delivery, extra branches and a referral programme when that path is boringly reliable. If a product cannot show you yesterday's sales by dish, the rest of the list does not matter yet."
+      }
+    ]
+  },
+  {
+    "slug": "how-to-manage-a-restaurant-in-nepal",
+    "title": "How to Manage a Restaurant in Nepal · FeastoX",
+    "description": "A practical plan for running a restaurant in Nepal: the daily routine, the numbers to check, and the tools that keep the floor, kitchen and till in step.",
+    "h1": "How to manage a restaurant in Nepal",
+    "date": "2026-11-25",
+    "related": "for-restaurants",
+    "intro": "Running a restaurant is a set of small routines repeated every day: take orders, cook them, bill them, buy what ran out and count what came in. Good management is making those routines reliable enough that you can step out for an hour without the evening falling apart.",
+    "keywords": ["restaurant management Nepal", "how to manage a restaurant", "restaurant management tips Nepal", "restaurant owner guide Nepal"],
+    "sections": [
+      {
+        "h": "Start the day with the numbers you need",
+        "p": "Before service, know what is on the shelf, which dishes are off the menu and what bookings look like. Yesterday's sales by dish show what to push and what to prep more of. Ten minutes of this is cheaper than a chaotic lunch rush."
+      },
+      {
+        "h": "Put every order on one ticket",
+        "p": "Orders from the counter, the tables and delivery should land in the same kitchen queue. When they arrive by three different routes, one of them reaches the cook late or not at all. One ticket per order, tagged with the table or the address, is usually the first thing to fix."
+      },
+      {
+        "h": "Keep the menu editable during service",
+        "p": "Availability changes in the middle of a busy night. A dish that has run out should leave the menu the moment it does, not after a waiter has apologised to the fourth table. The menu should be something you can change from a phone during a shift."
+      },
+      {
+        "h": "Count stock on a fixed rhythm",
+        "p": "Pick a day each week and count the short list of ingredients that matter most. Compare the count with what your sales say you used. The gap is waste, a missed bill or a wrong recipe. Each has a fix, but you only find them if you count."
+      },
+      {
+        "h": "Know what each month really earned",
+        "p": "Sales, money owed to you, cash in and recurring costs such as rent and salaries belong in one place. Profit and loss at month end should come from bills you actually settled, not from a guess. Your accountant needs clean records more than a box of receipts."
+      }
+    ]
+  },
+  {
+    "slug": "what-is-restaurant-pos-software",
+    "title": "What Is Restaurant POS Software? · FeastoX",
+    "description": "Restaurant POS software is where orders are taken, bills are settled and sales are recorded. Here is what it does for a restaurant, and what it does not do.",
+    "h1": "What is restaurant POS software?",
+    "date": "2026-11-25",
+    "related": "restaurant-pos",
+    "intro": "A point of sale system is where a restaurant records an order, prices it, takes payment and keeps the sale. In a restaurant it does more than work as a till. It also has to get the order to the kitchen and count what was sold at the end of the day.",
+    "keywords": ["restaurant POS software", "what is POS software", "restaurant POS system meaning", "POS for restaurants Nepal"],
+    "sections": [
+      {
+        "h": "What it does at the counter",
+        "p": "A cashier or waiter picks dishes from the menu and adds notes or add-ons. The order is priced from the menu the restaurant set up, not from memory. The POS works out tax and service charge, takes the payment and prints or shows a receipt. The sale is stored, not written on a pad that can be lost."
+      },
+      {
+        "h": "What it does in the kitchen",
+        "p": "A useful POS does not stop at the till. The order should reach the kitchen screen or printer as soon as it is placed, with the table and any note. Without that link, the POS is a cash register and the cook still works from a shouted order."
+      },
+      {
+        "h": "What it records after the sale",
+        "p": "Every settled bill adds to the day's sales, by dish and by payment mode. That record is what you use to close the day, check the cash drawer and later see which dishes make money. A POS that cannot produce that report is only half a system."
+      },
+      {
+        "h": "What it does not do",
+        "p": "A POS does not cook, does not count your stock by itself and does not decide your prices. It is only as accurate as the menu, the recipes and the people using it. Setting up the menu carefully, once, is most of the work."
+      },
+      {
+        "h": "How to tell if you need one",
+        "p": "If more than one person takes orders, if prices change often, or if the kitchen keeps asking what a ticket was, a POS is worth it for the fewer mistakes alone. A single cook selling a short menu can manage on a notebook for longer. FeastoX's POS runs in the browser, shares its menu and orders with QR ordering, and records the day's sales in the same system."
+      }
+    ]
+  },
+  {
+    "slug": "how-to-track-restaurant-sales-and-expenses",
+    "title": "How to Track Restaurant Sales and Expenses · FeastoX",
+    "description": "How a restaurant in Nepal can track daily sales and expenses in one place: what to record, when to record it, and how to read the month-end numbers.",
+    "h1": "How to track restaurant sales and expenses",
+    "date": "2026-11-25",
+    "related": "restaurant-accounting",
+    "intro": "Sales show what came in. Expenses show what went out. A restaurant that tracks only one of them can be busy every night and still have nothing left at the end of the month. Both need recording when they happen, not rebuilding from memory later.",
+    "keywords": ["restaurant accounting Nepal", "track restaurant sales", "restaurant expense tracking", "restaurant cash book Nepal"],
+    "sections": [
+      {
+        "h": "Record a sale when the bill is settled",
+        "p": "A sale is a bill that was paid, not an order that was taken. Record it at settlement with the payment mode: cash, card, wallet or credit. Orders that were never paid should not inflate the day. A credit sale goes to receivables until the customer pays."
+      },
+      {
+        "h": "Keep money owed to you apart from cash",
+        "p": "A customer who runs a tab owes you money. Track that by customer, with the amount and the date it fell due. Mixing it into the day's cash makes the drawer look wrong and the sales look better than they were."
+      },
+      {
+        "h": "Write down every expense on the day",
+        "p": "Vegetables from the market, a gas refill, a repair, a tip paid out of the till. Small costs add up and go missing when they live in a pocket. Record each one with a date, a category and who paid it. A plain list is enough."
+      },
+      {
+        "h": "List recurring costs once",
+        "p": "Rent, salaries, subscriptions and loan payments come round every month. Keep them in a recurring list so each one is due on time, and post it when it falls due. A missed recurring cost is the most common reason a month looks better than it was."
+      },
+      {
+        "h": "Read the month, not one night",
+        "p": "At month end, put sales, money owed, cash in, expenses and recurring costs together. Profit and loss is what is left. Compare it with the same month last year and look for the cost line that grew faster than sales. That is where to start the conversation with your accountant."
+      }
+    ]
+  },
+  {
+    "slug": "restaurant-table-management-guide",
+    "title": "Restaurant Table Management: A Complete Guide · FeastoX",
+    "description": "How to set up floors and tables in a restaurant, give each table its own QR code, and keep track of who is seated where and what they ordered.",
+    "h1": "Restaurant table management: a complete guide",
+    "date": "2026-11-25",
+    "related": "table-management",
+    "intro": "Table management is how a restaurant knows which tables are taken, what each one has ordered and when it needs attention. Done well, it ends the shouted question 'which table was that?'. Done badly, it is a whiteboard nobody updates after the lunch rush.",
+    "keywords": ["restaurant table management", "table management software", "restaurant floor plan", "table QR code restaurant"],
+    "sections": [
+      {
+        "h": "Start with floors and tables, named the way staff say them",
+        "p": "Group tables into floors, such as ground floor, terrace or private room, and give each table the number or name your staff already use. A table called T7 in the system and 'the window one' in the kitchen are two systems. Pick one naming scheme and use it everywhere."
+      },
+      {
+        "h": "One QR code per table",
+        "p": "Each table gets its own code, so an order always arrives tagged with the right table. Do not share one code across the room. The code only identifies the table, not the menu, so you can change prices and dishes without reprinting the stands."
+      },
+      {
+        "h": "See everything a table has ordered",
+        "p": "A table can place more than one order in a visit. Keep them under the same dining session so the bill and the history stay together. Staff should be able to open a table and see every dish sent so far and what has been served."
+      },
+      {
+        "h": "Decide how to handle a table that moves",
+        "p": "Guests move, split the bill or join two tables. Agree how an open session moves from one table to another, and how a split bill is recorded, before the rush starts. A rule that every member of staff follows matters more than any single feature."
+      },
+      {
+        "h": "Check the layout against real service",
+        "p": "After a week, look at which tables fill first, which wait longest for food, and where staff walk the most. Move a table or add a floor when those numbers say so, not when the room only looks full."
+      }
+    ]
+  },
+  {
+    "slug": "how-to-reduce-food-waste-in-restaurants",
+    "title": "How to Reduce Food Waste in Restaurants · FeastoX",
+    "description": "Practical ways for a restaurant in Nepal to cut food waste: log what gets thrown away, buy to what sells, and fix the recipes and prep quantities that overproduce.",
+    "h1": "How to reduce food waste in a restaurant",
+    "date": "2026-11-25",
+    "related": "restaurant-inventory",
+    "intro": "Food waste is money bought and then thrown away. It hides in the bin, in prep that never sold and in portions that came back on a plate. The first step is not a new rule for the cooks. It is making the waste visible, so you can see which dish is leaking.",
+    "keywords": ["reduce restaurant food waste", "food waste restaurant Nepal", "restaurant waste tracking", "kitchen food waste control"],
+    "sections": [
+      {
+        "h": "Log every kind of waste, with a reason",
+        "p": "Spoiled stock, dishes over-prepared at close, returned food and trimmings you could have used all belong in the record. A waste log with no reasons is a number nobody can act on. After a few weeks, one or two items usually account for most of the loss."
+      },
+      {
+        "h": "Fix the prep quantity, not the people",
+        "p": "If the same dish goes in the bin every night, the prep quantity is wrong. Cook less and check the sales for that day of the week. A cook who binned food because a standing prep rule said so was following a rule someone wrote. Change the rule."
+      },
+      {
+        "h": "Let the sales set the stock",
+        "p": "Buy and prep against what sold on the same day in previous weeks. When a completed order takes its ingredients off stock using the dish recipe, the count shows what was really used. The gap between that and the shelf is waste or a recipe error."
+      },
+      {
+        "h": "Keep recipes accurate",
+        "p": "A recipe that says 200 grams, cooked as 250 grams, is a loss you cannot see on paper. Weigh a few plates of your best sellers and correct the recipe. Portion control costs little and moves the food cost of a dish more than most price changes do."
+      },
+      {
+        "h": "Use leftovers on purpose",
+        "p": "Some trimmings and leftovers can become a special, a stock or a staff meal instead of waste. Decide what is allowed, write it down and keep it food-safe. Do not leave the decision to each cook each night, because they will not decide the same way."
+      }
+    ]
+  }
+]

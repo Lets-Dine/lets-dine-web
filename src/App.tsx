@@ -16,6 +16,7 @@ import { Claim } from './routes/Claim';
 import { GetStarted } from './routes/GetStarted';
 import { Landing } from './routes/Landing';
 import { Pricing } from './routes/Pricing';
+import { BlogIndex, BlogPost } from './routes/Blog';
 import { Menu } from './routes/Menu';
 import { NotFound } from './routes/NotFound';
 import { OrderHistory } from './routes/OrderHistory';
@@ -203,6 +204,8 @@ export default function App() {
               {/* Where an owner activates a restaurant that was already set up for them (from the order welcome screen). */}
               <Route path="/claim" element={<Claim />} />
               <Route path="/pricing" element={<Pricing />} />
+              <Route path="/blog" element={<BlogIndex />} />
+              <Route path="/blog/:slug" element={<BlogPost />} />
               {legal.pages.map((p) => (
                 <Route key={p.slug} path={`/${p.slug}`} element={<Legal slug={p.slug} />} />
               ))}
