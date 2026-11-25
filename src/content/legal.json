@@ -1,8 +1,8 @@
 {
-  "ready": false,
+  "ready": true,
   "company": "FeastoX",
-  "email": "[[contact email]]",
-  "updated": "21 November 2026",
+  "email": "jorasmhj@gmail.com",
+  "updated": "25 November 2026",
   "pages": [
     {
       "slug": "privacy",
@@ -10,15 +10,19 @@
       "title": "Privacy Policy · FeastoX",
       "description": "How FeastoX collects, uses and protects information about restaurants, their staff and their diners.",
       "h1": "Privacy Policy",
-      "intro": "This policy explains what {{company}} (\"FeastoX\", \"we\") collects when restaurants and diners use FeastoX, why, and the choices you have. Last updated {{updated}}.",
+      "intro": "This policy explains what {{company}} (\"FeastoX\", \"we\") collects when restaurants, their staff and diners use the FeastoX website and the FeastoX mobile app, why, and the choices you have. Last updated {{updated}}.",
       "sections": [
         {
           "h": "Who this covers",
-          "p": "Restaurant owners and staff who create an account, and diners who open a restaurant’s menu by scanning a QR code. For diner data, the restaurant decides why the data is collected, and we process it for the restaurant."
+          "p": "Restaurant owners and staff who create an account or sign in on the website or in the FeastoX app, and diners who open a restaurant’s menu by scanning a QR code. For diner data, the restaurant decides why the data is collected, and we process it for the restaurant."
         },
         {
           "h": "What we collect from restaurants",
-          "p": "Your name, email address, phone number, restaurant details, menu, prices, tables, staff accounts and their roles, orders, sales and accounting records you enter, and the actions recorded in your audit log. For subscriptions we keep the plan, invoices and payment reference. Payment card or wallet credentials are handled by the payment provider, not stored by us."
+          "p": "Your name, email address, phone number, profile photo if you add one, restaurant details, menu, prices, tables, staff accounts and their roles, orders, sales and accounting records you enter, the time of your last sign-in, and the actions recorded in your audit log. Your sign-in PIN is stored only as a salted hash, never as the PIN itself. For subscriptions we keep the plan, invoices and payment reference. Payment card or wallet credentials are handled by the payment provider, not stored by us."
+        },
+        {
+          "h": "The FeastoX mobile app",
+          "p": "The app is for restaurant staff. It keeps your sign-in session in your phone’s secure storage. If you allow notifications, we store a push notification token for your phone, together with the branch you are working in, so we can alert you to new orders. The app asks for Bluetooth permission to find and connect to receipt and kitchen printers. On older versions of Android the system also requires the location permission before an app may scan for Bluetooth devices; FeastoX does not read, collect or store your location. The app can keep your screen awake while it is open, and it reads only the photos you choose to upload for a dish or your profile. You can turn any permission off in your phone’s settings; the feature that needs it, such as printing or order alerts, then stops working."
         },
         {
           "h": "What we collect from diners",
@@ -26,11 +30,11 @@
         },
         {
           "h": "How we use information",
-          "p": "To run the service: show menus, take and track orders, show ratings, bill subscriptions, keep records, prevent misuse, fix problems and improve the product. We do not sell personal information."
+          "p": "To run the service: show menus, take and track orders, send order alerts to staff, show ratings, bill subscriptions, keep records, prevent misuse, fix problems and improve the product. We do not sell personal information, and we do not use it for advertising."
         },
         {
           "h": "Who sees it",
-          "p": "The restaurant you order from sees your orders, and your name and phone number if you gave them. Ratings are shown to the restaurant and to other diners without your phone number. We share data with service providers that host the service or process payments, only as needed to provide it, and where the law requires."
+          "p": "The restaurant you order from sees your orders, and your name and phone number if you gave them. Ratings are shown to the restaurant and to other diners without your phone number. We share data with service providers that host the service or process payments, and with Google, whose Firebase Cloud Messaging service delivers push notifications to staff phones. They receive only what is needed to provide that service. We also share data where the law requires."
         },
         {
           "h": "Cookies and local storage",
@@ -38,15 +42,23 @@
         },
         {
           "h": "How long we keep it",
-          "p": "We keep restaurant records while the account is active and for the period the law or legitimate business needs require afterwards. Order records keep the dish name and price as they were at the time of the order. Ask us to delete personal data and we will, unless we must keep it."
+          "p": "We keep restaurant records while the account is active and for the period the law or legitimate business needs require afterwards. Order records keep the dish name and price as they were at the time of the order. Sales, payment, ledger and audit records also keep the name of the staff member who made each entry as it was at that time, so receipts and books still read correctly; when a staff account is deleted these records stay with the restaurant and are not removed. Ask us to delete personal data and we will, unless we must keep it."
+        },
+        {
+          "h": "Deleting your account",
+          "p": "Staff can delete their own account in the FeastoX app: open the More tab, tap your profile at the top, scroll to the bottom, choose Delete my account and enter your sign-in PIN. If you cannot use the app, follow the steps at feastox.com/delete-account. Deleting removes your name, email address, phone number, profile photo, sign-in details and push notification tokens, and signs you out for good. The restaurant’s own records are kept, as described under How long we keep it. If you are the only owner of a restaurant, make someone else an owner first, or ask us to close the restaurant and its data."
         },
         {
           "h": "Security",
-          "p": "Prices and totals are recalculated on our servers, access is limited by role, and sensitive changes are recorded in an audit log. No system is perfectly secure, and we cannot guarantee absolute security."
+          "p": "Prices and totals are recalculated on our servers, PINs are stored as salted hashes, access is limited by role, and sensitive changes are recorded in an audit log. Data travels between the app, the website and our servers over encrypted connections. No system is perfectly secure, and we cannot guarantee absolute security."
         },
         {
           "h": "Your choices",
-          "p": "You can ask to see, correct or delete personal information we hold about you. Diners should first contact the restaurant. Contact us at {{email}}."
+          "p": "You can ask to see, correct or delete personal information we hold about you. Staff can correct their name, phone number and photo in the app. Diners should first contact the restaurant. Contact us at {{email}}."
+        },
+        {
+          "h": "Children",
+          "p": "FeastoX is built for restaurants and their staff. It is not aimed at children, and we do not knowingly collect personal information from them."
         },
         {
           "h": "Changes",
@@ -143,6 +155,40 @@
         {
           "h": "How to ask",
           "p": "Email {{email}} with your restaurant name and the invoice number, and tell us what went wrong. We will reply with the outcome."
+        }
+      ]
+    },
+    {
+      "slug": "delete-account",
+      "name": "Delete Account",
+      "title": "Delete your FeastoX account · FeastoX",
+      "description": "How to delete your FeastoX account from the mobile app or by email, what is deleted, what is kept and for how long.",
+      "h1": "Delete your FeastoX account",
+      "intro": "This page explains how to delete your account in the FeastoX mobile app by {{company}}, and what happens to your data when you do. It applies to staff and owners who sign in to FeastoX on the app or the website. Last updated {{updated}}.",
+      "sections": [
+        {
+          "h": "Delete your account in the app",
+          "p": "Open the FeastoX app and sign in. Go to the More tab and tap your profile at the top. Scroll to the bottom and choose Delete my account. Enter your sign-in PIN and confirm. The deletion happens straight away and you are signed out."
+        },
+        {
+          "h": "If you cannot use the app",
+          "p": "Email {{email}} from the email address on your FeastoX account, with the subject Delete my FeastoX account. Tell us the restaurant you work at. We may reply to that address to confirm the request is yours. We will never ask for your PIN. We delete the account within 30 days of your request and confirm by email when it is done. This route is also for staff whose restaurant is suspended and so cannot sign in to the app."
+        },
+        {
+          "h": "What is deleted",
+          "p": "Your name, email address, phone number, profile photo, sign-in PIN and approval PIN, and the push notification tokens of your phones. You can no longer sign in, on the app or the website, and your access to every restaurant you belonged to is removed."
+        },
+        {
+          "h": "What we keep, and for how long",
+          "p": "The restaurant’s own business records are not deleted: orders, sales, payments, accounting entries and the audit log. Entries you made keep the staff name as it was when they were recorded, so receipts and books stay accurate, but they no longer link to a working account. The restaurant keeps these for as long as its account is active and for the period the law or legitimate business needs require afterwards, such as tax and accounting records and preventing fraud or misuse."
+        },
+        {
+          "h": "Restaurant owners",
+          "p": "If you are the only owner of a restaurant, the app will not delete your account until another person is made an owner, so the restaurant is never left without one. To close a restaurant and have its data deleted, email {{email}} from the owner’s email address. We delete it within 30 days, except records we must keep by law."
+        },
+        {
+          "h": "Diners",
+          "p": "Diners do not have accounts. If you gave a name, phone number or address with a delivery or pick-up order, ask the restaurant first. You can also email {{email}} with the restaurant’s name and the details you gave, and we will delete personal information we are not required to keep."
         }
       ]
     }
