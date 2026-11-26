@@ -26,10 +26,11 @@ function setMeta(selector: string, attr: 'name' | 'property', key: string, conte
 }
 
 /** Keeps the tab title and SEO tags (description, canonical, robots, Open Graph) in sync with whichever page is mounted. */
-export function usePageTitle(title: string, description?: string, keywords?: string[]) {
+/** `indexable` opens a page that is not in the fixed list, e.g. a claimed restaurant's `/r/:slug`. */
+export function usePageTitle(title: string, description?: string, keywords?: string[], indexable = false) {
   useEffect(() => {
     const path = window.location.pathname.replace(/\/+$/, '') || '/';
-    const indexable = INDEXABLE.has(path);
+    const isIndexable = indexable || INDEXABLE.has(path);
     const url = SITE + (path === '/' ? '/' : path);
 
     document.title = title;
@@ -42,7 +43,7 @@ export function usePageTitle(title: string, description?: string, keywords?: str
     setMeta('meta[property="og:title"]', 'property', 'og:title', title);
     setMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
     setMeta('meta[property="og:url"]', 'property', 'og:url', url);
-    setMeta('meta[name="robots"]', 'name', 'robots', indexable ? 'index,follow' : 'noindex,nofollow');
+    setMeta('meta[name="robots"]', 'name', 'robots', isIndexable ? 'index,follow' : 'noindex,nofollow');
 
     let link = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (!link) {
@@ -51,5 +52,5 @@ export function usePageTitle(title: string, description?: string, keywords?: str
       document.head.appendChild(link);
     }
     link.href = url;
-  }, [title, description, keywords]);
+  }, [title, description, keywords, indexable]);
 }

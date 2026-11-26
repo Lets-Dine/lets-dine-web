@@ -17,6 +17,7 @@ import { GetStarted } from './routes/GetStarted';
 import { Landing } from './routes/Landing';
 import { Pricing } from './routes/Pricing';
 import { BlogIndex, BlogPost } from './routes/Blog';
+import { RestaurantPage } from './routes/RestaurantPage';
 import { Menu } from './routes/Menu';
 import { NotFound } from './routes/NotFound';
 import { OrderHistory } from './routes/OrderHistory';
@@ -216,6 +217,8 @@ export default function App() {
                   element={f.slug === 'dish-ratings-and-qr-menu' ? <RatingsAndMenu /> : <Feature slug={f.slug} />}
                 />
               ))}
+              {/* The restaurant's public page: identity and menu summary. Indexed only once the restaurant is claimed. */}
+              <Route path="/r/:slug" element={<RestaurantPage />} />
               {/* Stands in for the physical QR code on the table — the live product starts at /r/:slug/t/:token. */}
               {/* <Route path="/demo" element={<Entry />} /> */}
               {/* The QR encodes only the restaurant slug and an opaque table token. */}

@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/r/:slug",
+      "destination": "/api/restaurant-share?slug=:slug"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
