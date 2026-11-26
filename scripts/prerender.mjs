@@ -58,11 +58,11 @@ const pages = [
   },
   {
     path: '/blog',
-    title: 'Guides for restaurants in Nepal · FeastoX',
-    description: 'Practical guides on QR menus, POS, kitchen display, food cost and dish ratings for restaurants and cafes in Nepal.',
-    h1: 'Guides for running a restaurant in Nepal',
-    body: `<p>How QR menus, a POS, the kitchen screen, food cost and dish ratings fit together.</p><ul>${[...posts].sort((a, b) => b.date.localeCompare(a.date)).map((p) => `<li><a href="/blog/${p.slug}">${esc(p.h1)}</a> ${esc(p.description)}</li>`).join('')}</ul>`,
-    keywords: ['restaurant blog Nepal', 'restaurant guides Nepal'],
+    title: 'Restaurant POS and KDS Guides for Nepal · FeastoX',
+    description: 'Practical guides on restaurant POS, KDS (kitchen display), QR menus, food cost and dish ratings for restaurants and cafes in Nepal.',
+    h1: 'Restaurant POS and KDS guides for Nepal',
+    body: `<p>How a restaurant POS, the KDS in the kitchen, QR menus, food cost and dish ratings fit together.</p><ul>${[...posts].sort((a, b) => b.date.localeCompare(a.date)).map((p) => `<li><a href="/blog/${p.slug}">${esc(p.h1)}</a> ${esc(p.description)}</li>`).join('')}</ul>`,
+    keywords: ['restaurant POS Nepal', 'KDS Nepal', 'restaurant kitchen display Nepal', 'restaurant blog Nepal', 'restaurant guides Nepal'],
     priority: '0.7',
     ld: {
       '@context': 'https://schema.org',

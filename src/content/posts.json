@@ -33,13 +33,13 @@
   },
   {
     "slug": "restaurant-pos-vs-paper-bills",
-    "title": "Restaurant POS vs Paper Bills for a Small Restaurant · FeastoX",
-    "description": "What changes when a small restaurant in Nepal moves from paper bills to a POS: the ticket, the total, and the end-of-day count.",
-    "h1": "What changes when a small restaurant leaves paper bills",
+    "title": "Restaurant POS vs Paper Bills in Nepal · FeastoX",
+    "description": "Moving a restaurant in Nepal from paper bills to a POS: the ticket, the total, the kitchen order and the end-of-day count.",
+    "h1": "Restaurant POS vs paper bills in Nepal",
     "date": "2026-11-08",
     "related": "restaurant-pos",
-    "intro": "A POS is not a bigger calculator. It is the place an order is written once, priced from the menu, and still there at the end of the night. Paper can run a quiet lunch. It starts losing items when two people sell at once.",
-    "keywords": ["restaurant POS Nepal", "POS for small restaurant", "paper bill vs POS", "restaurant billing software Nepal"],
+    "intro": "A restaurant POS in Nepal is not a bigger calculator. It is the place an order is written once, priced from the menu, and still there at the end of the night. Paper can run a quiet lunch. It starts losing items when two people sell at once.",
+    "keywords": ["restaurant POS Nepal", "POS for small restaurant Nepal", "POS vs paper bills", "restaurant billing software Nepal", "POS system for restaurant in Nepal"],
     "sections": [
       {
         "h": "The bill should not depend on memory",
@@ -55,11 +55,11 @@
       },
       {
         "h": "One sale, wherever it was taken",
-        "p": "A table order, a takeaway and a bill paid at the counter are the same kind of sale. If they land in different books, the evening total is a guess. One queue means one sales number, and the kitchen sees the ticket instead of hearing it."
+        "p": "A table order, a takeaway and a bill paid at the counter are the same kind of sale. If they land in different books, the evening total is a guess. One queue means one sales number, and the kitchen sees the ticket on a KDS instead of hearing it."
       },
       {
         "h": "When paper is still fine",
-        "p": "A single person who cooks and takes the money, with a short menu and no service charge, can stay on paper for a while. The switch is worth it when more than one person sells, when prices move often, or when you want the kitchen to work from a ticket. FeastoX is that till: orders, payments and the day's sales in one place, with prices in Rs."
+        "p": "A single person who cooks and takes the money, with a short menu and no service charge, can stay on paper for a while. The switch is worth it when more than one person sells, when prices move often, or when you want the kitchen to work from a ticket. A restaurant POS in Nepal, such as FeastoX, is that till: orders, payments and the day's sales in one place, with prices in Rs."
       }
     ]
   },
@@ -97,13 +97,13 @@
   },
   {
     "slug": "kitchen-display-for-small-restaurants",
-    "title": "Does a Small Restaurant Need a Kitchen Display? · FeastoX",
-    "description": "When a kitchen display is worth it for a small restaurant, and when a paper ticket is still the right tool.",
-    "h1": "Does a small restaurant need a kitchen display?",
+    "title": "Does a Small Restaurant in Nepal Need a KDS? · FeastoX",
+    "description": "When a KDS (kitchen display system) is worth it for a small restaurant in Nepal, and when a paper ticket is still the right tool.",
+    "h1": "Does a small restaurant in Nepal need a KDS?",
     "date": "2026-11-18",
     "related": "kitchen-display-system",
-    "intro": "A kitchen display is a screen of live tickets, in the order they should be cooked, instead of a stack of paper that can be buried. It is worth it when tickets get lost or shouted. It is not worth it as a decoration.",
-    "keywords": ["kitchen display system", "KDS for small restaurant", "kitchen order screen", "restaurant kitchen display Nepal"],
+    "intro": "A KDS, or kitchen display system, is a screen of live tickets for a restaurant in Nepal, in the order they should be cooked, instead of a stack of paper that can be buried. It is worth it when tickets get lost or shouted. It is not worth it as a decoration.",
+    "keywords": ["KDS Nepal", "KDS for small restaurant", "restaurant KDS Nepal", "kitchen display system Nepal", "kitchen order screen", "restaurant kitchen display Nepal"],
     "sections": [
       {
         "h": "Paper fails in a specific way",
@@ -115,7 +115,7 @@
       },
       {
         "h": "One queue for QR orders and counter orders",
-        "p": "If diners order from the table and staff also punch bills at the counter, both have to land on the same screen. A kitchen that watches one system and listens for the other will miss whichever it is not looking at. FeastoX sends both into one queue, tagged with the table."
+        "p": "If diners order from the table and staff also punch bills at the counter, both have to land on the same screen. A kitchen that watches one system and listens for the other will miss whichever it is not looking at. FeastoX sends both into one KDS queue, tagged with the table."
       },
       {
         "h": "Split stations only if you actually have stations",
@@ -123,7 +123,7 @@
       },
       {
         "h": "Size is the wrong test",
-        "p": "A busy cafe with a short menu hits lost tickets sooner than a large dining room that turns tables slowly. The question is whether two orders can be in flight and the kitchen still knows which one is older. If the answer is no, a display is the cheaper fix. If the answer is yes, keep the paper and spend the money on the menu."
+        "p": "A busy cafe in Nepal with a short menu hits lost tickets sooner than a large dining room that turns tables slowly. The question is whether two orders can be in flight and the kitchen still knows which one is older. If the answer is no, a display is the cheaper fix. If the answer is yes, keep the paper and spend the money on the menu."
       }
     ]
   },
@@ -161,17 +161,17 @@
   },
   {
     "slug": "what-to-look-for-in-restaurant-software",
-    "title": "What to Look for in Restaurant Software in Nepal · FeastoX",
-    "description": "A buyer's checklist for restaurant software in Nepal: one ticket from QR or POS to the kitchen, the bill and the stock.",
-    "h1": "What to look for in restaurant software in Nepal",
+    "title": "Restaurant POS Software Checklist for Nepal · FeastoX",
+    "description": "A buyer's checklist for restaurant POS and KDS software in Nepal: one ticket from QR or POS to the kitchen, the bill and the stock.",
+    "h1": "What to look for in restaurant POS software in Nepal",
     "date": "2026-11-25",
     "related": "for-restaurants",
     "intro": "The useful test is not the length of the feature list. It is whether the order, the kitchen, the bill and the stock all describe the same sale. A stack of apps that do not share a ticket recreates the notebook you were trying to leave.",
-    "keywords": ["restaurant management software Nepal", "restaurant software Nepal", "restaurant POS system Nepal", "best restaurant software Nepal"],
+    "keywords": ["restaurant management software Nepal", "restaurant software Nepal", "restaurant POS software Nepal", "restaurant POS system Nepal", "POS and KDS for restaurant Nepal", "best restaurant software Nepal"],
     "sections": [
       {
         "h": "The order has to survive the handoff",
-        "p": "However the table orders — a QR code, a waiter on a POS, a delivery — the kitchen should see one ticket with the table or the address on it. If the QR system and the billing system are different products, someone is retyping, and the retyped ticket is the one that will be wrong. FeastoX keeps QR orders, counter bills and delivery on one queue."
+        "p": "However the table orders — a QR code, a waiter on a POS, a delivery — the kitchen should see one ticket with the table or the address on it. If the QR system and the billing system are different products, someone is retyping, and the retyped ticket is the one that will be wrong. FeastoX keeps QR orders, POS bills, delivery and the KDS on one queue."
       },
       {
         "h": "Prices in Rs., rules on the server",
@@ -199,7 +199,7 @@
     "date": "2026-11-25",
     "related": "for-restaurants",
     "intro": "Running a restaurant is a set of small routines repeated every day: take orders, cook them, bill them, buy what ran out and count what came in. Good management is making those routines reliable enough that you can step out for an hour without the evening falling apart.",
-    "keywords": ["restaurant management Nepal", "how to manage a restaurant", "restaurant management tips Nepal", "restaurant owner guide Nepal"],
+    "keywords": ["restaurant management Nepal", "how to manage a restaurant", "restaurant management tips Nepal", "restaurant owner guide Nepal", "restaurant POS Nepal", "restaurant KDS Nepal"],
     "sections": [
       {
         "h": "Start the day with the numbers you need",
@@ -225,13 +225,13 @@
   },
   {
     "slug": "what-is-restaurant-pos-software",
-    "title": "What Is Restaurant POS Software? · FeastoX",
-    "description": "Restaurant POS software is where orders are taken, bills are settled and sales are recorded. Here is what it does for a restaurant, and what it does not do.",
-    "h1": "What is restaurant POS software?",
+    "title": "What Is Restaurant POS Software in Nepal? · FeastoX",
+    "description": "Restaurant POS software in Nepal takes orders, settles bills and records the day's sales. What it does for a restaurant, and what it does not.",
+    "h1": "What is restaurant POS software in Nepal?",
     "date": "2026-11-25",
     "related": "restaurant-pos",
-    "intro": "A point of sale system is where a restaurant records an order, prices it, takes payment and keeps the sale. In a restaurant it does more than work as a till. It also has to get the order to the kitchen and count what was sold at the end of the day.",
-    "keywords": ["restaurant POS software", "what is POS software", "restaurant POS system meaning", "POS for restaurants Nepal"],
+    "intro": "A restaurant POS (point of sale) is where a restaurant in Nepal records an order, prices it, takes payment and keeps the sale. In a restaurant it does more than work as a till. It also has to get the order to the kitchen and count what was sold at the end of the day.",
+    "keywords": ["restaurant POS software Nepal", "what is POS software", "restaurant POS system Nepal", "POS for restaurants Nepal", "restaurant POS meaning"],
     "sections": [
       {
         "h": "What it does at the counter",
@@ -239,7 +239,7 @@
       },
       {
         "h": "What it does in the kitchen",
-        "p": "A useful POS does not stop at the till. The order should reach the kitchen screen or printer as soon as it is placed, with the table and any note. Without that link, the POS is a cash register and the cook still works from a shouted order."
+        "p": "A useful POS does not stop at the till. The order should reach the KDS or a kitchen printer as soon as it is placed, with the table and any note. Without that link, the POS is a cash register and the cook still works from a shouted order."
       },
       {
         "h": "What it records after the sale",
@@ -251,13 +251,13 @@
       },
       {
         "h": "How to tell if you need one",
-        "p": "If more than one person takes orders, if prices change often, or if the kitchen keeps asking what a ticket was, a POS is worth it for the fewer mistakes alone. A single cook selling a short menu can manage on a notebook for longer. FeastoX's POS runs in the browser, shares its menu and orders with QR ordering, and records the day's sales in the same system."
+        "p": "If more than one person takes orders, if prices change often, or if the kitchen keeps asking what a ticket was, a POS is worth it for the fewer mistakes alone. A single cook selling a short menu can manage on a notebook for longer. FeastoX's restaurant POS in Nepal runs in the browser, shares its menu and orders with QR ordering and the KDS, and records the day's sales in the same system."
       }
     ]
   },
   {
     "slug": "how-to-track-restaurant-sales-and-expenses",
-    "title": "How to Track Restaurant Sales and Expenses · FeastoX",
+    "title": "How to Track Restaurant Sales in Nepal · FeastoX",
     "description": "How a restaurant in Nepal can track daily sales and expenses in one place: what to record, when to record it, and how to read the month-end numbers.",
     "h1": "How to track restaurant sales and expenses",
     "date": "2026-11-25",

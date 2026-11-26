@@ -218,13 +218,13 @@
     "slug": "restaurant-pos",
     "name": "POS",
     "title": "Restaurant POS Software in Nepal · FeastoX",
-    "description": "A restaurant POS for Nepal that takes orders at the counter or table, sends them to the kitchen, prints guest receipts and settles bills. Part of one system with QR ordering.",
+    "description": "A restaurant POS for Nepal: take orders at the counter or table, send them to the kitchen, print receipts and settle bills, with QR ordering.",
     "h1": "A restaurant POS that shares one menu with your QR ordering",
     "intro": "Take orders at the counter or the table, settle the bill and print a guest receipt. Everything lands in the same system as your QR orders, so there is one menu, one order queue and one set of sales.",
     "sections": [
       {
         "h": "One order queue",
-        "p": "QR orders and POS orders arrive in the same place, tagged by table, so staff are never reconciling two systems at the end of the night."
+        "p": "QR orders and POS orders arrive in the same place, tagged by table, and go to the KDS, so staff are never reconciling two systems at the end of the night."
       },
       {
         "h": "Guest receipts and a customer display",
@@ -262,10 +262,10 @@
   {
     "slug": "kitchen-display-system",
     "name": "Kitchen display",
-    "title": "Kitchen Display System for Restaurants in Nepal · FeastoX",
-    "description": "Replace paper tickets with kitchen and bar screens. Orders move from new to ready, and the table sees the status live.",
+    "title": "Restaurant KDS: Kitchen Display System in Nepal · FeastoX",
+    "description": "A KDS for restaurants in Nepal. Kitchen and bar screens replace paper tickets, orders move from new to ready, and the table sees status live.",
     "h1": "A kitchen display that replaces paper tickets",
-    "intro": "Orders appear on a screen in the kitchen the moment they are placed, split between the kitchen and the bar, so cooks work from a clear queue instead of a spike of paper.",
+    "intro": "A KDS (kitchen display system) shows each order on a screen the moment it is placed, split between the kitchen and the bar, so cooks work from a clear queue instead of a spike of paper.",
     "sections": [
       {
         "h": "Kitchen and bar screens",
@@ -293,6 +293,9 @@
     "keywords": [
       "kitchen display system",
       "KDS for restaurants",
+      "KDS Nepal",
+      "restaurant KDS Nepal",
+      "kitchen display system Nepal",
       "KOT software",
       "paperless kitchen orders",
       "kitchen order ticket",

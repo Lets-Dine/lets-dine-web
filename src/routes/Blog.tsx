@@ -10,9 +10,9 @@ import { LandingFooter } from './landing/LandingFooter';
 import { DISPLAY_MD, LEAD, RAIL } from './landing/kit';
 import { NotFound } from './NotFound';
 
-const INDEX_TITLE = 'Guides for restaurants in Nepal · FeastoX';
+const INDEX_TITLE = 'Restaurant POS and KDS Guides for Nepal · FeastoX';
 const INDEX_DESCRIPTION =
-  'Practical guides on QR menus, POS, kitchen display, food cost and dish ratings for restaurants and cafes in Nepal.';
+  'Practical guides on restaurant POS, KDS (kitchen display), QR menus, food cost and dish ratings for restaurants and cafes in Nepal.';
 
 function useLandingChrome() {
   useLayoutEffect(() => {
@@ -49,16 +49,16 @@ function articleLd(post: (typeof posts)[number], path: string) {
 
 export function BlogIndex() {
   useLandingChrome();
-  usePageTitle(INDEX_TITLE, INDEX_DESCRIPTION, ['restaurant blog Nepal', 'restaurant guides Nepal']);
+  usePageTitle(INDEX_TITLE, INDEX_DESCRIPTION, ['restaurant POS Nepal', 'KDS Nepal', 'restaurant kitchen display Nepal', 'restaurant blog Nepal', 'restaurant guides Nepal']);
   const sorted = [...posts].sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div className="min-h-dvh bg-stock text-ink">
       <LandingNav />
       <main id="main" className={cx(RAIL, 'pb-20 pt-[calc(120px+var(--safe-t))] lg:pt-[calc(150px+var(--safe-t))]')}>
-        <h1 className={cx(DISPLAY_MD, 'max-w-[22ch] text-ink')}>Guides for running a restaurant in Nepal</h1>
+        <h1 className={cx(DISPLAY_MD, 'max-w-[22ch] text-ink')}>Restaurant POS and KDS guides for Nepal</h1>
         <p className={cx(LEAD, 'mt-6 max-w-[56ch]')}>
-          How QR menus, a POS, the kitchen screen, food cost and dish ratings fit together. Written for owners, not for a feature list.
+          How a restaurant POS, the KDS in the kitchen, QR menus, food cost and dish ratings fit together. Written for owners, not for a feature list.
         </p>
         <ul className="mt-14 divide-y divide-hairline border-y border-hairline">
           {sorted.map((post) => (
