@@ -1,6 +1,10 @@
 User-agent: *
 Allow: /
-Disallow: /r/
+# Public restaurant pages (/r/:slug and /r/:slug/delivery) must stay crawlable so share previews work.
+# Table and floor pages carry a private token in the URL, and the delivery cart, checkout and orders are per visit, so they stay blocked.
+Disallow: /r/*/t/
+Disallow: /r/*/f/
+Disallow: /r/*/delivery/
 Disallow: /admin
 Disallow: /platform
 

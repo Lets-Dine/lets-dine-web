@@ -5,6 +5,10 @@
       "destination": "/api/restaurant-share?slug=:slug"
     },
     {
+      "source": "/r/:slug/delivery",
+      "destination": "/api/restaurant-share?slug=:slug&kind=delivery"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

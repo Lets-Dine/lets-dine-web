@@ -12,6 +12,7 @@ const SITE = 'https://feastox.com';
 const DEFAULT_IMAGE = `${SITE}/og-image.png`;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/i;
 const LOOKUP_TIMEOUT_MS = 3000;
+const IMAGE_TIMEOUT_MS = 3000;
 
 interface SharedRestaurant {
   name: string;
@@ -32,8 +33,23 @@ export function clip(text: string, max = 155): string {
   return t.length <= max ? t : `${t.slice(0, max - 1).trimEnd()}…`;
 }
 
-function httpsOnly(url: string | null | undefined): string | null {
-  return url && /^https:\/\//i.test(url) ? url : null;
+/**
+ * First candidate that really returns an image. A link that answers with a web page (or nothing) gives the crawler
+ * no picture, so it is skipped for the next candidate, then for the FeastoX default.
+ */
+async function pickImage(candidates: (string | null | undefined)[]): Promise<string> {
+  for (const url of candidates) {
+    if (!url || !/^https:\/\//i.test(url)) continue;
+    try {
+      const res = await fetch(url, { headers: { Range: 'bytes=0-0' }, signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) });
+      const isImage = res.ok && (res.headers.get('content-type') ?? '').startsWith('image/');
+      await res.body?.cancel();
+      if (isImage) return url;
+    } catch {
+      // Unreachable or slow: try the next candidate.
+    }
+  }
+  return DEFAULT_IMAGE;
 }
 
 /** Replaces the content of one meta tag, matched by its name or property. Tolerates the multi-line form Vite writes. */
@@ -46,18 +62,25 @@ function setMeta(html: string, attr: 'name' | 'property', key: string, content: 
  * Fills the Vite template for one restaurant. With no restaurant (missing, unknown, or the API is down)
  * it returns the generic shell marked noindex, so a bad link never gets a FeastoX card for a restaurant.
  */
-export function renderShell(template: string, slug: string, restaurant: SharedRestaurant | null): string {
-  const url = `${SITE}/r/${slug}`;
+export function renderShell(
+  template: string,
+  slug: string,
+  restaurant: SharedRestaurant | null,
+  image = DEFAULT_IMAGE,
+  kind: 'page' | 'delivery' = 'page',
+): string {
+  const delivery = kind === 'delivery';
+  const url = delivery ? `${SITE}/r/${slug}/delivery` : `${SITE}/r/${slug}`;
   if (!restaurant) {
     return template.replace(/<meta name="robots" content="[^"]*"\s*\/?>/i, '<meta name="robots" content="noindex,nofollow" />');
   }
 
   // Same rule as the client page: only claimed restaurants go to search. Unclaimed ones still get their own share card.
-  const indexable = restaurant.claimedAt !== null && restaurant.isActive !== false;
+  // The delivery page is an ordering entry, not a landing page: shareable, never indexed.
+  const indexable = !delivery && restaurant.claimedAt !== null && restaurant.isActive !== false;
   const name = restaurant.name;
   const description = clip(restaurant.tagline || restaurant.description || `Menu and prices at ${name}. Scan the code on your table to order.`);
-  const image = httpsOnly(restaurant.coverImageUrl) ?? httpsOnly(restaurant.logoUrl) ?? DEFAULT_IMAGE;
-  const title = `${name} menu · FeastoX`;
+  const title = delivery ? `Order from ${name} · FeastoX` : `${name} menu · FeastoX`;
 
   let html = template;
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(title)}</title>`);
@@ -72,6 +95,8 @@ export function renderShell(template: string, slug: string, restaurant: SharedRe
   html = setMeta(html, 'name', 'twitter:title', title);
   html = setMeta(html, 'name', 'twitter:description', description);
   html = setMeta(html, 'name', 'twitter:image', image);
+  // A square logo is cropped badly in a large card, so show it as the small summary card.
+  if (image === restaurant.logoUrl) html = setMeta(html, 'name', 'twitter:card', 'summary');
   html = html.replace(/<link rel="canonical" href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${url}" />`);
   html = setMeta(html, 'name', 'robots', indexable ? 'index,follow,max-image-preview:large' : 'noindex,nofollow');
   return html;
@@ -87,7 +112,9 @@ async function lookup(apiBase: string, slug: string): Promise<{ restaurant: Shar
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const slug = new URL(req.url ?? '/', 'http://localhost').searchParams.get('slug') ?? '';
+  const query = new URL(req.url ?? '/', 'http://localhost').searchParams;
+  const slug = query.get('slug') ?? '';
+  const kind = query.get('kind') === 'delivery' ? 'delivery' : 'page';
   const apiBase = (process.env.VITE_API_URL ?? '').replace(/\/+$/, '');
 
   const send = (status: number, html: string, cache: string) => {
@@ -110,7 +137,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const found = await lookup(apiBase, slug);
     if (!found) return send(200, renderShell(template, slug, null), 'public, s-maxage=60');
     if (!found.restaurant) return send(404, renderShell(template, slug, null), 'public, s-maxage=300');
-    return send(200, renderShell(template, slug, found.restaurant), 'public, s-maxage=300, stale-while-revalidate=86400');
+    const { coverImageUrl, logoUrl } = found.restaurant;
+    // The delivery card leads with the logo; the restaurant page leads with the cover.
+    const image = await pickImage(kind === 'delivery' ? [logoUrl, coverImageUrl] : [coverImageUrl, logoUrl]);
+    return send(200, renderShell(template, slug, found.restaurant, image, kind), 'public, s-maxage=300, stale-while-revalidate=86400');
   } catch {
     return send(200, renderShell(template, slug, null), 'public, s-maxage=60');
   }
