@@ -1099,7 +1099,22 @@ function validateDraft(draft: DishDraft, categories: MenuCategory[]): void {
   if (draft.name.trim().length < 2) throw new ApiError(400, 'A dish needs a name.');
   if (!Number.isInteger(draft.price) || draft.price < 0) throw new ApiError(400, 'Price must be a whole amount.');
   if (draft.price > 10_000_00) throw new ApiError(400, 'That price looks like a typo.');
-  if (!categories.some((c) => c.id === draft.categoryId)) throw new ApiError(400, 'Pick a category for this dish.');
+  if (draft.categoryId && !categories.some((c) => c.id === draft.categoryId)) throw new ApiError(400, 'That category no longer exists.');
+}
+
+/** A dish with no category goes under a shared "Uncategorized" section, last in the menu — same rule as the backend. */
+function fileUnderCategory(categories: MenuCategory[], categoryId: string, restaurantId: string) {
+  if (categoryId) return { categories, categoryId };
+  const found = categories.find((c) => c.name === 'Uncategorized');
+  if (found) return { categories, categoryId: found.id };
+  const created: MenuCategory = {
+    id: uid('cat'),
+    restaurantId,
+    name: 'Uncategorized',
+    emoji: '🍽️',
+    sortOrder: Math.max(0, ...categories.map((c) => c.sortOrder)) + 1,
+  };
+  return { categories: [...categories, created], categoryId: created.id };
 }
 
 export async function createDish(actor: StaffMember, draft: DishDraft): Promise<Dish> {
@@ -1109,11 +1124,12 @@ export async function createDish(actor: StaffMember, draft: DishDraft): Promise<
   validateDraft(draft, base.menu.categories);
 
   const restaurant = restaurantOf(base);
+  const filed = fileUnderCategory(base.menu.categories, draft.categoryId, restaurant.id);
   const sortOrder = Math.max(-1, ...base.menu.dishes.map((d) => d.sortOrder)) + 1;
   const dish: Dish = {
     id: uid('dsh'),
     restaurantId: restaurant.id,
-    categoryId: draft.categoryId,
+    categoryId: filed.categoryId,
     name: draft.name.trim(),
     slug: slugify(draft.name),
     description: draft.description.trim(),
@@ -1144,7 +1160,7 @@ export async function createDish(actor: StaffMember, draft: DishDraft): Promise<
 
   writeStore(
     record(
-      { ...base, menu: { ...base.menu, dishes: [...base.menu.dishes, dish] } },
+      { ...base, menu: { ...base.menu, categories: filed.categories, dishes: [...base.menu.dishes, dish] } },
       actor,
       'dish_created',
       dish.name,
@@ -1170,7 +1186,7 @@ export async function updateDish(actor: StaffMember, dishId: string, patch: Part
   const draft: DishDraft = {
     name: patch.name ?? before.name,
     description: patch.description ?? before.description,
-    categoryId: patch.categoryId ?? before.categoryId,
+    categoryId: patch.categoryId || before.categoryId,
     price: patch.price ?? before.price,
     imageUrl: patch.imageUrl !== undefined ? patch.imageUrl : before.imageUrl,
     dietaryType: patch.dietaryType ?? before.dietaryType,

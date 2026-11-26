@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
+  createCategory,
   createDish,
   createDishVariant,
   setDishArchived,
@@ -41,7 +42,7 @@ import { reduced, useCountUp } from '../../components/admin/profile';
 import { DISPLAY, cx } from '../../components/ui';
 import { haptic } from '../../platform/haptics';
 import { useDashboard } from './AdminLayout';
-import { PhotoLink, PhotoSuggestions, VariantEditor, VariantOptionFields } from './DishEditor';
+import { NewCategory, PhotoLink, PhotoSuggestions, VariantEditor, VariantOptionFields } from './DishEditor';
 
 /*
  * Dish editor, take two.
@@ -266,6 +267,14 @@ export function DishEditorV2() {
     autoConsumeStock: existing?.autoConsumeStock ?? null,
   }));
   const patch = <K extends keyof DishDraft>(key: K, value: DishDraft[K]) => setDraft((prev) => ({ ...prev, [key]: value }));
+  const addCategory = (name: string, emoji: string) =>
+    act(
+      'new-category',
+      async () => {
+        patch('categoryId', (await createCategory(staff, name, emoji)).id);
+      },
+      `${name.trim()} added`,
+    );
 
   const [addOnIds, setAddOnIds] = useState<string[]>(() => existing?.addOnIds ?? []);
   const toggleAddOn = (id: string) => setAddOnIds((prev) => (prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]));
@@ -512,8 +521,24 @@ export function DishEditorV2() {
                 </Field>
 
                 <div className="grid gap-6 sm:grid-cols-2">
-                  <Field label="Category">
+                  <Field label="Category" hint={isNew ? 'Optional. Left empty, it goes under “Uncategorized”.' : undefined}>
                     <div className="flex flex-wrap gap-2">
+                      {isNew && (
+                        <button
+                          type="button"
+                          aria-pressed={draft.categoryId === ''}
+                          onClick={() => {
+                            haptic.select();
+                            patch('categoryId', '');
+                          }}
+                          className={cx(
+                            'inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition-[color,background-color,scale] duration-200 active:scale-95',
+                            draft.categoryId === '' ? 'bg-flame text-white shadow-flame' : 'bg-surface-2 text-ink-2 ring-1 ring-hairline ring-inset hover:bg-surface-3',
+                          )}
+                        >
+                          No category
+                        </button>
+                      )}
                       {menu.categories.map((c) => (
                         <button
                           key={c.id}
@@ -532,6 +557,11 @@ export function DishEditorV2() {
                         </button>
                       ))}
                     </div>
+                    {canEdit && (
+                      <div className="mt-3">
+                        <NewCategory busy={busy} onAdd={addCategory} />
+                      </div>
+                    )}
                   </Field>
 
                   {variantCount === 0 ? (
@@ -641,18 +671,38 @@ export function DishEditorV2() {
                   )}
                   <ul className="mb-4 divide-y divide-hairline">
                     {isNew &&
-                      stagedVariants.map((v) => (
-                        <li key={v.tempId} className="flex animate-rise flex-wrap items-center gap-x-3 gap-y-2 py-3">
-                          <span className="min-w-0 flex-1 text-[14.5px] font-semibold">
-                            {v.name}
-                            <DietMarks dish={v} />
-                          </span>
-                          <span className="text-[13.5px] tnum text-ink-3">{formatMoney(v.price, currency)}</span>
-                          <button type="button" className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')} onClick={() => setStagedVariants((p) => p.filter((x) => x.tempId !== v.tempId))}>
-                            Remove
-                          </button>
-                        </li>
-                      ))}
+                      stagedVariants.map((v) =>
+                        editingVariantId === v.tempId ? (
+                          <li key={v.tempId} className="py-3">
+                            <VariantEditor
+                              variant={v}
+                              currency={currency}
+                              busy={busy}
+                              onCancel={() => setEditingVariantId(null)}
+                              onSave={(name, price, spiceLevel, dietaryType) => {
+                                setEditingVariantId(null);
+                                setStagedVariants((p) => p.map((x) => (x.tempId === v.tempId ? { ...x, name: name.trim(), price, spiceLevel, dietaryType } : x)));
+                              }}
+                            />
+                          </li>
+                        ) : (
+                          <li key={v.tempId} className="flex animate-rise flex-wrap items-center gap-x-3 gap-y-2 py-3">
+                            <span className="min-w-0 flex-1 text-[14.5px] font-semibold">
+                              {v.name}
+                              <DietMarks dish={v} />
+                            </span>
+                            <span className="text-[13.5px] tnum text-ink-3">{formatMoney(v.price, currency)}</span>
+                            <span className="flex shrink-0 items-center gap-1">
+                              <button type="button" className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')} onClick={() => setEditingVariantId(v.tempId)}>
+                                Edit
+                              </button>
+                              <button type="button" className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')} onClick={() => setStagedVariants((p) => p.filter((x) => x.tempId !== v.tempId))}>
+                                Remove
+                              </button>
+                            </span>
+                          </li>
+                        ),
+                      )}
                     {!isNew &&
                       liveVariants.map((v) =>
                         editingVariantId === v.id ? (

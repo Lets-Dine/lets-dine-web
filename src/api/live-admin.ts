@@ -930,7 +930,7 @@ export async function moveCategory(categoryId: string, overId: string): Promise<
 
 function dishBody(draft: Partial<DishDraft>): Record<string, unknown> {
   const body: Record<string, unknown> = {};
-  if (draft.categoryId !== undefined) body.categoryId = draft.categoryId;
+  if (draft.categoryId) body.categoryId = draft.categoryId; // empty = no category; the backend files a new dish under "Uncategorized"
   if (draft.name !== undefined) body.name = draft.name.trim();
   if (draft.description !== undefined) body.description = draft.description.trim();
   if (draft.imageUrl !== undefined) body.imageUrl = draft.imageUrl;

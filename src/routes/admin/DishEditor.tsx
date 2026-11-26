@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
+  createCategory,
   createDish,
   createDishVariant,
   setDishArchived,
@@ -243,6 +244,14 @@ export function DishEditor() {
 
   const patch = <K extends keyof DishDraft>(key: K, value: DishDraft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
+  const addCategory = (name: string, emoji: string) =>
+    act(
+      'new-category',
+      async () => {
+        patch('categoryId', (await createCategory(staff, name, emoji)).id);
+      },
+      `${name.trim()} added`,
+    );
 
   /** Photos already bundled with the menu, so a new dish can borrow one. */
   const library = useMemo(
@@ -342,12 +351,20 @@ export function DishEditor() {
               </Field>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Category">
+                <Field label="Category" hint={isNew ? 'Optional — left empty, it goes under “Uncategorized”.' : undefined}>
                   <Select
                     value={draft.categoryId}
                     onChange={(v) => patch('categoryId', v)}
-                    options={menu.categories.map((c) => ({ value: c.id, label: `${c.emoji} ${c.name}` }))}
+                    options={[
+                      ...(isNew ? [{ value: '', label: 'No category' }] : []),
+                      ...menu.categories.map((c) => ({ value: c.id, label: `${c.emoji} ${c.name}` })),
+                    ]}
                   />
+                  {canEdit && (
+                    <div className="mt-2">
+                      <NewCategory busy={busy} onAdd={addCategory} />
+                    </div>
+                  )}
                 </Field>
                 {variantCount === 0 && (
                   <Field label="Price" hint={[recipeCost != null && draft.price > 0 ? `Costs about ${formatMoney(recipeCost, menu.restaurant.currency)} to make — ${Math.round(((draft.price - recipeCost) / draft.price) * 100)}% margin at this price.` : null, allows('menu:price') ? 'Changing this is written to the audit log.' : null].filter(Boolean).join(' ') || undefined}>
@@ -458,25 +475,50 @@ export function DishEditor() {
                       add them below — they're created together with the dish. Otherwise leave it as a single price.
                     </p>
                   )}
-                  {stagedVariants.map((variant) => (
-                    <div
-                      key={variant.tempId}
-                      className="flex items-center gap-3 rounded-xl bg-surface-2 px-3.5 py-2.5 ring-1 ring-hairline ring-inset"
-                    >
-                      <span className="min-w-0 flex-1 text-[13.5px] font-semibold">
-                        {variant.name}
-                        <DietMarks dish={variant} />
-                      </span>
-                      <span className="text-[13px] tnum text-ink-3">{formatMoney(variant.price, menu.restaurant.currency)}</span>
-                      <button
-                        type="button"
-                        className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')}
-                        onClick={() => setStagedVariants((prev) => prev.filter((v) => v.tempId !== variant.tempId))}
+                  {stagedVariants.map((variant) =>
+                    editingVariantId === variant.tempId ? (
+                      <VariantEditor
+                        key={variant.tempId}
+                        variant={variant}
+                        currency={menu.restaurant.currency}
+                        busy={busy}
+                        onCancel={() => setEditingVariantId(null)}
+                        onSave={(name, price, spiceLevel, dietaryType) => {
+                          setEditingVariantId(null);
+                          setStagedVariants((prev) =>
+                            prev.map((v) => (v.tempId === variant.tempId ? { ...v, name: name.trim(), price, spiceLevel, dietaryType } : v)),
+                          );
+                        }}
+                      />
+                    ) : (
+                      <div
+                        key={variant.tempId}
+                        className="flex items-center gap-3 rounded-xl bg-surface-2 px-3.5 py-2.5 ring-1 ring-hairline ring-inset"
                       >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                        <span className="min-w-0 flex-1 text-[13.5px] font-semibold">
+                          {variant.name}
+                          <DietMarks dish={variant} />
+                        </span>
+                        <span className="text-[13px] tnum text-ink-3">{formatMoney(variant.price, menu.restaurant.currency)}</span>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')}
+                            onClick={() => setEditingVariantId(variant.tempId)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')}
+                            onClick={() => setStagedVariants((prev) => prev.filter((v) => v.tempId !== variant.tempId))}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ),
+                  )}
                   <form
                     className="mt-1 flex flex-wrap items-center gap-2"
                     onSubmit={(e) => {
@@ -1001,7 +1043,7 @@ export function VariantEditor({
   onSave,
   onCancel,
 }: {
-  variant: DishVariant;
+  variant: Pick<DishVariant, 'name' | 'price' | 'spiceLevel' | 'dietaryType'>; // a staged (not yet saved) variant has no id
   currency: string;
   busy: boolean;
   onSave: (name: string, price: number, spiceLevel: 0 | 1 | 2 | 3, dietaryType: DietaryType) => void;
@@ -1037,6 +1079,58 @@ export function VariantEditor({
       </button>
       <button type="submit" className={ADMIN_PRIMARY} disabled={busy || name.trim().length < 1}>
         Save
+      </button>
+    </form>
+  );
+}
+
+/** "+ New category" beside a dish's category picker, so a section can be made without leaving the form. */
+export function NewCategory({ busy, onAdd }: { busy: boolean; onAdd: (name: string, emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [emoji, setEmoji] = useState('');
+
+  if (!open)
+    return (
+      <button type="button" className={cx(ADMIN_TINY, 'bg-surface-2 ring-1 ring-hairline ring-inset')} onClick={() => setOpen(true)}>
+        + New category
+      </button>
+    );
+
+  return (
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim().length < 2) return;
+        onAdd(name, emoji);
+        setName('');
+        setEmoji('');
+        setOpen(false);
+      }}
+    >
+      <input
+        className="w-14 rounded-xl bg-surface-2 px-2.5 py-2.5 text-center text-[14.5px] outline-none ring-1 ring-hairline ring-inset placeholder:text-ink-4 focus:ring-[1.5px] focus:ring-flame-2/40"
+        value={emoji}
+        maxLength={8}
+        placeholder="🍽️"
+        aria-label="Category emoji"
+        onChange={(e) => setEmoji(e.target.value)}
+      />
+      <input
+        className="min-w-30 flex-1 rounded-xl bg-surface-2 px-3.5 py-2.5 text-[14.5px] outline-none ring-1 ring-hairline ring-inset placeholder:text-ink-4 focus:ring-[1.5px] focus:ring-flame-2/40"
+        value={name}
+        maxLength={60}
+        placeholder="Momos, Drinks…"
+        aria-label="Category name"
+        autoFocus
+        onChange={(e) => setName(e.target.value)}
+      />
+      <button type="button" className={ADMIN_GHOST} onClick={() => setOpen(false)}>
+        Cancel
+      </button>
+      <button type="submit" className={ADMIN_PRIMARY} disabled={busy || name.trim().length < 2}>
+        Add
       </button>
     </form>
   );
