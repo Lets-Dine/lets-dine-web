@@ -1,3 +1,7 @@
+# Facebook/WhatsApp link previews. Its own group, so the wildcard rules below (which some parsers misread as /r/) never apply.
+User-agent: facebookexternalhit
+Allow: /
+
 User-agent: *
 Allow: /
 # Public restaurant pages (/r/:slug and /r/:slug/delivery) must stay crawlable so share previews work.
